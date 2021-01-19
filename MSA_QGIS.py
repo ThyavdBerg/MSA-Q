@@ -25,6 +25,7 @@ from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
 from qgis.core import *
+from qgis.utils import iface
 
 # Initialize Qt resources from file resources.py
 from .resources import *
@@ -204,7 +205,7 @@ class MsaQgis:
             ext= layer.extent()
 
             #Create new vector point layer
-            vectorpoint_base = QgsVectorLayer("point", "temp", "memory")
+            vectorpoint_base = QgsVectorLayer('Point?crs=' + crs, 'grid', "memory") #'grid' become fillable name for layer
             data_provider = vectorpoint_base.dataProvider()
 
             #Set extent of the new layer
@@ -215,22 +216,22 @@ class MsaQgis:
 
             #Create the coordinates of the points in the grid
             points = []
-            y=ymax
-            while y>= ymin:
-                x= xmin
+            y = ymax
+            while y >= ymin:
+                x = xmin
                 while x <= xmax:
                     geom = QgsGeometry().fromPoint(QgsPoint(x,y))
                     feat = QgsFeature()
-                    point = WgsPoint (x,y)
-                    feat.setGeometry(QgsGeometry.fromPoint (point))
+                    point = QgsPoint (x,y)
+                    feat.setGeometry(QgsGeometry.fromPoint(point))
                     points.append(feat)
-                    x +=spacing
-                y= y-spacing
+                    x += spacing
+                y = y-spacing
             data_provider.addFeatures(points)
             vectorpoint_base.updateExtents()
 
             # Add layer to map
-            QgsMapLayerRegistry.instance().addMapLayer(vectorpoint_base)
+            QgsProject.instance().addMapLayer(vectorpoint_base)
 
             # Do something useful here - delete the line containing pass and
             # substitute with your code.
