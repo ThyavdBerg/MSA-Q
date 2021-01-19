@@ -197,16 +197,16 @@ class MsaQgis:
         result = self.dlg.exec_()
         # See if OK was pressed
         if result:
-            layer = iface.activeLayer()
-            spacing = 10 #set spacing (needs to become fillable box)
+            layer = iface.activeLayer() #active layer currently has to be in a projection that uses meters, like pseudomercator
+            spacing = 1000 #set spacing (needs to become fillable box)
             inset = spacing * 0.5 #set inset
 
             #get Coordinate Reference System and extent (later replace extent with insertable option)
-            crs = layer.crs().toWkt()
+            crs = layer.crs()
             ext = layer.extent()
 
             #Create new vector point layer
-            vectorpoint_base = QgsVectorLayer('Point?crs=' + crs, 'grid', "memory") #'grid' become fillable name for layer
+            vectorpoint_base = QgsVectorLayer('Point', 'Name', 'memory', crs=crs,) #'Name' become fillable name for layer
             data_provider = vectorpoint_base.dataProvider()
 
             #Set extent of the new layer
@@ -221,7 +221,7 @@ class MsaQgis:
             while y >= ymin:
                 x = xmin
                 while x <= xmax:
-                    geom = QgsGeometry().fromPoint(QgsPoint(x,y))
+                    geom = QgsGeometry.fromPointXY(QgsPointXY(x,y))
                     feat = QgsFeature()
                     feat.setGeometry(geom)
                     points.append(feat)
