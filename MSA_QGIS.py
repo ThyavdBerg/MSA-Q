@@ -197,6 +197,7 @@ class MsaQgis:
         result = self.dlg.exec_()
         # See if OK was pressed
         if result:
+            # with help from https://howtoinqgis.wordpress.com/2016/10/30/how-to-generate-regularly-spaced-points-in-qgis-using-python/
             layer = iface.activeLayer() #active layer currently has to be in a projection that uses meters, like pseudomercator
             spacing = 1000 #set spacing (needs to become fillable box)
             inset = spacing * 0.5 #set inset
