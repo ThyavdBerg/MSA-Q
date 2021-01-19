@@ -200,9 +200,10 @@ class MsaQgis:
             layer = iface.activeLayer()
             spacing = 10 #set spacing (needs to become fillable box)
             inset = spacing * 0.5 #set inset
+
             #get Coordinate Reference System and extent (later replace extent with insertable option)
-            crs= layer.crs().toWkt()
-            ext= layer.extent()
+            crs = layer.crs().toWkt()
+            ext = layer.extent()
 
             #Create new vector point layer
             vectorpoint_base = QgsVectorLayer('Point?crs=' + crs, 'grid', "memory") #'grid' become fillable name for layer
@@ -222,8 +223,7 @@ class MsaQgis:
                 while x <= xmax:
                     geom = QgsGeometry().fromPoint(QgsPoint(x,y))
                     feat = QgsFeature()
-                    point = QgsPoint (x,y)
-                    feat.setGeometry(QgsGeometry.fromPoint(point))
+                    feat.setGeometry(geom)
                     points.append(feat)
                     x += spacing
                 y = y-spacing
