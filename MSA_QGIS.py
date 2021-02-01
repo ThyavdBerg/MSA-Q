@@ -181,6 +181,10 @@ class MsaQgis:
                 action)
             self.iface.removeToolBarIcon(action)
 
+#    def setResolution (self):
+ #       """Retrieves the value the user put in for resolution to pass on to the creation of the vector layer"""
+ #       self.spacing = lineEdit_resolution.value ##Needs to retrieve value input of lineEdit_resolution
+
 
     def run(self):
         """Run method that performs all the real work"""
@@ -199,7 +203,7 @@ class MsaQgis:
         if result:
             # with help from https://howtoinqgis.wordpress.com/2016/10/30/how-to-generate-regularly-spaced-points-in-qgis-using-python/
             layer = iface.activeLayer() #active layer currently has to be in a projection that uses meters, like pseudomercator
-            spacing = 1000 #set spacing (needs to become fillable box)
+            spacing = 1000
             inset = spacing * 0.5 #set inset
 
             #get Coordinate Reference System and extent (later replace extent with insertable option)
@@ -234,6 +238,9 @@ class MsaQgis:
             # Add layer to map
             QgsProject.instance().addMapLayer(vectorpoint_base)
 
+
+
             # Do something useful here - delete the line containing pass and
             # substitute with your code.
             pass
+
