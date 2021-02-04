@@ -32,6 +32,7 @@ from .resources import *
 # Import the code for the dialog
 from .MSA_QGIS_dialog import MsaQgisDialog
 import os.path
+import sys
 
 
 class MsaQgis:
@@ -181,11 +182,6 @@ class MsaQgis:
                 action)
             self.iface.removeToolBarIcon(action)
 
-#    def setResolution (self):
- #       """Retrieves the value the user put in for resolution to pass on to the creation of the vector layer"""
- #       self.spacing = lineEdit_resolution.value ##Needs to retrieve value input of lineEdit_resolution
-
-
     def run(self):
         """Run method that performs all the real work"""
 
@@ -195,18 +191,21 @@ class MsaQgis:
             self.first_start = False
             self.dlg = MsaQgisDialog()
 
+
         # show the dialog
         self.dlg.show()
         # Run the dialog event loop
         result = self.dlg.exec_()
         # See if OK was pressed
         if result:
+
+
             # with help from https://howtoinqgis.wordpress.com/2016/10/30/how-to-generate-regularly-spaced-points-in-qgis-using-python/
             layer = iface.activeLayer() #active layer currently has to be in a projection that uses meters, like pseudomercator
-            spacing = 1000
+            spacing = self.dlg.spinBox_resolution.value() #Takes input from user in "resolution" to set spacing
             inset = spacing * 0.5 #set inset
 
-            #get Coordinate Reference System and extent (later replace extent with insertable option)
+            #get Coordinate Reference System and extent (for method 1)
             crs = layer.crs()
             ext = layer.extent()
 
@@ -215,10 +214,19 @@ class MsaQgis:
             data_provider = vectorpoint_base.dataProvider()
 
             #Set extent of the new layer
-            xmin = ext.xMinimum() + inset
-            xmax = ext.xMaximum()
-            ymin = ext.yMinimum()
-            ymax = ext.yMaximum() - inset
+            if self.dlg.comboBox_area_of_interest.currentText() == "Use active layer":
+                # Method 1 uses active layer
+                 xmin = ext.xMinimum() + inset
+                 xmax = ext.xMaximum()
+                 ymin = ext.yMinimum()
+                 ymax = ext.yMaximum() - inset
+            else:
+                #Method 2 uses user input
+                xmin = self.dlg.spinBox_west.value() + inset
+                xmax = self.dlg.spinBox_east.value()
+                ymin = self.dlg.spinBox_south.value()
+                ymax = self.dlg.spinBox_north.value() - inset
+
 
             #Create the coordinates of the points in the grid
             points = []
@@ -237,10 +245,3 @@ class MsaQgis:
 
             # Add layer to map
             QgsProject.instance().addMapLayer(vectorpoint_base)
-
-
-
-            # Do something useful here - delete the line containing pass and
-            # substitute with your code.
-            pass
-
