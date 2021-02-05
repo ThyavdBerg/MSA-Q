@@ -24,12 +24,15 @@
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
+from qgis.core import *
+from qgis.utils import iface
 
 # Initialize Qt resources from file resources.py
 from .resources import *
 # Import the code for the dialog
 from .MSA_QGIS_dialog import MsaQgisDialog
 import os.path
+import sys
 
 
 class MsaQgis:
@@ -179,7 +182,6 @@ class MsaQgis:
                 action)
             self.iface.removeToolBarIcon(action)
 
-
     def run(self):
         """Run method that performs all the real work"""
 
@@ -189,12 +191,57 @@ class MsaQgis:
             self.first_start = False
             self.dlg = MsaQgisDialog()
 
+
         # show the dialog
         self.dlg.show()
         # Run the dialog event loop
         result = self.dlg.exec_()
         # See if OK was pressed
         if result:
-            # Do something useful here - delete the line containing pass and
-            # substitute with your code.
-            pass
+
+
+            # with help from https://howtoinqgis.wordpress.com/2016/10/30/how-to-generate-regularly-spaced-points-in-qgis-using-python/
+            layer = iface.activeLayer() #active layer currently has to be in a projection that uses meters, like pseudomercator
+            spacing = self.dlg.spinBox_resolution.value() #Takes input from user in "resolution" to set spacing
+            inset = spacing * 0.5 #set inset
+
+            #get Coordinate Reference System and extent (for method 1)
+            crs = layer.crs()
+            ext = layer.extent()
+
+            #Create new vector point layer
+            vectorpoint_base = QgsVectorLayer('Point', 'Name', 'memory', crs=crs,) #'Name' become fillable name for layer
+            data_provider = vectorpoint_base.dataProvider()
+
+            #Set extent of the new layer
+            if self.dlg.comboBox_area_of_interest.currentText() == "Use active layer":
+                # Method 1 uses active layer
+                 xmin = ext.xMinimum() + inset
+                 xmax = ext.xMaximum()
+                 ymin = ext.yMinimum()
+                 ymax = ext.yMaximum() - inset
+            else:
+                #Method 2 uses user input
+                xmin = self.dlg.spinBox_west.value() + inset
+                xmax = self.dlg.spinBox_east.value()
+                ymin = self.dlg.spinBox_south.value()
+                ymax = self.dlg.spinBox_north.value() - inset
+
+
+            #Create the coordinates of the points in the grid
+            points = []
+            y = ymax
+            while y >= ymin:
+                x = xmin
+                while x <= xmax:
+                    geom = QgsGeometry.fromPointXY(QgsPointXY(x,y))
+                    feat = QgsFeature()
+                    feat.setGeometry(geom)
+                    points.append(feat)
+                    x += spacing
+                y = y-spacing
+            data_provider.addFeatures(points)
+            vectorpoint_base.updateExtents()
+
+            # Add layer to map
+            QgsProject.instance().addMapLayer(vectorpoint_base)
