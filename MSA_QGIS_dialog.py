@@ -26,6 +26,9 @@ import os
 
 from qgis.PyQt import uic
 from qgis.PyQt import QtWidgets
+from qgis.utils import iface
+from qgis.gui import QgsRubberBand
+from qgis.core import QgsWkbTypes
 
 # This loads your .ui file so that PyQt can populate your plugin with the elements from Qt Designer
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
@@ -42,3 +45,13 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         # http://qt-project.org/doc/qt-4.8/designer-using-a-ui-file.html
         # #widgets-and-dialogs-with-auto-connect
         self.setupUi(self)
+        self.extent = None
+        self.mExtentGroupBox.setMapCanvas(iface.mapCanvas())
+        self.mExtentGroupBox.setOutputExtentFromDrawOnCanvas()
+        self.mExtentGroupBox.extentChanged.connect(self.setExtent)
+
+    def setExtent(self):
+        """Attaches the extent given by the user to a variable, and updates the 'current extent'
+        so that the input can be used in further analysis"""
+        self.extent = self.mExtentGroupBox.outputExtent()
+        self.mExtentGroupBox.setCurrentExtent(self.extent, self.mExtentGroupBox.outputCrs())

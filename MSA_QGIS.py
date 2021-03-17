@@ -207,41 +207,92 @@ class MsaQgis:
 
             #get Coordinate Reference System and extent (for method 1)
             crs = layer.crs()
-            ext = layer.extent()
+            # ext = layer.extent()
 
             #Create new vector point layer
             vectorpoint_base = QgsVectorLayer('Point', 'Name', 'memory', crs=crs,) #'Name' become fillable name for layer
             data_provider = vectorpoint_base.dataProvider()
 
             #Set extent of the new layer
-            if self.dlg.comboBox_area_of_interest.currentText() == "Use active layer":
-                # Method 1 uses active layer
-                 xmin = ext.xMinimum() + inset
-                 xmax = ext.xMaximum()
-                 ymin = ext.yMinimum()
-                 ymax = ext.yMaximum() - inset
+            if self.dlg.extent is None:
+                self.iface.messageBar().pushMessage('Extent not chosen!', level=1)
             else:
-                #Method 2 uses user input
-                xmin = self.dlg.spinBox_west.value() + inset
-                xmax = self.dlg.spinBox_east.value()
-                ymin = self.dlg.spinBox_south.value()
-                ymax = self.dlg.spinBox_north.value() - inset
+                self.iface.messageBar().pushMessage('Extent set!', level=0)
+                xmin = self.dlg.extent.xMinimum() + inset
+                xmax = self.dlg.extent.xMaximum()
+                ymin = self.dlg.extent.yMinimum()
+                ymax = self.dlg.extent.yMaximum() - inset
+            # If I get the QgsExtentComboBox working, code below will be removed
+            # if self.dlg.comboBox_area_of_interest.currentText() == "Use active layer":
+            #     # Method 1 uses active layer
+            #      xmin = ext.xMinimum() + inset
+            #      xmax = ext.xMaximum()
+            #      ymin = ext.yMinimum()
+            #      ymax = ext.yMaximum() - inset
+            # else:
+            #     #Method 2 uses user input
+            #     xmin = self.dlg.spinBox_west.value() + inset
+            #     xmax = self.dlg.spinBox_east.value()
+            #     ymin = self.dlg.spinBox_south.value()
+            #     ymax = self.dlg.spinBox_north.value() - inset
 
 
             #Create the coordinates of the points in the grid
-            points = []
-            y = ymax
-            while y >= ymin:
-                x = xmin
-                while x <= xmax:
-                    geom = QgsGeometry.fromPointXY(QgsPointXY(x,y))
-                    feat = QgsFeature()
-                    feat.setGeometry(geom)
-                    points.append(feat)
-                    x += spacing
-                y = y-spacing
-            data_provider.addFeatures(points)
-            vectorpoint_base.updateExtents()
+                points = []
+                y = ymax
+                while y >= ymin:
+                    x = xmin
+                    while x <= xmax:
+                        geom = QgsGeometry.fromPointXY(QgsPointXY(x,y))
+                        feat = QgsFeature()
+                        feat.setGeometry(geom)
+                        points.append(feat)
+                        x += spacing
+                    y = y-spacing
+                data_provider.addFeatures(points)
+                vectorpoint_base.updateExtents()
 
-            # Add layer to map
-            QgsProject.instance().addMapLayer(vectorpoint_base)
+                # Add layer to map
+                QgsProject.instance().addMapLayer(vectorpoint_base)
+
+### Select polygon layers from imported layers
+            # sampItems = {}
+            # polyItems = {}
+            # rastItems = {}
+            #
+            # mapCanvas=iface.mapCanvas()
+            #
+            #
+            # for lyrnr in range(mapCanvas.layerCount()):
+            #     layer=mapCanvas.layer(lyrnr)
+            #     if (layer.type() == layer.VectorLayer) and (layer.geometryType() == QgsWkbTypes.PointGeometry): #this one is technically not necessary as well be using vectorpoint_base
+            #         print('points layer', layer.name())
+            #         provider = layer.dataProvider()
+            #         fields = provider.fields()
+            #         theItem = [layer]
+            #         for j in fields:
+            #             theItem += [[str(j.name()), str(j.name()), False]]
+            #         sampItems[str(layer.name())] = theItem
+            #         #self.inSample.addItem(layer.name())
+            #     elif (layer.type() == layer.VectorLayer) and (layer.geometryType() == QgsWkbTypes.PolygonGeometry):
+            #         print('polygon layer', layer.name())
+            #         provider = layer.dataProvider()
+            #         fields = provider.fields()
+            #         theItem = [layer]
+            #         for j in fields:
+            #             theItem += [[str(j.name()), str(j.name()), False]]
+            #         polyItems[str(layer.name())] = theItem
+            #     elif layer.type() == layer.RasterLayer:
+            #         print('raster layer', layer.name())
+            #         theItem = [layer]
+            #         for j in range(layer.bandCount()):
+            #             if layer.bandCount() == 1:
+            #                 name1 = layer.bandName(j + 1)
+            #                 name2 = layer.name()[:10]
+            #             else:
+            #                 name1 = layer.bandName(j + 1)
+            #                 name2 = layer.name()[:8] + "_" + str(j + 1)
+            #             theItem += [[name1, name2, False]]
+            #         rastItems[str(layer.name())] = theItem
+            pass
+
