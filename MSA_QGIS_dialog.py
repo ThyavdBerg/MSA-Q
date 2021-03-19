@@ -89,12 +89,10 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         selectionTable = self.tableWidget_selected
         listTable = self.tableWidget
         selectionTable.setRowCount(len(listTable.selectionModel().selectedRows()))
-        rowCount = listTable.rowCount()
         rowCountSel = 0
 
-        for row in range(rowCount):
+        for row in range(listTable.rowCount()-1): #need to find a way to remove the last empty row
             if listTable.item(row, 0).isSelected():
-                print('row= ', row, 'selection', rowCountSel)
                 selectionTable.setItem(rowCountSel,
                                        0,
                                        QTableWidgetItem(listTable.item(row, 0)))
