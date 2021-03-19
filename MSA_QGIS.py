@@ -255,44 +255,21 @@ class MsaQgis:
                 # Add layer to map
                 QgsProject.instance().addMapLayer(vectorpoint_base)
 
-### Select polygon layers from imported layers
-            # sampItems = {}
-            # polyItems = {}
-            # rastItems = {}
+
+### Use processing tool to fill vectorpoint_base with fields selected from listWidget
+
+
+
             #
-            # mapCanvas=iface.mapCanvas()
             #
-            #
-            # for lyrnr in range(mapCanvas.layerCount()):
-            #     layer=mapCanvas.layer(lyrnr)
-            #     if (layer.type() == layer.VectorLayer) and (layer.geometryType() == QgsWkbTypes.PointGeometry): #this one is technically not necessary as well be using vectorpoint_base
-            #         print('points layer', layer.name())
-            #         provider = layer.dataProvider()
-            #         fields = provider.fields()
-            #         theItem = [layer]
-            #         for j in fields:
-            #             theItem += [[str(j.name()), str(j.name()), False]]
-            #         sampItems[str(layer.name())] = theItem
-            #         #self.inSample.addItem(layer.name())
-            #     elif (layer.type() == layer.VectorLayer) and (layer.geometryType() == QgsWkbTypes.PolygonGeometry):
-            #         print('polygon layer', layer.name())
-            #         provider = layer.dataProvider()
-            #         fields = provider.fields()
-            #         theItem = [layer]
-            #         for j in fields:
-            #             theItem += [[str(j.name()), str(j.name()), False]]
-            #         polyItems[str(layer.name())] = theItem
-            #     elif layer.type() == layer.RasterLayer:
-            #         print('raster layer', layer.name())
-            #         theItem = [layer]
-            #         for j in range(layer.bandCount()):
-            #             if layer.bandCount() == 1:
-            #                 name1 = layer.bandName(j + 1)
-            #                 name2 = layer.name()[:10]
-            #             else:
-            #                 name1 = layer.bandName(j + 1)
-            #                 name2 = layer.name()[:8] + "_" + str(j + 1)
-            #             theItem += [[name1, name2, False]]
-            #         rastItems[str(layer.name())] = theItem
+            # processing.run('qgis:joinattributesbylocation',
+            #                {'INPUT': vectorpoint_base,
+            #                 'JOIN': places,
+            #                 'METHOD': 0,
+            #                 'PREDICATE': 0,
+            #                 'OUTPUT': output_fn,
+            #                 }
+            #                )
+
             pass
 
