@@ -54,6 +54,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.tableWidget.itemSelectionChanged.connect(self.updateSelectedRows)
 
 
+
     def setExtent(self):
         """Attaches the extent given by the user to a variable, and updates the 'current extent'
         so that the input can be used in further analysis"""
@@ -141,3 +142,5 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             #                 name2 = layer.name()[:8] + "_" + str(j + 1)
             #             theItem += [[name1, name2, False]]
             #         rastItems[str(layer.name())] = theItem
+
+

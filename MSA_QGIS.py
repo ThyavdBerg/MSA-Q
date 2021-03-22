@@ -34,6 +34,14 @@ from .MSA_QGIS_dialog import MsaQgisDialog
 import os.path
 import sys
 
+# Import processing tools from Qgis (make sure python interpreter contains path C:\OSGeo4W64\apps\qgis\python\plugins)
+from os.path import expanduser
+home = expanduser("~")
+sys.path.append(home + '\OSGeo4W64\apps\qgis\python\plugins')
+import processing
+from processing.core.Processing import Processing
+Processing.initialize()
+
 
 class MsaQgis:
     """QGIS Plugin Implementation."""
@@ -253,23 +261,37 @@ class MsaQgis:
                 vectorpoint_base.updateExtents()
 
                 # Add layer to map
-                QgsProject.instance().addMapLayer(vectorpoint_base)
+                #QgsProject.instance().addMapLayer(vectorpoint_base)
 
 
-### Use processing tool to fill vectorpoint_base with fields selected from listWidget
+### Use processing tool join attributes by location to fill vectorpoint_base with fields selected from listWidget
 
 
-
-            #
-            #
-            # processing.run('qgis:joinattributesbylocation',
-            #                {'INPUT': vectorpoint_base,
-            #                 'JOIN': places,
-            #                 'METHOD': 0,
-            #                 'PREDICATE': 0,
-            #                 'OUTPUT': output_fn,
-            #                 }
-            #                )
+            for rows_column1 in range(self.dlg.tableWidget_selected.rowCount()):
+                layer_name = self.dlg.tableWidget_selected.item(rows_column1, 0).text()
+                previous_name = self.dlg.tableWidget_selected.item(rows_column1-1, 0)
+                fields = []
+                if previous_name is None \
+                        or previous_name != layer_name:
+                    print(layer_name)
+                    layer = QgsProject.instance().mapLayersByName(layer_name)[0]
+                    for rows_column2 in range(self.dlg.tableWidget_selected.rowCount()):
+                        if self.dlg.tableWidget_selected.item(rows_column2, 0).text() == layer_name:
+                            field = self.dlg.tableWidget_selected.item(rows_column2, 1).text()
+                            fields.append(field)
+                            print(fields)
+                outputFile = self.dlg.mQgsFileWidget.filePath()+str(rows_column1)+'.shp'
+                processing.run('qgis:joinattributesbylocation',
+                                {'INPUT': vectorpoint_base,
+                                 'JOIN': layer,
+                                 'METHOD': 0,
+                                 'PREDICATE': 0,
+                                 'JOIN_FIELDS': fields,
+                                 'OUTPUT': outputFile})
+                vectorpoint_base = outputFile
+                iface.addVectorLayer(outputFile, '', 'ogr')
+            vectorpoint_filled = outputFile
+            #Somehow delete all those previous versions that were needed for the for loop...
 
             pass
 
