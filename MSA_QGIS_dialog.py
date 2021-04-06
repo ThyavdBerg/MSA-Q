@@ -50,8 +50,11 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         #self.mExtentGroupBox.setOutputExtentFromDrawOnCanvas() #for some reason causes really weird behaviour.
         # Q asked on GIS stackexchange
         self.mExtentGroupBox.extentChanged.connect(self.setExtent)
-        self.getFieldsandBands(self.tableWidget)
-        self.tableWidget.itemSelectionChanged.connect(self.updateSelectedRows)
+        self.getFieldsandBands(self.tableWidget,self.tableWidget_Raster)
+        self.tableWidget.itemSelectionChanged.connect(lambda: self.updateSelectedRows(self.tableWidget_selected,
+                                                                                      self.tableWidget))
+        self.tableWidget_Raster.itemSelectionChanged.connect(lambda: self.updateSelectedRows(self.tableWidget_Sel_Raster,
+                                                                                             self.tableWidget_Raster))
 
 
 
@@ -61,13 +64,19 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.extent = self.mExtentGroupBox.outputExtent()
         self.mExtentGroupBox.setCurrentExtent(self.extent, self.mExtentGroupBox.outputCrs())
 
-    def getFieldsandBands(self, listTable):
+    def getFieldsandBands(self, listTable,rasTable):
         """Fills a table widget with all fields from vector polygon layers and all bands from raster layers currently
         loaded into the QGIS interface"""
         listTable.clear()
         rowCount = 0
         columnCount = 0
         listTable.setRowCount(rowCount + 1)
+
+        rasTable.clear()
+        rasRowCount = 0
+        rasColumnCount = 0
+        rasTable.setRowCount(rasRowCount+1)
+
         for lyrnr in range(iface.mapCanvas().layerCount()):
             layer = iface.mapCanvas().layer(lyrnr)
             if (layer.type() == layer.VectorLayer) and (layer.geometryType() == QgsWkbTypes.PolygonGeometry):
@@ -78,21 +87,34 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                     listTable.setItem(rowCount,columnCount, QTableWidgetItem(field.name()))
                     rowCount += 1
                     listTable.setRowCount(rowCount+1)
-                    columnCount -=1
+                    columnCount -= 1
+
+
             elif layer.type() == layer.RasterLayer:
-                continue #fill with bands when vector is functional
+                for band in range(layer.bandCount()):
+                    rasTable.setItem(rasRowCount, rasColumnCount,QTableWidgetItem(layer.name()))
+                    rasColumnCount += 1
+                    rasTable.setItem(rasRowCount, rasColumnCount, QTableWidgetItem(layer.bandName(band+1)))
+                    rasRowCount += 1
+                    rasTable.setRowCount(rasRowCount + 1)
+                    rasColumnCount -= 1
             else:
                 continue
-            listTable.setHorizontalHeaderLabels(['layers', 'fields'])
 
-    def updateSelectedRows(self):
+            listTable.setHorizontalHeaderLabels(['Layers', 'Fields'])
+            rasTable.setHorizontalHeaderLabels(['Layers', 'Bands'])
+        listTable.setRowCount(rowCount)
+        rasTable.setRowCount(rasRowCount)
+
+
+    def updateSelectedRows(self, selectionTable,listTable):
         """ Updates a table widget with the rows selected in another table widget"""
-        selectionTable = self.tableWidget_selected
-        listTable = self.tableWidget
+        # selectionTable = self.tableWidget_selected
+        # listTable = self.tableWidget
         selectionTable.setRowCount(len(listTable.selectionModel().selectedRows()))
         rowCountSel = 0
 
-        for row in range(listTable.rowCount()-1): #need to find a way to remove the last empty row
+        for row in range(listTable.rowCount()):
             if listTable.item(row, 0).isSelected():
                 selectionTable.setItem(rowCountSel,
                                        0,
