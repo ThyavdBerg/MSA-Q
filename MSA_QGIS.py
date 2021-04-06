@@ -260,38 +260,75 @@ class MsaQgis:
                 data_provider.addFeatures(points)
                 vectorpoint_base.updateExtents()
 
-                # Add layer to map
-                #QgsProject.instance().addMapLayer(vectorpoint_base)
-
-
 ### Use processing tool join attributes by location to fill vectorpoint_base with fields selected from listWidget
-
-
             for rows_column1 in range(self.dlg.tableWidget_selected.rowCount()):
                 layer_name = self.dlg.tableWidget_selected.item(rows_column1, 0).text()
-                previous_name = self.dlg.tableWidget_selected.item(rows_column1-1, 0)
+                previous_row = self.dlg.tableWidget_selected.item(rows_column1-1, 0)
                 fields = []
-                if previous_name is None \
-                        or previous_name != layer_name:
-                    print(layer_name)
+
+                #find the next layer name in the list, if it exists
+                for rows_column3 in range((self.dlg.tableWidget_selected.rowCount())+1):
+                    next_name = self.dlg.tableWidget_selected.item(rows_column3, 0)
+                    if rows_column3 <= rows_column1: #ignore layers under current row
+                        pass
+                    elif next_name == None: #There is no next layer in the list
+                        next_row = self.dlg.tableWidget_selected.item(rows_column3, 0)
+                        break
+                    elif layer_name == next_name.text(): #Next row in the list is for the same layer, ignore
+                        pass
+                    elif layer_name != next_name.text(): #There is a next layer in the list
+                        next_row = self.dlg.tableWidget_selected.item(rows_column3, 0)
+                        break
+                    else:
+                        print('something went wrong in finding the next layer name')
+                        break
+
+                # Check if a new layer name in the table was reached and that that is NOT the last layer in the list
+                # Skip if that layer was already processed due to being in previous row
+                if (previous_row == None or previous_row.text() != layer_name)\
+                        and next_row != None:
                     layer = QgsProject.instance().mapLayersByName(layer_name)[0]
                     for rows_column2 in range(self.dlg.tableWidget_selected.rowCount()):
                         if self.dlg.tableWidget_selected.item(rows_column2, 0).text() == layer_name:
                             field = self.dlg.tableWidget_selected.item(rows_column2, 1).text()
                             fields.append(field)
-                            print(fields)
-                outputFile = self.dlg.mQgsFileWidget.filePath()+str(rows_column1)+'.shp'
-                processing.run('qgis:joinattributesbylocation',
-                                {'INPUT': vectorpoint_base,
-                                 'JOIN': layer,
-                                 'METHOD': 0,
-                                 'PREDICATE': 0,
-                                 'JOIN_FIELDS': fields,
-                                 'OUTPUT': outputFile})
-                vectorpoint_base = outputFile
-                iface.addVectorLayer(outputFile, '', 'ogr')
-            vectorpoint_filled = outputFile
-            #Somehow delete all those previous versions that were needed for the for loop...
+                    processing_saved=processing.run('qgis:joinattributesbylocation',
+                                    {'INPUT': vectorpoint_base,
+                                     'JOIN': layer,
+                                     'METHOD': 0,
+                                     'PREDICATE': 0,
+                                     'JOIN_FIELDS': fields,
+                                     'OUTPUT': 'memory:'})
+                    vectorpoint_base = processing_saved['OUTPUT']
 
+                # Make sure that the last layer in the list has been reached
+                elif next_row == None:
+                    # Then print the last added layer to an actual output file
+                    layer = QgsProject.instance().mapLayersByName(layer_name)[0]
+                    for rows_column2 in range(self.dlg.tableWidget_selected.rowCount()):
+                        if self.dlg.tableWidget_selected.item(rows_column2, 0).text() == layer_name:
+                            field = self.dlg.tableWidget_selected.item(rows_column2, 1).text()
+                            fields.append(field)
+                    outputfile = self.dlg.mQgsFileWidget.filePath()+'.shp'
+                    processing.run('qgis:joinattributesbylocation',
+                                    {'INPUT': vectorpoint_base,
+                                     'JOIN': layer,
+                                     'METHOD': 0,
+                                     'PREDICATE': 0,
+                                     'JOIN_FIELDS': fields,
+                                     'OUTPUT': outputfile})
+                    break
+
+                elif previous_row.text() == layer_name:
+                    pass
+                else:
+                    print(layer_name)
+                    print('something went wrong around the processing algorithm')
+                    break
+
+            vectorpoint_filled = QgsVectorLayer(outputfile, 'final', 'ogr')
+            QgsProject.instance().addMapLayer(vectorpoint_filled)
+
+            #...
             pass
 

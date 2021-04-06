@@ -177,12 +177,12 @@
    </property>
    <column>
     <property name="text">
-     <string>layer</string>
+     <string>Layer</string>
     </property>
    </column>
    <column>
     <property name="text">
-     <string>field</string>
+     <string>Field</string>
     </property>
    </column>
   </widget>
