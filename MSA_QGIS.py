@@ -34,6 +34,14 @@ from .MSA_QGIS_dialog import MsaQgisDialog
 import os.path
 import sys
 
+# Import processing tools from Qgis (make sure python interpreter contains path C:\OSGeo4W64\apps\qgis\python\plugins)
+from os.path import expanduser
+home = expanduser("~")
+sys.path.append(home + '\OSGeo4W64\apps\qgis\python\plugins')
+import processing
+from processing.core.Processing import Processing
+Processing.initialize()
+
 
 class MsaQgis:
     """QGIS Plugin Implementation."""
@@ -207,41 +215,120 @@ class MsaQgis:
 
             #get Coordinate Reference System and extent (for method 1)
             crs = layer.crs()
-            ext = layer.extent()
+            # ext = layer.extent()
 
             #Create new vector point layer
             vectorpoint_base = QgsVectorLayer('Point', 'Name', 'memory', crs=crs,) #'Name' become fillable name for layer
             data_provider = vectorpoint_base.dataProvider()
 
             #Set extent of the new layer
-            if self.dlg.comboBox_area_of_interest.currentText() == "Use active layer":
-                # Method 1 uses active layer
-                 xmin = ext.xMinimum() + inset
-                 xmax = ext.xMaximum()
-                 ymin = ext.yMinimum()
-                 ymax = ext.yMaximum() - inset
+            if self.dlg.extent is None:
+                self.iface.messageBar().pushMessage('Extent not chosen!', level=1)
             else:
-                #Method 2 uses user input
-                xmin = self.dlg.spinBox_west.value() + inset
-                xmax = self.dlg.spinBox_east.value()
-                ymin = self.dlg.spinBox_south.value()
-                ymax = self.dlg.spinBox_north.value() - inset
+                self.iface.messageBar().pushMessage('Extent set!', level=0)
+                xmin = self.dlg.extent.xMinimum() + inset
+                xmax = self.dlg.extent.xMaximum()
+                ymin = self.dlg.extent.yMinimum()
+                ymax = self.dlg.extent.yMaximum() - inset
+            # If I get the QgsExtentComboBox working, code below will be removed
+            # if self.dlg.comboBox_area_of_interest.currentText() == "Use active layer":
+            #     # Method 1 uses active layer
+            #      xmin = ext.xMinimum() + inset
+            #      xmax = ext.xMaximum()
+            #      ymin = ext.yMinimum()
+            #      ymax = ext.yMaximum() - inset
+            # else:
+            #     #Method 2 uses user input
+            #     xmin = self.dlg.spinBox_west.value() + inset
+            #     xmax = self.dlg.spinBox_east.value()
+            #     ymin = self.dlg.spinBox_south.value()
+            #     ymax = self.dlg.spinBox_north.value() - inset
 
 
             #Create the coordinates of the points in the grid
-            points = []
-            y = ymax
-            while y >= ymin:
-                x = xmin
-                while x <= xmax:
-                    geom = QgsGeometry.fromPointXY(QgsPointXY(x,y))
-                    feat = QgsFeature()
-                    feat.setGeometry(geom)
-                    points.append(feat)
-                    x += spacing
-                y = y-spacing
-            data_provider.addFeatures(points)
-            vectorpoint_base.updateExtents()
+                points = []
+                y = ymax
+                while y >= ymin:
+                    x = xmin
+                    while x <= xmax:
+                        geom = QgsGeometry.fromPointXY(QgsPointXY(x,y))
+                        feat = QgsFeature()
+                        feat.setGeometry(geom)
+                        points.append(feat)
+                        x += spacing
+                    y = y-spacing
+                data_provider.addFeatures(points)
+                vectorpoint_base.updateExtents()
 
-            # Add layer to map
-            QgsProject.instance().addMapLayer(vectorpoint_base)
+### Use processing tool join attributes by location to fill vectorpoint_base with fields selected from listWidget
+            for rows_column1 in range(self.dlg.tableWidget_selected.rowCount()):
+                layer_name = self.dlg.tableWidget_selected.item(rows_column1, 0).text()
+                previous_row = self.dlg.tableWidget_selected.item(rows_column1-1, 0)
+                fields = []
+
+                #find the next layer name in the list, if it exists
+                for rows_column3 in range((self.dlg.tableWidget_selected.rowCount())+1):
+                    next_name = self.dlg.tableWidget_selected.item(rows_column3, 0)
+                    if rows_column3 <= rows_column1: #ignore layers under current row
+                        pass
+                    elif next_name == None: #There is no next layer in the list
+                        next_row = self.dlg.tableWidget_selected.item(rows_column3, 0)
+                        break
+                    elif layer_name == next_name.text(): #Next row in the list is for the same layer, ignore
+                        pass
+                    elif layer_name != next_name.text(): #There is a next layer in the list
+                        next_row = self.dlg.tableWidget_selected.item(rows_column3, 0)
+                        break
+                    else:
+                        print('something went wrong in finding the next layer name')
+                        break
+
+                # Check if a new layer name in the table was reached and that that is NOT the last layer in the list
+                # Skip if that layer was already processed due to being in previous row
+                if (previous_row == None or previous_row.text() != layer_name)\
+                        and next_row != None:
+                    layer = QgsProject.instance().mapLayersByName(layer_name)[0]
+                    for rows_column2 in range(self.dlg.tableWidget_selected.rowCount()):
+                        if self.dlg.tableWidget_selected.item(rows_column2, 0).text() == layer_name:
+                            field = self.dlg.tableWidget_selected.item(rows_column2, 1).text()
+                            fields.append(field)
+                    processing_saved=processing.run('qgis:joinattributesbylocation',
+                                    {'INPUT': vectorpoint_base,
+                                     'JOIN': layer,
+                                     'METHOD': 0,
+                                     'PREDICATE': 0,
+                                     'JOIN_FIELDS': fields,
+                                     'OUTPUT': 'memory:'})
+                    vectorpoint_base = processing_saved['OUTPUT']
+
+                # Make sure that the last layer in the list has been reached
+                elif next_row == None:
+                    # Then print the last added layer to an actual output file
+                    layer = QgsProject.instance().mapLayersByName(layer_name)[0]
+                    for rows_column2 in range(self.dlg.tableWidget_selected.rowCount()):
+                        if self.dlg.tableWidget_selected.item(rows_column2, 0).text() == layer_name:
+                            field = self.dlg.tableWidget_selected.item(rows_column2, 1).text()
+                            fields.append(field)
+                    outputfile = self.dlg.mQgsFileWidget.filePath()+'.shp'
+                    processing.run('qgis:joinattributesbylocation',
+                                    {'INPUT': vectorpoint_base,
+                                     'JOIN': layer,
+                                     'METHOD': 0,
+                                     'PREDICATE': 0,
+                                     'JOIN_FIELDS': fields,
+                                     'OUTPUT': outputfile})
+                    break
+
+                elif previous_row.text() == layer_name:
+                    pass
+                else:
+                    print(layer_name)
+                    print('something went wrong around the processing algorithm')
+                    break
+
+            vectorpoint_filled = QgsVectorLayer(outputfile, 'final', 'ogr')
+            QgsProject.instance().addMapLayer(vectorpoint_filled)
+
+            #...
+            pass
+
