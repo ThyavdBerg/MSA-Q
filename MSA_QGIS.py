@@ -21,7 +21,7 @@
  *                                                                         *
  ***************************************************************************/
 """
-from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
+from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, QVariant
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
 from qgis.core import *
@@ -207,7 +207,7 @@ class MsaQgis:
         # See if OK was pressed
         if result:
 
-
+### Create the base point layer with resolution and extent given by user
             # with help from https://howtoinqgis.wordpress.com/2016/10/30/how-to-generate-regularly-spaced-points-in-qgis-using-python/
             layer = iface.activeLayer() #active layer currently has to be in a projection that uses meters, like pseudomercator
             spacing = self.dlg.spinBox_resolution.value() #Takes input from user in "resolution" to set spacing
@@ -218,7 +218,7 @@ class MsaQgis:
             # ext = layer.extent()
 
             #Create new vector point layer
-            vectorpoint_base = QgsVectorLayer('Point', 'Name', 'memory', crs=crs,) #'Name' become fillable name for layer
+            vectorpoint_base = QgsVectorLayer('Point', 'Name', 'memory', crs=crs,)
             data_provider = vectorpoint_base.dataProvider()
 
             #Set extent of the new layer
@@ -260,24 +260,46 @@ class MsaQgis:
                 data_provider.addFeatures(points)
                 vectorpoint_base.updateExtents()
 
-### Use processing tool join attributes by location to fill vectorpoint_base with fields selected from listWidget
-            for rows_column1 in range(self.dlg.tableWidget_selected.rowCount()):
-                layer_name = self.dlg.tableWidget_selected.item(rows_column1, 0).text()
-                previous_row = self.dlg.tableWidget_selected.item(rows_column1-1, 0)
+
+### Add fields with x and y geometry
+            data_provider.addAttributes([QgsField('geom_X', QVariant.Double, 'double', 20,5),
+                                         QgsField('geom_Y', QVariant.Double, 'double', 20,5),
+                                         QgsField('MSA-ID', QVariant.Int)])
+            vectorpoint_base.updateFields()
+            vectorpoint_base.startEditing()
+            for feat in vectorpoint_base.getFeatures():
+                geom= feat.geometry()
+                feat['geom_X'] = geom.asPoint().x()
+                feat['geom_Y'] = geom.asPoint().y()
+                feat['MSA-ID'] = feat.id()
+                vectorpoint_base.updateFeature(feat)
+            vectorpoint_base.commitChanges()
+
+
+### Use processing tools to fill vectorpoint_base with fields/bands from selected in UI
+# Point sample the vector layers using join attributes by location processing algorithm
+# (id: qgis:joinattributebylocation)
+            vectorpoint_polygon = vectorpoint_base
+            selection_table = self.dlg.tableWidget_selected
+            for rows_column1 in range(selection_table.rowCount()):
+                print('forloop 1')
+                layer_name = selection_table.item(rows_column1, 0).text()
+                previous_row = selection_table.item(rows_column1-1, 0)
                 fields = []
 
                 #find the next layer name in the list, if it exists
-                for rows_column3 in range((self.dlg.tableWidget_selected.rowCount())+1):
-                    next_name = self.dlg.tableWidget_selected.item(rows_column3, 0)
+                for rows_column3 in range((selection_table.rowCount())+1):
+                    print('forloop 2')
+                    next_name = selection_table.item(rows_column3, 0)
                     if rows_column3 <= rows_column1: #ignore layers under current row
                         pass
                     elif next_name == None: #There is no next layer in the list
-                        next_row = self.dlg.tableWidget_selected.item(rows_column3, 0)
+                        next_row = selection_table.item(rows_column3, 0)
                         break
                     elif layer_name == next_name.text(): #Next row in the list is for the same layer, ignore
                         pass
                     elif layer_name != next_name.text(): #There is a next layer in the list
-                        next_row = self.dlg.tableWidget_selected.item(rows_column3, 0)
+                        next_row = selection_table.item(rows_column3, 0)
                         break
                     else:
                         print('something went wrong in finding the next layer name')
@@ -288,30 +310,32 @@ class MsaQgis:
                 if (previous_row == None or previous_row.text() != layer_name)\
                         and next_row != None:
                     layer = QgsProject.instance().mapLayersByName(layer_name)[0]
-                    for rows_column2 in range(self.dlg.tableWidget_selected.rowCount()):
-                        if self.dlg.tableWidget_selected.item(rows_column2, 0).text() == layer_name:
-                            field = self.dlg.tableWidget_selected.item(rows_column2, 1).text()
+                    for rows_column2 in range(selection_table.rowCount()):
+                        print('forloop 3')
+                        if selection_table.item(rows_column2, 0).text() == layer_name:
+                            field = selection_table.item(rows_column2, 1).text()
                             fields.append(field)
                     processing_saved=processing.run('qgis:joinattributesbylocation',
-                                    {'INPUT': vectorpoint_base,
+                                    {'INPUT': vectorpoint_polygon,
                                      'JOIN': layer,
                                      'METHOD': 0,
                                      'PREDICATE': 0,
                                      'JOIN_FIELDS': fields,
                                      'OUTPUT': 'memory:'})
-                    vectorpoint_base = processing_saved['OUTPUT']
+                    vectorpoint_polygon = processing_saved['OUTPUT']
 
                 # Make sure that the last layer in the list has been reached
                 elif next_row == None:
                     # Then print the last added layer to an actual output file
                     layer = QgsProject.instance().mapLayersByName(layer_name)[0]
-                    for rows_column2 in range(self.dlg.tableWidget_selected.rowCount()):
-                        if self.dlg.tableWidget_selected.item(rows_column2, 0).text() == layer_name:
-                            field = self.dlg.tableWidget_selected.item(rows_column2, 1).text()
+                    for rows_column2 in range(selection_table.rowCount()):
+                        print('forloop 4')
+                        if selection_table.item(rows_column2, 0).text() == layer_name:
+                            field = selection_table.item(rows_column2, 1).text()
                             fields.append(field)
-                    outputfile = self.dlg.mQgsFileWidget.filePath()+'.shp'
+                    outputfile = self.dlg.mQgsFileWidget.filePath()+'vector.shp'
                     processing.run('qgis:joinattributesbylocation',
-                                    {'INPUT': vectorpoint_base,
+                                    {'INPUT': vectorpoint_polygon,
                                      'JOIN': layer,
                                      'METHOD': 0,
                                      'PREDICATE': 0,
@@ -326,8 +350,87 @@ class MsaQgis:
                     print('something went wrong around the processing algorithm')
                     break
 
-            vectorpoint_filled = QgsVectorLayer(outputfile, 'final', 'ogr')
-            QgsProject.instance().addMapLayer(vectorpoint_filled)
+# Point sample the raster layers using sample raster values processing algorithm
+# (id: qgis:rastersampling)
+            vectorpoint_raster = vectorpoint_base
+            selection_table = self.dlg.tableWidget_Sel_Raster
+            for rows_column1 in range(selection_table.rowCount()):
+                layer_name = selection_table.item(rows_column1, 0).text()
+                previous_row = selection_table.item(rows_column1-1, 0)
+                fields = []
+
+                #find the next layer name in the list, if it exists
+                for rows_column3 in range((selection_table.rowCount())+1):
+                    next_name = selection_table.item(rows_column3, 0)
+                    if rows_column3 <= rows_column1: #ignore layers under current row
+                        pass
+                    elif next_name == None: #There is no next layer in the list
+                        next_row = selection_table.item(rows_column3, 0)
+                        break
+                    elif layer_name == next_name.text(): #Next row in the list is for the same layer, ignore
+                        pass
+                    elif layer_name != next_name.text(): #There is a next layer in the list
+                        next_row = selection_table.item(rows_column3, 0)
+                        break
+                    else:
+                        print('something went wrong in finding the next layer name - raster')
+                        break
+
+                # Check if a new layer name in the table was reached and that that is NOT the last layer in the list
+                # Skip if that layer was already processed due to being in previous row
+                if (previous_row == None or previous_row.text() != layer_name)\
+                        and next_row != None:
+                    layer = QgsProject.instance().mapLayersByName(layer_name)[0]
+                    for rows_column2 in range(selection_table.rowCount()):
+                        if selection_table.item(rows_column2, 0).text() == layer_name:
+                            field = selection_table.item(rows_column2, 1).text()
+                            fields.append(field)
+                    processing_saved=processing.run('qgis:rastersampling',
+                                    {'INPUT': vectorpoint_raster,
+                                     'RASTERCOPY': layer,
+                                     'COLUMN_PREFIX': layer_name[:5],
+                                     'OUTPUT': 'TEMPORARY_OUTPUT:'})
+                    vectorpoint_raster = processing_saved['OUTPUT']
+
+                # Make sure that the last layer in the list has been reached
+                elif next_row == None:
+                    # Then print the last added layer to an actual output file
+                    layer = QgsProject.instance().mapLayersByName(layer_name)[0]
+                    for rows_column2 in range(selection_table.rowCount()):
+                        if selection_table.item(rows_column2, 0).text() == layer_name:
+                            field = selection_table.item(rows_column2, 1).text()
+                            fields.append(field)
+                    outputfile_ras = self.dlg.mQgsFileWidget.filePath()+'raster.shp'
+                    processing.run('qgis:rastersampling',
+                                    {'INPUT': vectorpoint_raster,
+                                     'RASTERCOPY': layer,
+                                     'COLUMN_PREFIX': layer_name[:5],
+                                     'OUTPUT': outputfile_ras})
+                    break
+
+                elif previous_row.text() == layer_name:
+                    pass
+                else:
+                    print(layer_name)
+                    print('something went wrong around the processing algorithm')
+                    break
+
+
+
+
+            vectorpoint_filled_vec = QgsVectorLayer(outputfile, 'final', 'ogr')
+            vectorpoint_filled_ras = QgsVectorLayer(outputfile_ras, 'final_ras', 'ogr')
+
+# Join tables - add if statement to skip for no vector layers or no raster layers
+            join_info = QgsVectorLayerJoinInfo()
+            join_info.setJoinLayer(vectorpoint_filled_vec)
+            join_info.setJoinFieldName('MSA-ID')
+            join_info.setTargetFieldName('MSA-ID')
+            join_info.setUsingMemoryCache(True)
+            join_info.setJoinFieldNamesBlockList(['geom_X', 'geom_Y'])
+            vectorpoint_filled_ras.addJoin(join_info)
+# add to map canvas
+            QgsProject.instance().addMapLayer(vectorpoint_filled_ras)
 
             #...
             pass
