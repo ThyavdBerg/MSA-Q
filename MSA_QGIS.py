@@ -415,9 +415,7 @@ class MsaQgis:
                     print('something went wrong around the processing algorithm')
                     break
 
-
-
-
+# Create layers for output files (may replace with direct reference to files instead)
             vectorpoint_filled_vec = QgsVectorLayer(outputfile, 'final', 'ogr')
             vectorpoint_filled_ras = QgsVectorLayer(outputfile_ras, 'final_ras', 'ogr')
 
