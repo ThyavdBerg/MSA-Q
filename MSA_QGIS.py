@@ -416,8 +416,8 @@ class MsaQgis:
                     break
 
 # Create layers for output files (may replace with direct reference to files instead)
-            vectorpoint_filled_vec = QgsVectorLayer(outputfile, 'final', 'ogr')
-            vectorpoint_filled_ras = QgsVectorLayer(outputfile_ras, 'final_ras', 'ogr')
+            vectorpoint_filled_vec = QgsVectorLayer(outputfile, '', 'ogr')
+            vectorpoint_filled_ras = QgsVectorLayer(outputfile_ras, 'final', 'ogr')
 
 # Join tables - add if statement to skip for no vector layers or no raster layers
             join_info = QgsVectorLayerJoinInfo()
@@ -429,6 +429,8 @@ class MsaQgis:
             vectorpoint_filled_ras.addJoin(join_info)
 # add to map canvas
             QgsProject.instance().addMapLayer(vectorpoint_filled_ras)
+
+###
 
             #...
             pass

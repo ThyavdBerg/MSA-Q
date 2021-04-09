@@ -24,17 +24,22 @@
 
 import os
 
-from PyQt5.QtWidgets import QTableWidgetItem
+from PyQt5.QtWidgets import QTableWidgetItem, QWidget, QLineEdit
 from qgis.PyQt import uic
 from qgis.PyQt import QtWidgets
 from qgis.utils import iface
 from qgis.core import QgsWkbTypes
 
+
 # This loads your .ui file so that PyQt can populate your plugin with the elements from Qt Designer
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'MSA_QGIS_dialog_base.ui'))
+FORM_CLASS_TAXA, _ = uic.loadUiType(os.path.join(
+    os.path.dirname(__file__), 'MSA_QGIS_dialog_popup_taxa.ui'))
+FORM_CLASS_VEGCOM, _ = uic.loadUiType(os.path.join(
+    os.path.dirname(__file__), 'MSA_QGIS_dialog_popup_vegcom.ui'))
 
-
+### Main dialog window
 class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
     def __init__(self, parent=None):
         """Constructor."""
@@ -50,11 +55,13 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         #self.mExtentGroupBox.setOutputExtentFromDrawOnCanvas() #for some reason causes really weird behaviour.
         # Q asked on GIS stackexchange
         self.mExtentGroupBox.extentChanged.connect(self.setExtent)
-        self.getFieldsandBands(self.tableWidget,self.tableWidget_Raster)
+        self.getFieldsandBands(self.tableWidget, self.tableWidget_Raster)
         self.tableWidget.itemSelectionChanged.connect(lambda: self.updateSelectedRows(self.tableWidget_selected,
                                                                                       self.tableWidget))
         self.tableWidget_Raster.itemSelectionChanged.connect(lambda: self.updateSelectedRows(self.tableWidget_Sel_Raster,
                                                                                              self.tableWidget_Raster))
+        self.addNew_Taxa.clicked.connect(self.addNewTaxon)
+        self.addNew_VegCom.clicked.connect(self.addNewVegCom)
 
 
     def setExtent(self):
@@ -126,3 +133,58 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 continue
             rowCountSel += 1
 
+
+    def addNewTaxon(self):
+        """ Adds a new pollen taxon to the list of taxa by opening a pop-up in which the taxon short and full name,
+        fall speed and relative pollen productivity can be given"""
+        self.taxonPopup = MsaQgisAddTaxonPopup()
+        self.taxonPopup.show()
+        result = self.taxonPopup.exec_()
+        # runs when apply is clicked on the add new taxon popup
+        if result:
+            # Get filled in values
+            taxonShortName = self.taxonPopup.lineEdit_taxonShortName.text()
+            taxonFullName = self.taxonPopup.lineEdit_taxonFullName.text()
+            taxonFallSpeed = self.taxonPopup.doubleSpinBox_taxonFallSpeed.value()
+            taxonRPP = self.taxonPopup.doubleSpinBox_taxonRPP.value()
+            # Check if entry is valid and add to table
+            if taxonShortName and taxonFullName and taxonFallSpeed and taxonRPP:
+                rowCount = self.tableWidget_Taxa.rowCount()
+                self.tableWidget_Taxa.setRowCount(rowCount+1)
+                self.tableWidget_Taxa.setItem(rowCount,0, QTableWidgetItem(taxonShortName))
+                self.tableWidget_Taxa.setItem(rowCount, 1, QTableWidgetItem(taxonFullName))
+                self.tableWidget_Taxa.setItem(rowCount, 2, QTableWidgetItem(str(taxonFallSpeed)))
+                self.tableWidget_Taxa.setItem(rowCount, 3, QTableWidgetItem(str(taxonRPP)))
+            else:
+                iface.messageBar().pushMessage('Missing value in add new taxon, '
+                                                    'please try again', level=1)
+
+
+    def adjustVegComColumns(self):
+        """ Adds and/or removes columns from the vegetation community table based on the
+        taxa listed in the taxon table"""
+
+
+    def addNewVegCom(self):
+        """ Adds a new vegetation community to the list of communities by opening a pop-up in which a list of species
+         and their percentages, as well as a new community name can be given"""
+        pass
+        self.vegComPopup = MsaQgisAddVegComPopup()
+        self.vegComPopup.show()
+
+
+    def removeEntry(self):
+        """ Removes selected entries from a table with a pop-up warning"""
+        pass
+
+class MsaQgisAddTaxonPopup (QtWidgets.QDialog, FORM_CLASS_TAXA):
+    def __init__(self, parent=None):
+        """Constructor."""
+        super(MsaQgisAddTaxonPopup, self).__init__(parent)
+        self.setupUi(self)
+
+class MsaQgisAddVegComPopup (QtWidgets.QDialog, FORM_CLASS_VEGCOM):
+    def __init__(self, parent=None):
+        """Constructor."""
+        super(MsaQgisAddVegComPopup, self).__init__(parent)
+        self.setupUi(self)

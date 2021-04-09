@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>667</width>
+    <width>669</width>
     <height>829</height>
    </rect>
   </property>
@@ -350,13 +350,13 @@
      <property name="geometry">
       <rect>
        <x>10</x>
-       <y>10</y>
+       <y>0</y>
        <width>131</width>
-       <height>31</height>
+       <height>41</height>
       </rect>
      </property>
      <property name="text">
-      <string>Import vegetation communities:</string>
+      <string>(optional) Import HUMPOL handbag:</string>
      </property>
      <property name="wordWrap">
       <bool>true</bool>
@@ -377,6 +377,12 @@
      <property name="alternatingRowColors">
       <bool>true</bool>
      </property>
+     <attribute name="horizontalHeaderCascadingSectionResizes">
+      <bool>false</bool>
+     </attribute>
+     <attribute name="horizontalHeaderStretchLastSection">
+      <bool>true</bool>
+     </attribute>
      <column>
       <property name="text">
        <string>Short name</string>
@@ -427,7 +433,7 @@
       <bool>true</bool>
      </property>
     </widget>
-    <widget class="QTableWidget" name="tableWidget_Taxa_2">
+    <widget class="QTableWidget" name="tableWidget_vegCom">
      <property name="geometry">
       <rect>
        <x>150</x>
@@ -449,21 +455,21 @@
      </column>
      <column>
       <property name="text">
-       <string>Species 1</string>
+       <string>taxon 1</string>
       </property>
      </column>
      <column>
       <property name="text">
-       <string>Species 2</string>
+       <string>taxon 2</string>
       </property>
      </column>
      <column>
       <property name="text">
-       <string>Species 3</string>
+       <string>taxon 3</string>
       </property>
      </column>
     </widget>
-    <widget class="QPushButton" name="pushButton_2">
+    <widget class="QPushButton" name="addNew_VegCom">
      <property name="geometry">
       <rect>
        <x>550</x>
@@ -480,7 +486,7 @@
      <property name="geometry">
       <rect>
        <x>10</x>
-       <y>390</y>
+       <y>450</y>
        <width>131</width>
        <height>31</height>
       </rect>
@@ -589,7 +595,7 @@
        </rect>
       </property>
       <property name="text">
-       <string>choose a previously placed vegetation community</string>
+       <string>choose previously placed vegetation community</string>
       </property>
      </widget>
      <widget class="QLabel" name="label_17">
@@ -682,14 +688,14 @@
        </rect>
       </property>
       <property name="text">
-       <string>Example 1: Bare ground is placed where DEM band 1 &gt;5000</string>
+       <string>Example 1: Bare ground is placed where DEM band 1 is &gt;5000</string>
       </property>
      </widget>
      <widget class="QLabel" name="label_15">
       <property name="geometry">
        <rect>
         <x>10</x>
-        <y>100</y>
+        <y>110</y>
         <width>47</width>
         <height>13</height>
        </rect>
@@ -812,9 +818,9 @@
      <widget class="QPushButton" name="pushButton_addCondition">
       <property name="geometry">
        <rect>
-        <x>530</x>
+        <x>504</x>
         <y>210</y>
-        <width>75</width>
+        <width>101</width>
         <height>23</height>
        </rect>
       </property>
@@ -876,7 +882,7 @@
        </rect>
       </property>
       <property name="text">
-       <string>choose a previously placed vegetation community</string>
+       <string>choose previously placed vegetation community</string>
       </property>
      </widget>
      <widget class="QLabel" name="label_47">
@@ -1102,9 +1108,9 @@
      <widget class="QPushButton" name="pushButton_addCondition_4">
       <property name="geometry">
        <rect>
-        <x>520</x>
+        <x>504</x>
         <y>320</y>
-        <width>75</width>
+        <width>91</width>
         <height>23</height>
        </rect>
       </property>
@@ -1246,7 +1252,7 @@
        <rect>
         <x>230</x>
         <y>100</y>
-        <width>21</width>
+        <width>31</width>
         <height>16</height>
        </rect>
       </property>
@@ -1487,6 +1493,11 @@
      <string>Model Parameters</string>
     </attribute>
    </widget>
+   <widget class="QWidget" name="tab_Metadata">
+    <attribute name="title">
+     <string>Metadata</string>
+    </attribute>
+   </widget>
   </widget>
   <widget class="QCheckBox" name="checkBox">
    <property name="geometry">
@@ -1582,7 +1593,7 @@
   <widget class="QCheckBox" name="checkBox_5">
    <property name="geometry">
     <rect>
-     <x>180</x>
+     <x>210</x>
      <y>710</y>
      <width>161</width>
      <height>17</height>
@@ -1595,7 +1606,7 @@
   <widget class="QCheckBox" name="checkBox_6">
    <property name="geometry">
     <rect>
-     <x>180</x>
+     <x>210</x>
      <y>730</y>
      <width>161</width>
      <height>17</height>
@@ -1608,7 +1619,7 @@
   <widget class="QCheckBox" name="checkBox_7">
    <property name="geometry">
     <rect>
-     <x>180</x>
+     <x>210</x>
      <y>750</y>
      <width>161</width>
      <height>17</height>
@@ -1621,7 +1632,7 @@
   <widget class="QCheckBox" name="checkBox_8">
    <property name="geometry">
     <rect>
-     <x>180</x>
+     <x>210</x>
      <y>690</y>
      <width>161</width>
      <height>17</height>
@@ -1634,7 +1645,7 @@
   <widget class="QCheckBox" name="checkBox_9">
    <property name="geometry">
     <rect>
-     <x>360</x>
+     <x>390</x>
      <y>690</y>
      <width>161</width>
      <height>17</height>
@@ -1647,7 +1658,7 @@
   <widget class="QCheckBox" name="checkBox_10">
    <property name="geometry">
     <rect>
-     <x>360</x>
+     <x>390</x>
      <y>710</y>
      <width>161</width>
      <height>17</height>
