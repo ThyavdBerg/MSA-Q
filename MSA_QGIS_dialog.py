@@ -24,7 +24,9 @@
 
 import os
 
-from PyQt5.QtWidgets import QTableWidgetItem, QWidget, QLineEdit
+from PyQt5.QtCore import QRect
+from PyQt5.QtWidgets import QTableWidgetItem, QWidget, QLineEdit, QLabel, QVBoxLayout, QComboBox, QGridLayout, \
+    QDoubleSpinBox
 from qgis.PyQt import uic
 from qgis.PyQt import QtWidgets
 from qgis.utils import iface
@@ -151,7 +153,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             if taxonShortName and taxonFullName and taxonFallSpeed and taxonRPP:
                 rowCount = self.tableWidget_Taxa.rowCount()
                 self.tableWidget_Taxa.setRowCount(rowCount+1)
-                self.tableWidget_Taxa.setItem(rowCount,0, QTableWidgetItem(taxonShortName))
+                self.tableWidget_Taxa.setItem(rowCount, 0, QTableWidgetItem(taxonShortName))
                 self.tableWidget_Taxa.setItem(rowCount, 1, QTableWidgetItem(taxonFullName))
                 self.tableWidget_Taxa.setItem(rowCount, 2, QTableWidgetItem(str(taxonFallSpeed)))
                 self.tableWidget_Taxa.setItem(rowCount, 3, QTableWidgetItem(str(taxonRPP)))
@@ -170,7 +172,20 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
          and their percentages, as well as a new community name can be given"""
         pass
         self.vegComPopup = MsaQgisAddVegComPopup()
+        # Taxon dropdown shows species from taxa table (move to MsaQgisAddVegComPopup class)
+        taxonlist = []
+        for taxon in range(self.tableWidget_Taxa.rowCount()):
+            taxonlist.append(self.tableWidget_Taxa.item(taxon, 0).text())
+        self.vegComPopup.comboBox_vegComTaxon.addItems(taxonlist)
         self.vegComPopup.show()
+
+        #add entries to table
+        result = self.vegComPopup.exec_()
+        if result:
+            #fill in
+            pass
+
+
 
 
     def removeEntry(self):
@@ -179,12 +194,57 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
 
 class MsaQgisAddTaxonPopup (QtWidgets.QDialog, FORM_CLASS_TAXA):
     def __init__(self, parent=None):
-        """Constructor."""
+        """Popup Constructor."""
         super(MsaQgisAddTaxonPopup, self).__init__(parent)
         self.setupUi(self)
 
 class MsaQgisAddVegComPopup (QtWidgets.QDialog, FORM_CLASS_VEGCOM):
     def __init__(self, parent=None):
-        """Constructor."""
+        """Popup Constructor."""
         super(MsaQgisAddVegComPopup, self).__init__(parent)
         self.setupUi(self)
+        self.pushButton_vegComAddSpecies.clicked.connect(self.addVegComTaxonRow)
+        self.previous = 0
+
+
+    def addVegComTaxonRow(self):
+        """ Adds a new comboBox and doubleSpinBox to be able to add a new taxon to a vegetation community"""
+        #get location of start OR previous taxon comboBox
+
+
+        if self.previous == 0:
+            self.previous += 2
+            #create new widgets
+            label = QLabel('Taxon '+ str(int(self.previous*0.5)), self)
+            comboBox = QComboBox()
+            doubleSpin = QDoubleSpinBox()
+            #insert the new widgets
+            self.gridLayout.addWidget(label,2,0, 1, 3)
+            self.gridLayout.addWidget(comboBox, 3,0, 1, 3)
+            self.gridLayout.addWidget(doubleSpin, 3, 3)
+            #move the old widgets
+            self.gridLayout.addWidget(self.label_Title, 0,0,1,4)
+            self.gridLayout.addWidget(self.label_Name, 1, 0)
+            self.gridLayout.addWidget(self.lineEdit_vegComName, 1, 1, 1, 4)
+            self.gridLayout.addWidget(self.comboBox_vegComTaxon, 4,0, 1, 4) #temporary placeholder
+            self.gridLayout.addWidget(self.pushButton_vegComAddSpecies, 5,0,1, 4)
+            self.gridLayout.addWidget(self.buttonBox_2, 6,0, 1, 4)
+
+
+        elif self.previous != 0:
+            pass
+
+
+
+
+        #Place new comboBox and doubleSpinBox based on location of previous
+
+        #Shift add taxon and okay/cancel buttons down
+
+
+    def updateTaxonDropdowns(self):
+        """ Updates all of the currently existent taxon drop downs to only have the species that are in the
+        main dialog taxon list and (removes) adds a species from the list when it is (de-)selected in one of the
+        drop downs to avoid getting duplicates"""
+
+
