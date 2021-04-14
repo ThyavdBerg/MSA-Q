@@ -26,7 +26,7 @@ import os
 
 from PyQt5.QtCore import QRect
 from PyQt5.QtWidgets import QTableWidgetItem, QWidget, QLineEdit, QLabel, QVBoxLayout, QComboBox, QGridLayout, \
-    QDoubleSpinBox
+    QDoubleSpinBox, QFrame
 from qgis.PyQt import uic
 from qgis.PyQt import QtWidgets
 from qgis.utils import iface
@@ -52,7 +52,13 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         # http://qt-project.org/doc/qt-4.8/designer-using-a-ui-file.html
         # #widgets-and-dialogs-with-auto-connect
         self.setupUi(self)
+
+        # class variables
+        self.vegcomrowCount = 0
+        self.vegcomcolumnCount = 1
         self.extent = None
+
+        # events
         self.mExtentGroupBox.setMapCanvas(iface.mapCanvas())
         #self.mExtentGroupBox.setOutputExtentFromDrawOnCanvas() #for some reason causes really weird behaviour.
         # Q asked on GIS stackexchange
@@ -170,26 +176,58 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
     def addNewVegCom(self):
         """ Adds a new vegetation community to the list of communities by opening a pop-up in which a list of species
          and their percentages, as well as a new community name can be given"""
-        pass
-        self.vegComPopup = MsaQgisAddVegComPopup()
-        # Taxon dropdown shows species from taxa table (move to MsaQgisAddVegComPopup class)
-        taxonlist = []
-        for taxon in range(self.tableWidget_Taxa.rowCount()):
-            taxonlist.append(self.tableWidget_Taxa.item(taxon, 0).text())
-        self.vegComPopup.comboBox_vegComTaxon.addItems(taxonlist)
-        self.vegComPopup.show()
+        #pass list of taxa to the popup and open it
+        taxontable= self.tableWidget_Taxa
+        item_list = [taxontable.item(row,0).text() for row in range(taxontable.rowCount())]
+        self.vegComPopup = MsaQgisAddVegComPopup(item_list)
+        vegcomtable = self.tableWidget_vegCom
 
         #add entries to table
         result = self.vegComPopup.exec_()
         if result:
-            #fill in
-            pass
+            self.vegcomrowCount += 1
+            vegcomtable.setRowCount(self.vegcomrowCount)
+            vegcomtable.setItem(self.vegcomrowCount-1, 0, QTableWidgetItem(
+                self.vegComPopup.lineEdit_vegComName.text()))
 
+            #Check if a taxon already had a column, add new column only for a new taxon
+            #Create list of taxa that already have a column
+            headerlist = [vegcomtable.horizontalHeaderItem(column).text() for column in range(1, vegcomtable.columnCount())]
+            for taxon in range(len(self.vegComPopup.vegcomtaxoncombolist)):
+                if self.vegComPopup.vegcomtaxoncombolist[taxon].currentText() in headerlist: # check how this deal with short names
+                    # containing another short name e.g. rosaceae containing rosa
+                    print('value already in headerlist')
 
+                    # get column number of named column
+                    for column in range(vegcomtable.columnCount()):
+                        headertext = vegcomtable.horizontalHeaderItem(column).text()
+                        if headertext == self.vegComPopup.vegcomtaxoncombolist[taxon].currentText():
+                            print(self.vegcomrowCount)
+                            print(column)
+                            vegcomtable.setItem(self.vegcomrowCount-1, column, QTableWidgetItem(
+                                str(self.vegComPopup.vegcomtaxondoublelist[taxon].value())))
+
+                    # add value at right location to that column
+
+                    pass
+                elif self.vegComPopup.vegcomtaxoncombolist[taxon] not in headerlist:
+                    print('value not in headerlist')
+                    self.vegcomcolumnCount += 1
+                    self.tableWidget_vegCom.setColumnCount(self.vegcomcolumnCount)
+                    # set header of new column
+                    vegcomtable.setHorizontalHeaderItem(self.vegcomcolumnCount-1, QTableWidgetItem(
+                                self.vegComPopup.vegcomtaxoncombolist[taxon].currentText()))
+                    # add value to new column
+                    vegcomtable.setItem(self.vegcomrowCount-1, self.vegcomcolumnCount-1, QTableWidgetItem(
+                        str(self.vegComPopup.vegcomtaxondoublelist[taxon].value())))
+                else:
+                    print('error in creating veg com columns')
 
 
     def removeEntry(self):
         """ Removes selected entries from a table with a pop-up warning"""
+        #remove row
+        #remove columns that now contain no data
         pass
 
 class MsaQgisAddTaxonPopup (QtWidgets.QDialog, FORM_CLASS_TAXA):
@@ -199,52 +237,56 @@ class MsaQgisAddTaxonPopup (QtWidgets.QDialog, FORM_CLASS_TAXA):
         self.setupUi(self)
 
 class MsaQgisAddVegComPopup (QtWidgets.QDialog, FORM_CLASS_VEGCOM):
-    def __init__(self, parent=None):
+    def __init__(self, taxonlist, parent=None):
         """Popup Constructor."""
         super(MsaQgisAddVegComPopup, self).__init__(parent)
         self.setupUi(self)
+        #events
         self.pushButton_vegComAddSpecies.clicked.connect(self.addVegComTaxonRow)
+
+        #class variables
         self.previous = 0
+        self.taxonlist = taxonlist
+        self.vegcomtaxondoublelist = []
+        self.vegcomtaxoncombolist = []
+
+
+        #add gridlayout to scrollarea
+        self.frameforscrolling = QFrame(self.scrollArea)
+        self.frameforscrolling.setLayout(self.gridLayout)
+        self.scrollArea.setWidget(self.frameforscrolling)
+
+        #set locations of original widgets in grid (because Qt designer won't bloody work with me)
+
+        self.gridLayout.addWidget(self.label_Title, 0, 0, 1, 4)
+        self.gridLayout.addWidget(self.label_Name, 1, 0)
+        self.gridLayout.addWidget(self.lineEdit_vegComName, 1, 1, 1, 4)
+        self.gridLayout.setRowStretch(2, 100) #stretch middle row to maximum possible size
+        self.gridLayout.addWidget(self.pushButton_vegComAddSpecies, 3, 0, 1, 4)
+        self.gridLayout.addWidget(self.buttonBox_2, 4, 1, 1, 3)
+        self.gridLayout.addWidget(self.buttonBox_2, 5, 0, 1, 4)
 
 
     def addVegComTaxonRow(self):
         """ Adds a new comboBox and doubleSpinBox to be able to add a new taxon to a vegetation community"""
-        #get location of start OR previous taxon comboBox
+        label = QLabel('Taxon ' + str(int((self.previous * 0.5)+1)), self)
+        self.comboBox = QComboBox()
+        self.doubleSpin = QDoubleSpinBox()
+        # insert the new widgets
+        self.gridLayout.addWidget(label, self.previous+2, 0, 1, 4)
+        self.gridLayout.addWidget(self.comboBox, self.previous+3, 0, 1, 3)
+        self.gridLayout.addWidget(self.doubleSpin, self.previous+3, 3, 1, 2)
+        self.gridLayout.setRowStretch(self.previous + 2, 0)  # reset stretch of previously stretched row
+        self.gridLayout.setRowStretch(self.previous + 4, 100)  # set new middle row to maximum stretch
+        # move the widgets below to new location
+        self.gridLayout.addWidget(self.pushButton_vegComAddSpecies, self.previous + 5, 0, 1, 4)
+        self.gridLayout.addWidget(self.buttonBox_2, self.previous + 6, 0, 1, 4)
+        self.previous += 2
+        # Fill the comboBox
+        self.comboBox.addItems(self.taxonlist)
+        # Create list of items to pass to the main dialog
+        self.vegcomtaxoncombolist.append(self.comboBox)
+        self.vegcomtaxondoublelist.append(self.doubleSpin)
 
-
-        if self.previous == 0:
-            self.previous += 2
-            #create new widgets
-            label = QLabel('Taxon '+ str(int(self.previous*0.5)), self)
-            comboBox = QComboBox()
-            doubleSpin = QDoubleSpinBox()
-            #insert the new widgets
-            self.gridLayout.addWidget(label,2,0, 1, 3)
-            self.gridLayout.addWidget(comboBox, 3,0, 1, 3)
-            self.gridLayout.addWidget(doubleSpin, 3, 3)
-            #move the old widgets
-            self.gridLayout.addWidget(self.label_Title, 0,0,1,4)
-            self.gridLayout.addWidget(self.label_Name, 1, 0)
-            self.gridLayout.addWidget(self.lineEdit_vegComName, 1, 1, 1, 4)
-            self.gridLayout.addWidget(self.comboBox_vegComTaxon, 4,0, 1, 4) #temporary placeholder
-            self.gridLayout.addWidget(self.pushButton_vegComAddSpecies, 5,0,1, 4)
-            self.gridLayout.addWidget(self.buttonBox_2, 6,0, 1, 4)
-
-
-        elif self.previous != 0:
-            pass
-
-
-
-
-        #Place new comboBox and doubleSpinBox based on location of previous
-
-        #Shift add taxon and okay/cancel buttons down
-
-
-    def updateTaxonDropdowns(self):
-        """ Updates all of the currently existent taxon drop downs to only have the species that are in the
-        main dialog taxon list and (removes) adds a species from the list when it is (de-)selected in one of the
-        drop downs to avoid getting duplicates"""
 
 

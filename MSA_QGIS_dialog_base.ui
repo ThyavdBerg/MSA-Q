@@ -453,21 +453,6 @@
        <string>Name</string>
       </property>
      </column>
-     <column>
-      <property name="text">
-       <string>taxon 1</string>
-      </property>
-     </column>
-     <column>
-      <property name="text">
-       <string>taxon 2</string>
-      </property>
-     </column>
-     <column>
-      <property name="text">
-       <string>taxon 3</string>
-      </property>
-     </column>
     </widget>
     <widget class="QPushButton" name="addNew_VegCom">
      <property name="geometry">
