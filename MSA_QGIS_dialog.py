@@ -41,6 +41,7 @@ FORM_CLASS_TAXA, _ = uic.loadUiType(os.path.join(
 FORM_CLASS_VEGCOM, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'MSA_QGIS_dialog_popup_vegcom.ui'))
 
+
 ### Main dialog window
 class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
     def __init__(self, parent=None):
@@ -70,6 +71,8 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                                                                                              self.tableWidget_Raster))
         self.addNew_Taxa.clicked.connect(self.addNewTaxon)
         self.addNew_VegCom.clicked.connect(self.addNewVegCom)
+        self.remove_Taxa.clicked.connect(self.removeTaxaEntry)
+        self.remove_vegCom.clicked.connect(self.removeVegComEntry)
 
 
     def setExtent(self):
@@ -77,7 +80,6 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         so that the input can be used in further analysis"""
         self.extent = self.mExtentGroupBox.outputExtent()
         self.mExtentGroupBox.setCurrentExtent(self.extent, self.mExtentGroupBox.outputCrs())
-
 
     def getFieldsandBands(self, listTable,rasTable):
         """Fills a table widget with all fields from vector polygon layers and all bands from raster layers currently
@@ -121,7 +123,6 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         listTable.setRowCount(rowCount)
         rasTable.setRowCount(rasRowCount)
 
-
     def updateSelectedRows(self, selectionTable,listTable):
         """ Updates a table widget with the rows selected in another table widget"""
         # selectionTable = self.tableWidget_selected
@@ -140,7 +141,6 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             else:
                 continue
             rowCountSel += 1
-
 
     def addNewTaxon(self):
         """ Adds a new pollen taxon to the list of taxa by opening a pop-up in which the taxon short and full name,
@@ -167,12 +167,6 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 iface.messageBar().pushMessage('Missing value in add new taxon, '
                                                     'please try again', level=1)
 
-
-    def adjustVegComColumns(self):
-        """ Adds and/or removes columns from the vegetation community table based on the
-        taxa listed in the taxon table"""
-
-
     def addNewVegCom(self):
         """ Adds a new vegetation community to the list of communities by opening a pop-up in which a list of species
          and their percentages, as well as a new community name can be given"""
@@ -194,16 +188,11 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             #Create list of taxa that already have a column
             headerlist = [vegcomtable.horizontalHeaderItem(column).text() for column in range(1, vegcomtable.columnCount())]
             for taxon in range(len(self.vegComPopup.vegcomtaxoncombolist)):
-                if self.vegComPopup.vegcomtaxoncombolist[taxon].currentText() in headerlist: # check how this deal with short names
-                    # containing another short name e.g. rosaceae containing rosa
-                    print('value already in headerlist')
-
+                if self.vegComPopup.vegcomtaxoncombolist[taxon].currentText() in headerlist:
                     # get column number of named column
                     for column in range(vegcomtable.columnCount()):
                         headertext = vegcomtable.horizontalHeaderItem(column).text()
                         if headertext == self.vegComPopup.vegcomtaxoncombolist[taxon].currentText():
-                            print(self.vegcomrowCount)
-                            print(column)
                             vegcomtable.setItem(self.vegcomrowCount-1, column, QTableWidgetItem(
                                 str(self.vegComPopup.vegcomtaxondoublelist[taxon].value())))
 
@@ -211,7 +200,6 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
 
                     pass
                 elif self.vegComPopup.vegcomtaxoncombolist[taxon] not in headerlist:
-                    print('value not in headerlist')
                     self.vegcomcolumnCount += 1
                     self.tableWidget_vegCom.setColumnCount(self.vegcomcolumnCount)
                     # set header of new column
@@ -220,21 +208,48 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                     # add value to new column
                     vegcomtable.setItem(self.vegcomrowCount-1, self.vegcomcolumnCount-1, QTableWidgetItem(
                         str(self.vegComPopup.vegcomtaxondoublelist[taxon].value())))
+
                 else:
                     print('error in creating veg com columns')
 
+    def removeTaxaEntry(self):
+        """ Removes selected entries from a table with a pop-up warning"""
+        #get selection
+        taxatable = self.tableWidget_Taxa
+        for row in taxatable.selectionModel().selectedRows():
+            taxatable.removeRow(row.row())
 
-    def removeEntry(self):
+    def removeVegComEntry(self):
         """ Removes selected entries from a table with a pop-up warning"""
         #remove row
-        #remove columns that now contain no data
-        pass
+        vegcomtable = self.tableWidget_vegCom
+        columns_to_remove = []
+        if vegcomtable.selectionModel().selectedRows():
+            for row in vegcomtable.selectionModel().selectedRows():
+                vegcomtable.removeRow(row.row())
+                self.vegcomrowCount -= 1
+        #remove columns that no longer contain data after the row was removed
+        for column in range(1,vegcomtable.columnCount()):
+            item_list = []
+            for row in range(vegcomtable.rowCount()):
+                if vegcomtable.item(row,column):
+                    item_list.append(vegcomtable.item(row,column))
+            if not item_list:
+                columns_to_remove.append(column)
+            else:
+                continue
+        for listitem in columns_to_remove:
+            vegcomtable.removeColumn(listitem)
+            self.vegcomcolumnCount -= 1
+            vegcomtable.setColumnCount(self.vegcomcolumnCount)
+
 
 class MsaQgisAddTaxonPopup (QtWidgets.QDialog, FORM_CLASS_TAXA):
     def __init__(self, parent=None):
         """Popup Constructor."""
         super(MsaQgisAddTaxonPopup, self).__init__(parent)
         self.setupUi(self)
+
 
 class MsaQgisAddVegComPopup (QtWidgets.QDialog, FORM_CLASS_VEGCOM):
     def __init__(self, taxonlist, parent=None):
@@ -265,7 +280,6 @@ class MsaQgisAddVegComPopup (QtWidgets.QDialog, FORM_CLASS_VEGCOM):
         self.gridLayout.addWidget(self.pushButton_vegComAddSpecies, 3, 0, 1, 4)
         self.gridLayout.addWidget(self.buttonBox_2, 4, 1, 1, 3)
         self.gridLayout.addWidget(self.buttonBox_2, 5, 0, 1, 4)
-
 
     def addVegComTaxonRow(self):
         """ Adds a new comboBox and doubleSpinBox to be able to add a new taxon to a vegetation community"""
