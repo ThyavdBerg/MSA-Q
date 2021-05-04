@@ -7,6 +7,7 @@ When participating in this open source project, please keep to the following nam
 - Always be descriptive
 - English (unless the word is very universally known)
 - Only abbreviate when the meaning is clear.
+- 
 ###Variables
 
 - All lower case, underscores between words
