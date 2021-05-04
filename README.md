@@ -7,8 +7,9 @@ When participating in this open source project, please keep to the following nam
 - Always be descriptive
 - English (unless the word is very universally known)
 - Only abbreviate when the meaning is clear.
-- 
-###Variables
+
+
+### Variables
 
 - All lower case, underscores between words
 - Nouns
@@ -23,7 +24,7 @@ Exception: when the variable contains a qt widget, use: widgetType_functionFunct
 
 Examples: comboBox_species, pushButton_removeTaxa
 
-###Functions
+### Functions
 
 - Lower case for first word, then CamelCase, no underscores.
 - Verbs + nouns
