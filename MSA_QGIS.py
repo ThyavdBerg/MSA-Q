@@ -218,39 +218,39 @@ class MsaQgis:
             # ext = layer.extent()
 
             #Create new vector point layer
-            vectorpoint_base = QgsVectorLayer('Point', 'Name', 'memory', crs=crs,)
-            data_provider = vectorpoint_base.dataProvider()
+            vector_point_base = QgsVectorLayer('Point', 'Name', 'memory', crs=crs,)
+            data_provider = vector_point_base.dataProvider()
 
             #Set extent of the new layer
             if self.dlg.extent is None:
                 self.iface.messageBar().pushMessage('Extent not chosen!', level=1)
             else:
                 self.iface.messageBar().pushMessage('Extent set!', level=0)
-                xmin = self.dlg.extent.xMinimum() + inset
-                xmax = self.dlg.extent.xMaximum()
-                ymin = self.dlg.extent.yMinimum()
-                ymax = self.dlg.extent.yMaximum() - inset
+                x_min = self.dlg.extent.xMinimum() + inset
+                x_max = self.dlg.extent.xMaximum()
+                y_min = self.dlg.extent.yMinimum()
+                y_max = self.dlg.extent.yMaximum() - inset
             # If I get the QgsExtentComboBox working, code below will be removed
             # if self.dlg.comboBox_area_of_interest.currentText() == "Use active layer":
             #     # Method 1 uses active layer
-            #      xmin = ext.xMinimum() + inset
-            #      xmax = ext.xMaximum()
-            #      ymin = ext.yMinimum()
-            #      ymax = ext.yMaximum() - inset
+            #      x_min = ext.xMinimum() + inset
+            #      x_max = ext.xMaximum()
+            #      y_min = ext.yMinimum()
+            #      y_max = ext.yMaximum() - inset
             # else:
             #     #Method 2 uses user input
-            #     xmin = self.dlg.spinBox_west.value() + inset
-            #     xmax = self.dlg.spinBox_east.value()
-            #     ymin = self.dlg.spinBox_south.value()
-            #     ymax = self.dlg.spinBox_north.value() - inset
+            #     x_min = self.dlg.spinBox_west.value() + inset
+            #     x_max = self.dlg.spinBox_east.value()
+            #     y_min = self.dlg.spinBox_south.value()
+            #     y_max = self.dlg.spinBox_north.value() - inset
 
 
             #Create the coordinates of the points in the grid
                 points = []
-                y = ymax
-                while y >= ymin:
-                    x = xmin
-                    while x <= xmax:
+                y = y_max
+                while y >= y_min:
+                    x = x_min
+                    while x <= x_max:
                         geom = QgsGeometry.fromPointXY(QgsPointXY(x,y))
                         feat = QgsFeature()
                         feat.setGeometry(geom)
@@ -258,28 +258,28 @@ class MsaQgis:
                         x += spacing
                     y = y-spacing
                 data_provider.addFeatures(points)
-                vectorpoint_base.updateExtents()
+                vector_point_base.updateExtents()
 
 
 ### Add fields with x and y geometry
             data_provider.addAttributes([QgsField('geom_X', QVariant.Double, 'double', 20,5),
                                          QgsField('geom_Y', QVariant.Double, 'double', 20,5),
                                          QgsField('MSA-ID', QVariant.Int)])
-            vectorpoint_base.updateFields()
-            vectorpoint_base.startEditing()
-            for feat in vectorpoint_base.getFeatures():
-                geom= feat.geometry()
+            vector_point_base.updateFields()
+            vector_point_base.startEditing()
+            for feat in vector_point_base.getFeatures():
+                geom = feat.geometry()
                 feat['geom_X'] = geom.asPoint().x()
                 feat['geom_Y'] = geom.asPoint().y()
                 feat['MSA-ID'] = feat.id()
-                vectorpoint_base.updateFeature(feat)
-            vectorpoint_base.commitChanges()
+                vector_point_base.updateFeature(feat)
+            vector_point_base.commitChanges()
 
 
-### Use processing tools to fill vectorpoint_base with fields/bands from selected in UI
+### Use processing tools to fill vector_point_base with fields/bands from selected in UI
 # Point sample the vector layers using join attributes by location processing algorithm
 # (id: qgis:joinattributebylocation)
-            vectorpoint_polygon = vectorpoint_base
+            vector_point_polygon = vector_point_base
             selection_table = self.dlg.tableWidget_selected
             for rows_column1 in range(selection_table.rowCount()):
                 print('forloop 1')
@@ -316,13 +316,13 @@ class MsaQgis:
                             field = selection_table.item(rows_column2, 1).text()
                             fields.append(field)
                     processing_saved=processing.run('qgis:joinattributesbylocation',
-                                    {'INPUT': vectorpoint_polygon,
+                                    {'INPUT': vector_point_polygon,
                                      'JOIN': layer,
                                      'METHOD': 0,
                                      'PREDICATE': 0,
                                      'JOIN_FIELDS': fields,
                                      'OUTPUT': 'memory:'})
-                    vectorpoint_polygon = processing_saved['OUTPUT']
+                    vector_point_polygon = processing_saved['OUTPUT']
 
                 # Make sure that the last layer in the list has been reached
                 elif next_row == None:
@@ -333,14 +333,14 @@ class MsaQgis:
                         if selection_table.item(rows_column2, 0).text() == layer_name:
                             field = selection_table.item(rows_column2, 1).text()
                             fields.append(field)
-                    outputfile = self.dlg.mQgsFileWidget.filePath()+'vector.shp'
+                    output_file = self.dlg.qgsFileWidget_vectorPoint.filePath()+'vector.shp'
                     processing.run('qgis:joinattributesbylocation',
-                                    {'INPUT': vectorpoint_polygon,
+                                    {'INPUT': vector_point_polygon,
                                      'JOIN': layer,
                                      'METHOD': 0,
                                      'PREDICATE': 0,
                                      'JOIN_FIELDS': fields,
-                                     'OUTPUT': outputfile})
+                                     'OUTPUT': output_file})
                     break
 
                 elif previous_row.text() == layer_name:
@@ -352,7 +352,8 @@ class MsaQgis:
 
 # Point sample the raster layers using sample raster values processing algorithm
 # (id: qgis:rastersampling)
-            vectorpoint_raster = vectorpoint_base
+# TODO Once the plugin is functional with this option, point sample needs to be replaced with a buffer + average
+            vector_point_raster = vector_point_base
             selection_table = self.dlg.tableWidget_Sel_Raster
             for rows_column1 in range(selection_table.rowCount()):
                 layer_name = selection_table.item(rows_column1, 0).text()
@@ -386,11 +387,11 @@ class MsaQgis:
                             field = selection_table.item(rows_column2, 1).text()
                             fields.append(field)
                     processing_saved=processing.run('qgis:rastersampling',
-                                    {'INPUT': vectorpoint_raster,
+                                    {'INPUT': vector_point_raster,
                                      'RASTERCOPY': layer,
                                      'COLUMN_PREFIX': layer_name[:5],
                                      'OUTPUT': 'TEMPORARY_OUTPUT:'})
-                    vectorpoint_raster = processing_saved['OUTPUT']
+                    vector_point_raster = processing_saved['OUTPUT']
 
                 # Make sure that the last layer in the list has been reached
                 elif next_row == None:
@@ -400,12 +401,12 @@ class MsaQgis:
                         if selection_table.item(rows_column2, 0).text() == layer_name:
                             field = selection_table.item(rows_column2, 1).text()
                             fields.append(field)
-                    outputfile_ras = self.dlg.mQgsFileWidget.filePath()+'raster.shp'
+                    output_file_ras = self.dlg.qgsFileWidget_vectorPoint.filePath()+'raster.shp'
                     processing.run('qgis:rastersampling',
-                                    {'INPUT': vectorpoint_raster,
+                                    {'INPUT': vector_point_raster,
                                      'RASTERCOPY': layer,
                                      'COLUMN_PREFIX': layer_name[:5],
-                                     'OUTPUT': outputfile_ras})
+                                     'OUTPUT': output_file_ras})
                     break
 
                 elif previous_row.text() == layer_name:
@@ -416,19 +417,27 @@ class MsaQgis:
                     break
 
 # Create layers for output files (may replace with direct reference to files instead)
-            vectorpoint_filled_vec = QgsVectorLayer(outputfile, '', 'ogr')
-            vectorpoint_filled_ras = QgsVectorLayer(outputfile_ras, 'final', 'ogr')
+            vector_point_filled_vec = QgsVectorLayer(output_file, '', 'ogr')
+            vector_point_filled_ras = QgsVectorLayer(output_file_ras, 'final', 'ogr')
 
 # Join tables - add if statement to skip for no vector layers or no raster layers
+            vector_point_filled_ras.startEditing()
             join_info = QgsVectorLayerJoinInfo()
-            join_info.setJoinLayer(vectorpoint_filled_vec)
+            join_info.setJoinLayer(vector_point_filled_vec)
             join_info.setJoinFieldName('MSA-ID')
             join_info.setTargetFieldName('MSA-ID')
             join_info.setUsingMemoryCache(True)
             join_info.setJoinFieldNamesBlockList(['geom_X', 'geom_Y'])
-            vectorpoint_filled_ras.addJoin(join_info)
+            vector_point_filled_ras.addJoin(join_info)
+            vector_point_filled_ras.updateFields()
+            vector_point_filled_ras.commitChanges()
+
 # add to map canvas
-            QgsProject.instance().addMapLayer(vectorpoint_filled_ras)
+            QgsProject.instance().addMapLayer(vector_point_filled_vec)
+            QgsProject.instance().addMapLayer(vector_point_filled_ras)
+# TODO vector_point_filled_ras not loading correctly when vector_point_filled_vec is not loaded as well
+
+
 
 ###
 

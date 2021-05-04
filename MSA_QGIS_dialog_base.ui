@@ -13,23 +13,23 @@
   <property name="windowTitle">
    <string>MSA QGIS</string>
   </property>
-  <widget class="QTabWidget" name="tabWidget">
+  <widget class="QTabWidget" name="tab_top">
    <property name="geometry">
     <rect>
      <x>0</x>
      <y>0</y>
      <width>671</width>
-     <height>651</height>
+     <height>661</height>
     </rect>
    </property>
    <property name="currentIndex">
-    <number>1</number>
+    <number>0</number>
    </property>
-   <widget class="QWidget" name="environmental_spatial_input">
+   <widget class="QWidget" name="tabl_envAndSpatial">
     <attribute name="title">
      <string>Spatial and Environmetal input</string>
     </attribute>
-    <widget class="QTableWidget" name="tableWidget_Sel_Raster">
+    <widget class="QTableWidget" name="tableWidget_selRaster">
      <property name="geometry">
       <rect>
        <x>400</x>
@@ -87,7 +87,7 @@
       </property>
      </column>
     </widget>
-    <widget class="QLabel" name="label_3">
+    <widget class="QLabel" name="label_saveOutput">
      <property name="geometry">
       <rect>
        <x>20</x>
@@ -100,7 +100,7 @@
       <string>Save output file to:</string>
      </property>
     </widget>
-    <widget class="QTableWidget" name="tableWidget_Raster">
+    <widget class="QTableWidget" name="tableWidget_raster">
      <property name="geometry">
       <rect>
        <x>400</x>
@@ -144,7 +144,7 @@
       </property>
      </column>
     </widget>
-    <widget class="QgsFileWidget" name="mQgsFileWidget">
+    <widget class="QgsFileWidget" name="qgsFileWidget_vectorPoint">
      <property name="geometry">
       <rect>
        <x>160</x>
@@ -157,7 +157,7 @@
       <enum>QgsFileWidget::SaveFile</enum>
      </property>
     </widget>
-    <widget class="QLabel" name="label_2">
+    <widget class="QLabel" name="label_currentSel">
      <property name="geometry">
       <rect>
        <x>20</x>
@@ -173,7 +173,7 @@
       <bool>true</bool>
      </property>
     </widget>
-    <widget class="QLabel" name="label">
+    <widget class="QLabel" name="label_fieldsAndBands">
      <property name="geometry">
       <rect>
        <x>20</x>
@@ -215,7 +215,7 @@
       <number>1000000</number>
      </property>
     </widget>
-    <widget class="QTableWidget" name="tableWidget">
+    <widget class="QTableWidget" name="tableWidget_vector">
      <property name="geometry">
       <rect>
        <x>160</x>
@@ -259,13 +259,13 @@
       </property>
      </column>
     </widget>
-    <widget class="QLabel" name="label_5">
+    <widget class="QLabel" name="label_raster">
      <property name="geometry">
       <rect>
        <x>480</x>
        <y>220</y>
-       <width>47</width>
-       <height>13</height>
+       <width>61</width>
+       <height>16</height>
       </rect>
      </property>
      <property name="font">
@@ -282,13 +282,13 @@
       <set>Qt::AlignCenter</set>
      </property>
     </widget>
-    <widget class="QLabel" name="label_4">
+    <widget class="QLabel" name="label_vector">
      <property name="geometry">
       <rect>
        <x>240</x>
        <y>220</y>
-       <width>47</width>
-       <height>13</height>
+       <width>61</width>
+       <height>16</height>
       </rect>
      </property>
      <property name="font">
@@ -332,11 +332,11 @@
      </property>
     </widget>
    </widget>
-   <widget class="QWidget" name="vegetation_Input">
+   <widget class="QWidget" name="tab_vegInput">
     <attribute name="title">
      <string>Vegetation input</string>
     </attribute>
-    <widget class="QgsFileWidget" name="mQgsFileWidget_Vegetation">
+    <widget class="QgsFileWidget" name="qgsFileWidget_vegetation">
      <property name="geometry">
       <rect>
        <x>150</x>
@@ -346,7 +346,7 @@
       </rect>
      </property>
     </widget>
-    <widget class="QLabel" name="label_7">
+    <widget class="QLabel" name="label_importHandbag">
      <property name="geometry">
       <rect>
        <x>10</x>
@@ -362,7 +362,7 @@
       <bool>true</bool>
      </property>
     </widget>
-    <widget class="QTableWidget" name="tableWidget_Taxa">
+    <widget class="QTableWidget" name="tableWidget_taxa">
      <property name="geometry">
       <rect>
        <x>150</x>
@@ -407,7 +407,7 @@
       </property>
      </column>
     </widget>
-    <widget class="QPushButton" name="addNew_Taxa">
+    <widget class="QPushButton" name="pushButton_newTaxa">
      <property name="geometry">
       <rect>
        <x>550</x>
@@ -420,7 +420,7 @@
       <string>Add New</string>
      </property>
     </widget>
-    <widget class="QLabel" name="label_10">
+    <widget class="QLabel" name="label_taxa">
      <property name="geometry">
       <rect>
        <x>10</x>
@@ -460,7 +460,7 @@
       </property>
      </column>
     </widget>
-    <widget class="QPushButton" name="addNew_VegCom">
+    <widget class="QPushButton" name="pushButton_newVegCom">
      <property name="geometry">
       <rect>
        <x>550</x>
@@ -473,7 +473,7 @@
       <string>Add New</string>
      </property>
     </widget>
-    <widget class="QLabel" name="label_12">
+    <widget class="QLabel" name="label_vegcom">
      <property name="geometry">
       <rect>
        <x>10</x>
@@ -489,7 +489,7 @@
       <bool>true</bool>
      </property>
     </widget>
-    <widget class="QPushButton" name="remove_vegCom">
+    <widget class="QPushButton" name="pushButton_removeVegCom">
      <property name="geometry">
       <rect>
        <x>470</x>
@@ -502,7 +502,7 @@
       <string>Remove</string>
      </property>
     </widget>
-    <widget class="QPushButton" name="remove_Taxa">
+    <widget class="QPushButton" name="pushButton_removeTaxa">
      <property name="geometry">
       <rect>
        <x>470</x>
@@ -516,7 +516,7 @@
      </property>
     </widget>
    </widget>
-   <widget class="QWidget" name="tab_Rules">
+   <widget class="QWidget" name="tab_rules">
     <attribute name="title">
      <string>Rules</string>
     </attribute>
@@ -558,7 +558,7 @@
        </rect>
       </property>
       <property name="text">
-       <string>Chance:</string>
+       <string>chance</string>
       </property>
      </widget>
      <widget class="QComboBox" name="comboBox_prevVegCom">
@@ -594,7 +594,7 @@
        <rect>
         <x>70</x>
         <y>10</y>
-        <width>151</width>
+        <width>171</width>
         <height>16</height>
        </rect>
       </property>
@@ -602,7 +602,7 @@
        <string>choose vegetation community</string>
       </property>
      </widget>
-     <widget class="QComboBox" name="comboBox_Rule">
+     <widget class="QComboBox" name="comboBox_rule">
       <property name="geometry">
        <rect>
         <x>250</x>
@@ -640,7 +640,7 @@
        <string>-</string>
       </property>
      </widget>
-     <widget class="QDoubleSpinBox" name="doubleSpinBox_Chance">
+     <widget class="QDoubleSpinBox" name="doubleSpinBox_chance">
       <property name="geometry">
        <rect>
         <x>390</x>
@@ -656,30 +656,20 @@
        <double>100.000000000000000</double>
       </property>
      </widget>
-     <widget class="QLabel" name="label_21">
-      <property name="geometry">
-       <rect>
-        <x>70</x>
-        <y>130</y>
-        <width>171</width>
-        <height>16</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>choose an environmental variable</string>
-      </property>
-     </widget>
      <widget class="QLabel" name="label_20">
       <property name="geometry">
        <rect>
         <x>70</x>
         <y>200</y>
-        <width>581</width>
-        <height>16</height>
+        <width>411</width>
+        <height>31</height>
        </rect>
       </property>
       <property name="text">
-       <string>Example 1: Bare ground is placed where DEM band 1 is &gt;5000</string>
+       <string>Rule 2: Heath has 100 percent chance to be placed anywhere, replacing only empty</string>
+      </property>
+      <property name="wordWrap">
+       <bool>true</bool>
       </property>
      </widget>
      <widget class="QLabel" name="label_15">
@@ -692,7 +682,7 @@
        </rect>
       </property>
       <property name="text">
-       <string>Rule 1</string>
+       <string>Rule 2</string>
       </property>
      </widget>
      <widget class="QDoubleSpinBox" name="doubleSpinBox_rangeMin">
@@ -708,7 +698,7 @@
        <double>100000.000000000000000</double>
       </property>
       <property name="value">
-       <double>5000.000000000000000</double>
+       <double>0.000000000000000</double>
       </property>
      </widget>
      <widget class="QLabel" name="label_18">
@@ -716,7 +706,7 @@
        <rect>
         <x>250</x>
         <y>10</y>
-        <width>151</width>
+        <width>121</width>
         <height>16</height>
        </rect>
       </property>
@@ -735,7 +725,47 @@
       </property>
       <item>
        <property name="text">
+        <string>Heath</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>Water</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
         <string>Bare ground</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>Birch</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>Oak</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>Hazel</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>Mire</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>Pasture</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>Crops</string>
        </property>
       </item>
      </widget>
@@ -750,7 +780,27 @@
       </property>
       <item>
        <property name="text">
-        <string>DEM band 1</string>
+        <string>Empty</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>Geology</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>Facing</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>DEM</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>Steepness</string>
        </property>
       </item>
      </widget>
@@ -767,7 +817,7 @@
        <double>100000.000000000000000</double>
       </property>
       <property name="value">
-       <double>100000.000000000000000</double>
+       <double>0.000000000000000</double>
       </property>
      </widget>
      <widget class="QLabel" name="label_23">
@@ -783,7 +833,7 @@
        <string>range (if numerical)</string>
       </property>
      </widget>
-     <widget class="QComboBox" name="comboBox_Category">
+     <widget class="QComboBox" name="comboBox_category">
       <property name="geometry">
        <rect>
         <x>430</x>
@@ -791,6 +841,9 @@
         <width>171</width>
         <height>22</height>
        </rect>
+      </property>
+      <property name="currentText">
+       <string/>
       </property>
      </widget>
      <widget class="QLabel" name="label_24">
@@ -819,6 +872,38 @@
        <string>add condition</string>
       </property>
      </widget>
+     <widget class="QLabel" name="label_56">
+      <property name="geometry">
+       <rect>
+        <x>70</x>
+        <y>120</y>
+        <width>171</width>
+        <height>41</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>choose an environmental variable</string>
+      </property>
+      <property name="wordWrap">
+       <bool>true</bool>
+      </property>
+     </widget>
+     <widget class="QRadioButton" name="radioButton_all">
+      <property name="geometry">
+       <rect>
+        <x>240</x>
+        <y>100</y>
+        <width>91</width>
+        <height>20</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>All</string>
+      </property>
+      <property name="checked">
+       <bool>false</bool>
+      </property>
+     </widget>
     </widget>
     <widget class="QFrame" name="frame_2">
      <property name="geometry">
@@ -826,7 +911,7 @@
        <x>10</x>
        <y>260</y>
        <width>621</width>
-       <height>351</height>
+       <height>341</height>
       </rect>
      </property>
      <property name="frameShape">
@@ -845,7 +930,7 @@
        </rect>
       </property>
       <property name="text">
-       <string>Chance:</string>
+       <string>chance</string>
       </property>
      </widget>
      <widget class="QComboBox" name="comboBox_prevVegCom_4">
@@ -881,7 +966,7 @@
        <rect>
         <x>70</x>
         <y>10</y>
-        <width>151</width>
+        <width>171</width>
         <height>16</height>
        </rect>
       </property>
@@ -947,26 +1032,29 @@
       <property name="geometry">
        <rect>
         <x>70</x>
-        <y>140</y>
+        <y>125</y>
         <width>171</width>
-        <height>16</height>
+        <height>41</height>
        </rect>
       </property>
       <property name="text">
        <string>choose an environmental variable</string>
+      </property>
+      <property name="wordWrap">
+       <bool>true</bool>
       </property>
      </widget>
      <widget class="QLabel" name="label_50">
       <property name="geometry">
        <rect>
         <x>70</x>
-        <y>300</y>
+        <y>290</y>
         <width>441</width>
-        <height>41</height>
+        <height>51</height>
        </rect>
       </property>
       <property name="text">
-       <string>Example 2 (2x add condition): Bare ground has 50% chance to encroach on heath and grassland where DEM band 1 is &gt; 5000 or where Geology is limestone</string>
+       <string>Example 2: Bare ground has 50% chance to encroach up to 1 point away on heath and grassland where DEM band 1 is &gt; 5000 or where Geology is limestone</string>
       </property>
       <property name="wordWrap">
        <bool>true</bool>
@@ -1099,8 +1187,8 @@
      <widget class="QPushButton" name="pushButton_addCondition_4">
       <property name="geometry">
        <rect>
-        <x>504</x>
-        <y>320</y>
+        <x>510</x>
+        <y>310</y>
         <width>91</width>
         <height>23</height>
        </rect>
@@ -1151,19 +1239,6 @@
       </property>
       <property name="value">
        <double>0.000000000000000</double>
-      </property>
-     </widget>
-     <widget class="QLabel" name="label_56">
-      <property name="geometry">
-       <rect>
-        <x>70</x>
-        <y>230</y>
-        <width>171</width>
-        <height>16</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>choose an environmental variable</string>
       </property>
      </widget>
      <widget class="QDoubleSpinBox" name="doubleSpinBox_rangeMin_5">
@@ -1247,6 +1322,12 @@
         <height>16</height>
        </rect>
       </property>
+      <property name="font">
+       <font>
+        <weight>75</weight>
+        <bold>true</bold>
+       </font>
+      </property>
       <property name="text">
        <string>AND</string>
       </property>
@@ -1255,22 +1336,280 @@
       <property name="geometry">
        <rect>
         <x>70</x>
-        <y>210</y>
+        <y>202</y>
         <width>47</width>
-        <height>13</height>
+        <height>21</height>
        </rect>
+      </property>
+      <property name="font">
+       <font>
+        <weight>75</weight>
+        <bold>true</bold>
+       </font>
       </property>
       <property name="text">
        <string>OR</string>
       </property>
      </widget>
+     <widget class="QLabel" name="label_61">
+      <property name="geometry">
+       <rect>
+        <x>70</x>
+        <y>220</y>
+        <width>171</width>
+        <height>41</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>choose an environmental variable</string>
+      </property>
+      <property name="wordWrap">
+       <bool>true</bool>
+      </property>
+     </widget>
+     <widget class="QSpinBox" name="spinBox">
+      <property name="geometry">
+       <rect>
+        <x>470</x>
+        <y>40</y>
+        <width>41</width>
+        <height>22</height>
+       </rect>
+      </property>
+      <property name="value">
+       <number>1</number>
+      </property>
+     </widget>
+     <widget class="QLabel" name="label_62">
+      <property name="geometry">
+       <rect>
+        <x>470</x>
+        <y>10</y>
+        <width>101</width>
+        <height>16</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>number of points</string>
+      </property>
+     </widget>
+    </widget>
+    <widget class="QPushButton" name="pushButton_addCondition_5">
+     <property name="geometry">
+      <rect>
+       <x>270</x>
+       <y>610</y>
+       <width>121</width>
+       <height>23</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>add new rule</string>
+     </property>
     </widget>
    </widget>
-   <widget class="QWidget" name="pollen_Input">
+   <widget class="QWidget" name="tab_ruleTree">
+    <attribute name="title">
+     <string>Rule tree</string>
+    </attribute>
+    <widget class="QScrollArea" name="scrollArea_ruleTree">
+     <property name="geometry">
+      <rect>
+       <x>0</x>
+       <y>0</y>
+       <width>501</width>
+       <height>641</height>
+      </rect>
+     </property>
+     <property name="verticalScrollBarPolicy">
+      <enum>Qt::ScrollBarAlwaysOn</enum>
+     </property>
+     <property name="horizontalScrollBarPolicy">
+      <enum>Qt::ScrollBarAlwaysOn</enum>
+     </property>
+     <property name="widgetResizable">
+      <bool>true</bool>
+     </property>
+     <widget class="QWidget" name="scrollAreaWidgetContents">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>0</y>
+        <width>482</width>
+        <height>622</height>
+       </rect>
+      </property>
+      <widget class="QPushButton" name="pushButton_11">
+       <property name="geometry">
+        <rect>
+         <x>50</x>
+         <y>20</y>
+         <width>16</width>
+         <height>16</height>
+        </rect>
+       </property>
+       <property name="font">
+        <font>
+         <pointsize>7</pointsize>
+        </font>
+       </property>
+       <property name="text">
+        <string>+</string>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_26">
+       <property name="geometry">
+        <rect>
+         <x>10</x>
+         <y>20</y>
+         <width>47</width>
+         <height>13</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Rule 1</string>
+       </property>
+      </widget>
+     </widget>
+    </widget>
+    <widget class="QPushButton" name="pushButton_ruleList">
+     <property name="geometry">
+      <rect>
+       <x>510</x>
+       <y>600</y>
+       <width>151</width>
+       <height>24</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>View rule list</string>
+     </property>
+    </widget>
+    <widget class="QWidget" name="layoutWidget">
+     <property name="geometry">
+      <rect>
+       <x>510</x>
+       <y>490</y>
+       <width>151</width>
+       <height>81</height>
+      </rect>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayout">
+      <item>
+       <widget class="QLabel" name="label_numberOfIter">
+        <property name="text">
+         <string>Number of iterations</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLineEdit" name="lineEdit_iter"/>
+      </item>
+      <item>
+       <widget class="QLabel" name="label_numberOfMaps">
+        <property name="text">
+         <string>Will result in generating x  maps</string>
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+    <widget class="QWidget" name="layoutWidget">
+     <property name="geometry">
+      <rect>
+       <x>510</x>
+       <y>10</y>
+       <width>170</width>
+       <height>206</height>
+      </rect>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayout_2">
+      <item>
+       <widget class="QPushButton" name="pushButton_ruleBelow">
+        <property name="text">
+         <string>Insert rule below</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="pushButton_ruleAbove">
+        <property name="text">
+         <string>Insert rule above</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="pushButton_ruleSeries">
+        <property name="text">
+         <string>Insert rule in series</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="pushButton_ruleParallel">
+        <property name="text">
+         <string>Insert rule in parallel</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="pushButton_ruleBranch">
+        <property name="text">
+         <string>Insert rule in branch</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="pushButton_branchCombine">
+        <property name="text">
+         <string>Combine branches with rule</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="pushButton_asBaseGroup">
+        <property name="text">
+         <string>Designate as base group</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+    <widget class="QWidget" name="layoutWidget">
+     <property name="geometry">
+      <rect>
+       <x>510</x>
+       <y>300</y>
+       <width>151</width>
+       <height>81</height>
+      </rect>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayout_3">
+      <item>
+       <widget class="QPushButton" name="pushButton_copyRule">
+        <property name="text">
+         <string>Copy rule</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="pushButton_pasteRule">
+        <property name="text">
+         <string>Paste rule</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </widget>
+   <widget class="QWidget" name="tab_pollenInput">
     <attribute name="title">
      <string>Pollen input</string>
     </attribute>
-    <widget class="QgsFileWidget" name="mQgsFileWidget_Vegetation_2">
+    <widget class="QgsFileWidget" name="qgsFileWidget_importPollen">
      <property name="geometry">
       <rect>
        <x>150</x>
@@ -1280,7 +1619,7 @@
       </rect>
      </property>
     </widget>
-    <widget class="QLabel" name="label_8">
+    <widget class="QLabel" name="label_importPollen">
      <property name="geometry">
       <rect>
        <x>10</x>
@@ -1296,7 +1635,7 @@
       <bool>true</bool>
      </property>
     </widget>
-    <widget class="QgsFileWidget" name="mQgsFileWidget_Vegetation_3">
+    <widget class="QgsFileWidget" name="qgsFileWidget_importLookup">
      <property name="geometry">
       <rect>
        <x>150</x>
@@ -1306,7 +1645,7 @@
       </rect>
      </property>
     </widget>
-    <widget class="QLabel" name="label_9">
+    <widget class="QLabel" name="label_importLookup">
      <property name="geometry">
       <rect>
        <x>10</x>
@@ -1322,7 +1661,7 @@
       <bool>true</bool>
      </property>
     </widget>
-    <widget class="QLabel" name="label_11">
+    <widget class="QLabel" name="label_selModel">
      <property name="geometry">
       <rect>
        <x>10</x>
@@ -1338,7 +1677,7 @@
       <bool>true</bool>
      </property>
     </widget>
-    <widget class="QComboBox" name="comboBox">
+    <widget class="QComboBox" name="comboBox_dispModel">
      <property name="geometry">
       <rect>
        <x>150</x>
@@ -1348,7 +1687,7 @@
       </rect>
      </property>
     </widget>
-    <widget class="QTableWidget" name="tableWidget_2">
+    <widget class="QTableWidget" name="tableWidget_sites">
      <property name="geometry">
       <rect>
        <x>150</x>
@@ -1373,7 +1712,7 @@
       </property>
      </column>
     </widget>
-    <widget class="QLabel" name="label_13">
+    <widget class="QLabel" name="label_sites">
      <property name="geometry">
       <rect>
        <x>10</x>
@@ -1389,7 +1728,7 @@
       <bool>true</bool>
      </property>
     </widget>
-    <widget class="QTabWidget" name="tabWidget_2">
+    <widget class="QTabWidget" name="tabWidget_countSheets">
      <property name="geometry">
       <rect>
        <x>150</x>
@@ -1405,7 +1744,7 @@
       <attribute name="title">
        <string>Sample 1</string>
       </attribute>
-      <widget class="QTableWidget" name="tableWidget_3">
+      <widget class="QTableWidget" name="tableWidget_countSheet">
        <property name="geometry">
         <rect>
          <x>0</x>
@@ -1462,7 +1801,7 @@
       </attribute>
      </widget>
     </widget>
-    <widget class="QLabel" name="label_14">
+    <widget class="QLabel" name="label_pollenCounts">
      <property name="geometry">
       <rect>
        <x>10</x>
@@ -1479,18 +1818,18 @@
      </property>
     </widget>
    </widget>
-   <widget class="QWidget" name="model_Parameters">
+   <widget class="QWidget" name="tab_modelParameters">
     <attribute name="title">
      <string>Model Parameters</string>
     </attribute>
    </widget>
-   <widget class="QWidget" name="tab_Metadata">
+   <widget class="QWidget" name="tab_metadata">
     <attribute name="title">
      <string>Metadata</string>
     </attribute>
    </widget>
   </widget>
-  <widget class="QCheckBox" name="checkBox">
+  <widget class="QCheckBox" name="checkBox_extent">
    <property name="geometry">
     <rect>
      <x>10</x>
@@ -1503,7 +1842,7 @@
     <string>Extent set</string>
    </property>
   </widget>
-  <widget class="QCheckBox" name="checkBox_2">
+  <widget class="QCheckBox" name="checkBox_resolution">
    <property name="geometry">
     <rect>
      <x>10</x>
@@ -1516,7 +1855,7 @@
     <string>Resolution set</string>
    </property>
   </widget>
-  <widget class="QCheckBox" name="checkBox_3">
+  <widget class="QCheckBox" name="checkBox_envLayers">
    <property name="geometry">
     <rect>
      <x>10</x>
@@ -1529,7 +1868,7 @@
     <string>Environmental Layers selected</string>
    </property>
   </widget>
-  <widget class="QCheckBox" name="checkBox_4">
+  <widget class="QCheckBox" name="checkBox_saveFile">
    <property name="geometry">
     <rect>
      <x>10</x>
@@ -1558,7 +1897,7 @@
     <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
    </property>
   </widget>
-  <widget class="QLabel" name="label_6">
+  <widget class="QLabel" name="label_checklist">
    <property name="geometry">
     <rect>
      <x>0</x>
@@ -1581,7 +1920,7 @@
     <set>Qt::AlignCenter</set>
    </property>
   </widget>
-  <widget class="QCheckBox" name="checkBox_5">
+  <widget class="QCheckBox" name="checkBox_vegCom">
    <property name="geometry">
     <rect>
      <x>210</x>
@@ -1594,7 +1933,7 @@
     <string>Vegetation communities set</string>
    </property>
   </widget>
-  <widget class="QCheckBox" name="checkBox_6">
+  <widget class="QCheckBox" name="checkBox_pollenCounts">
    <property name="geometry">
     <rect>
      <x>210</x>
@@ -1607,7 +1946,7 @@
     <string>Pollen counts set</string>
    </property>
   </widget>
-  <widget class="QCheckBox" name="checkBox_7">
+  <widget class="QCheckBox" name="checkBox_windRose">
    <property name="geometry">
     <rect>
      <x>210</x>
@@ -1620,7 +1959,7 @@
     <string>(Optional) Wind rose set</string>
    </property>
   </widget>
-  <widget class="QCheckBox" name="checkBox_8">
+  <widget class="QCheckBox" name="checkBox_taxa">
    <property name="geometry">
     <rect>
      <x>210</x>
@@ -1633,7 +1972,7 @@
     <string>Taxa set</string>
    </property>
   </widget>
-  <widget class="QCheckBox" name="checkBox_9">
+  <widget class="QCheckBox" name="checkBox_parameters">
    <property name="geometry">
     <rect>
      <x>390</x>
@@ -1646,7 +1985,7 @@
     <string>Model Parameters set</string>
    </property>
   </widget>
-  <widget class="QCheckBox" name="checkBox_10">
+  <widget class="QCheckBox" name="checkBox_rules">
    <property name="geometry">
     <rect>
      <x>390</x>

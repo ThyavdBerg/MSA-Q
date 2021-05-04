@@ -119,10 +119,18 @@
        <widget class="QLineEdit" name="lineEdit_taxonFullName"/>
       </item>
       <item>
-       <widget class="QDoubleSpinBox" name="doubleSpinBox_taxonFallSpeed"/>
+       <widget class="QDoubleSpinBox" name="doubleSpinBox_taxonFallSpeed">
+        <property name="decimals">
+         <number>4</number>
+        </property>
+       </widget>
       </item>
       <item>
-       <widget class="QDoubleSpinBox" name="doubleSpinBox_taxonRPP"/>
+       <widget class="QDoubleSpinBox" name="doubleSpinBox_taxonRPP">
+        <property name="decimals">
+         <number>4</number>
+        </property>
+       </widget>
       </item>
      </layout>
     </item>

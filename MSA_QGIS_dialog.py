@@ -55,8 +55,8 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.setupUi(self)
 
         # class variables
-        self.vegcomrowCount = 0
-        self.vegcomcolumnCount = 1
+        self.vegcom_row_count = 0
+        self.vegcom_column_count = 1
         self.extent = None
 
         # events
@@ -64,15 +64,15 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         #self.mExtentGroupBox.setOutputExtentFromDrawOnCanvas() #for some reason causes really weird behaviour.
         # Q asked on GIS stackexchange
         self.mExtentGroupBox.extentChanged.connect(self.setExtent)
-        self.getFieldsandBands(self.tableWidget, self.tableWidget_Raster)
-        self.tableWidget.itemSelectionChanged.connect(lambda: self.updateSelectedRows(self.tableWidget_selected,
-                                                                                      self.tableWidget))
-        self.tableWidget_Raster.itemSelectionChanged.connect(lambda: self.updateSelectedRows(self.tableWidget_Sel_Raster,
-                                                                                             self.tableWidget_Raster))
-        self.addNew_Taxa.clicked.connect(self.addNewTaxon)
-        self.addNew_VegCom.clicked.connect(self.addNewVegCom)
-        self.remove_Taxa.clicked.connect(self.removeTaxaEntry)
-        self.remove_vegCom.clicked.connect(self.removeVegComEntry)
+        self.getFieldsandBands(self.tableWidget_vector, self.tableWidget_raster)
+        self.tableWidget_vector.itemSelectionChanged.connect(lambda: self.updateSelectedRows(self.tableWidget_selected,
+                                                                                      self.tableWidget_vector))
+        self.tableWidget_raster.itemSelectionChanged.connect(lambda: self.updateSelectedRows(self.tableWidget_selRaster,
+                                                                                             self.tableWidget_raster))
+        self.pushButton_newTaxa.clicked.connect(self.addNewTaxon)
+        self.pushButton_newVegCom.clicked.connect(self.addNewVegCom)
+        self.pushButton_removeTaxa.clicked.connect(self.removeTaxaEntry)
+        self.pushButton_removeVegCom.clicked.connect(self.removeVegComEntry)
 
 
     def setExtent(self):
@@ -81,66 +81,66 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.extent = self.mExtentGroupBox.outputExtent()
         self.mExtentGroupBox.setCurrentExtent(self.extent, self.mExtentGroupBox.outputCrs())
 
-    def getFieldsandBands(self, listTable,rasTable):
+    def getFieldsandBands(self, tableWidget_vector, tableWidget_raster):
         """Fills a table widget with all fields from vector polygon layers and all bands from raster layers currently
         loaded into the QGIS interface"""
-        listTable.clear()
-        rowCount = 0
-        columnCount = 0
-        listTable.setRowCount(rowCount + 1)
+        tableWidget_vector.clear()
+        row_count = 0
+        column_count = 0
+        tableWidget_vector.setRowCount(row_count + 1)
 
-        rasTable.clear()
-        rasRowCount = 0
-        rasColumnCount = 0
-        rasTable.setRowCount(rasRowCount+1)
+        tableWidget_raster.clear()
+        ras_row_count = 0
+        ras_column_count = 0
+        tableWidget_raster.setRowCount(ras_row_count + 1)
 
-        for lyrnr in range(iface.mapCanvas().layerCount()):
-            layer = iface.mapCanvas().layer(lyrnr)
+        for lyr_nr in range(iface.mapCanvas().layerCount()):
+            layer = iface.mapCanvas().layer(lyr_nr)
             if (layer.type() == layer.VectorLayer) and (layer.geometryType() == QgsWkbTypes.PolygonGeometry):
-                provider = layer.dataProvider()
-                for field in provider.fields():
-                    listTable.setItem(rowCount, columnCount,QTableWidgetItem(layer.name()))
-                    columnCount +=1
-                    listTable.setItem(rowCount,columnCount, QTableWidgetItem(field.name()))
-                    rowCount += 1
-                    listTable.setRowCount(rowCount+1)
-                    columnCount -= 1
+                data_provider = layer.dataProvider()
+                for field in data_provider.fields():
+                    tableWidget_vector.setItem(row_count, column_count, QTableWidgetItem(layer.name()))
+                    column_count +=1
+                    tableWidget_vector.setItem(row_count, column_count, QTableWidgetItem(field.name()))
+                    row_count += 1
+                    tableWidget_vector.setRowCount(row_count + 1)
+                    column_count -= 1
 
 
             elif layer.type() == layer.RasterLayer:
                 for band in range(layer.bandCount()):
-                    rasTable.setItem(rasRowCount, rasColumnCount,QTableWidgetItem(layer.name()))
-                    rasColumnCount += 1
-                    rasTable.setItem(rasRowCount, rasColumnCount, QTableWidgetItem(layer.bandName(band+1)))
-                    rasRowCount += 1
-                    rasTable.setRowCount(rasRowCount + 1)
-                    rasColumnCount -= 1
+                    tableWidget_raster.setItem(ras_row_count, ras_column_count, QTableWidgetItem(layer.name()))
+                    ras_column_count += 1
+                    tableWidget_raster.setItem(ras_row_count, ras_column_count, QTableWidgetItem(layer.bandName(band + 1)))
+                    ras_row_count += 1
+                    tableWidget_raster.setRowCount(ras_row_count + 1)
+                    ras_column_count -= 1
             else:
                 continue
 
-            listTable.setHorizontalHeaderLabels(['Layers', 'Fields'])
-            rasTable.setHorizontalHeaderLabels(['Layers', 'Bands'])
-        listTable.setRowCount(rowCount)
-        rasTable.setRowCount(rasRowCount)
+            tableWidget_vector.setHorizontalHeaderLabels(['Layers', 'Fields'])
+            tableWidget_raster.setHorizontalHeaderLabels(['Layers', 'Bands'])
+        tableWidget_vector.setRowCount(row_count)
+        tableWidget_raster.setRowCount(ras_row_count)
 
-    def updateSelectedRows(self, selectionTable,listTable):
+    def updateSelectedRows(self, tableWidget_selection, tableWidget_list):
         """ Updates a table widget with the rows selected in another table widget"""
         # selectionTable = self.tableWidget_selected
-        # listTable = self.tableWidget
-        selectionTable.setRowCount(len(listTable.selectionModel().selectedRows()))
-        rowCountSel = 0
+        # listTable = self.tableWidget_vector
+        tableWidget_selection.setRowCount(len(tableWidget_list.selectionModel().selectedRows()))
+        row_count_sel = 0
 
-        for row in range(listTable.rowCount()):
-            if listTable.item(row, 0).isSelected():
-                selectionTable.setItem(rowCountSel,
-                                       0,
-                                       QTableWidgetItem(listTable.item(row, 0)))
-                selectionTable.setItem(rowCountSel,
-                                       1,
-                                       QTableWidgetItem(listTable.item(row, 1)))
+        for row in range(tableWidget_list.rowCount()):
+            if tableWidget_list.item(row, 0).isSelected():
+                tableWidget_selection.setItem(row_count_sel,
+                                              0,
+                                              QTableWidgetItem(tableWidget_list.item(row, 0)))
+                tableWidget_selection.setItem(row_count_sel,
+                                              1,
+                                              QTableWidgetItem(tableWidget_list.item(row, 1)))
             else:
                 continue
-            rowCountSel += 1
+            row_count_sel += 1
 
     def addNewTaxon(self):
         """ Adds a new pollen taxon to the list of taxa by opening a pop-up in which the taxon short and full name,
@@ -151,18 +151,18 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         # runs when apply is clicked on the add new taxon popup
         if result:
             # Get filled in values
-            taxonShortName = self.taxonPopup.lineEdit_taxonShortName.text()
-            taxonFullName = self.taxonPopup.lineEdit_taxonFullName.text()
-            taxonFallSpeed = self.taxonPopup.doubleSpinBox_taxonFallSpeed.value()
-            taxonRPP = self.taxonPopup.doubleSpinBox_taxonRPP.value()
+            taxon_short_name = self.taxonPopup.lineEdit_taxonShortName.text()
+            taxon_full_name = self.taxonPopup.lineEdit_taxonFullName.text()
+            taxon_fall_speed = self.taxonPopup.doubleSpinBox_taxonFallSpeed.value()
+            taxon_rpp = self.taxonPopup.doubleSpinBox_taxonRPP.value()
             # Check if entry is valid and add to table
-            if taxonShortName and taxonFullName and taxonFallSpeed and taxonRPP:
-                rowCount = self.tableWidget_Taxa.rowCount()
-                self.tableWidget_Taxa.setRowCount(rowCount+1)
-                self.tableWidget_Taxa.setItem(rowCount, 0, QTableWidgetItem(taxonShortName))
-                self.tableWidget_Taxa.setItem(rowCount, 1, QTableWidgetItem(taxonFullName))
-                self.tableWidget_Taxa.setItem(rowCount, 2, QTableWidgetItem(str(taxonFallSpeed)))
-                self.tableWidget_Taxa.setItem(rowCount, 3, QTableWidgetItem(str(taxonRPP)))
+            if taxon_short_name and taxon_full_name and taxon_fall_speed and taxon_rpp:
+                row_count = self.tableWidget_taxa.rowCount()
+                self.tableWidget_taxa.setRowCount(row_count+1)
+                self.tableWidget_taxa.setItem(row_count, 0, QTableWidgetItem(taxon_short_name))
+                self.tableWidget_taxa.setItem(row_count, 1, QTableWidgetItem(taxon_full_name))
+                self.tableWidget_taxa.setItem(row_count, 2, QTableWidgetItem(str(taxon_fall_speed)))
+                self.tableWidget_taxa.setItem(row_count, 3, QTableWidgetItem(str(taxon_rpp)))
             else:
                 iface.messageBar().pushMessage('Missing value in add new taxon, '
                                                     'please try again', level=1)
@@ -171,77 +171,86 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         """ Adds a new vegetation community to the list of communities by opening a pop-up in which a list of species
          and their percentages, as well as a new community name can be given"""
         #pass list of taxa to the popup and open it
-        taxontable= self.tableWidget_Taxa
-        item_list = [taxontable.item(row,0).text() for row in range(taxontable.rowCount())]
-        self.vegComPopup = MsaQgisAddVegComPopup(item_list)
-        vegcomtable = self.tableWidget_vegCom
+        tableWidget_taxa = self.tableWidget_taxa
+        item_list = [tableWidget_taxa.item(row,0).text() for row in range(tableWidget_taxa.rowCount())]
+        self.veg_com_popup = MsaQgisAddVegComPopup(item_list)
+        tableWidget_vegCom = self.tableWidget_vegCom
 
         #add entries to table
-        result = self.vegComPopup.exec_()
+        result = self.veg_com_popup.exec_()
         if result:
-            self.vegcomrowCount += 1
-            vegcomtable.setRowCount(self.vegcomrowCount)
-            vegcomtable.setItem(self.vegcomrowCount-1, 0, QTableWidgetItem(
-                self.vegComPopup.lineEdit_vegComName.text()))
+            self.vegcom_row_count += 1
+            tableWidget_vegCom.setRowCount(self.vegcom_row_count)
+            tableWidget_vegCom.setItem(self.vegcom_row_count - 1, 0, QTableWidgetItem(
+                self.veg_com_popup.lineEdit_vegComName.text()))
 
             #Check if a taxon already had a column, add new column only for a new taxon
             #Create list of taxa that already have a column
-            headerlist = [vegcomtable.horizontalHeaderItem(column).text() for column in range(1, vegcomtable.columnCount())]
-            for taxon in range(len(self.vegComPopup.vegcomtaxoncombolist)):
-                if self.vegComPopup.vegcomtaxoncombolist[taxon].currentText() in headerlist:
+            header_list = [tableWidget_vegCom.horizontalHeaderItem(column).text() for column in range(1, tableWidget_vegCom.columnCount())]
+            for taxon in range(len(self.veg_com_popup.vegcom_taxon_combo_list)):
+                if self.veg_com_popup.vegcom_taxon_combo_list[taxon].currentText() in header_list:
                     # get column number of named column
-                    for column in range(vegcomtable.columnCount()):
-                        headertext = vegcomtable.horizontalHeaderItem(column).text()
-                        if headertext == self.vegComPopup.vegcomtaxoncombolist[taxon].currentText():
-                            vegcomtable.setItem(self.vegcomrowCount-1, column, QTableWidgetItem(
-                                str(self.vegComPopup.vegcomtaxondoublelist[taxon].value())))
+                    for column in range(tableWidget_vegCom.columnCount()):
+                        header_text = tableWidget_vegCom.horizontalHeaderItem(column).text()
+                        if header_text == self.veg_com_popup.vegcom_taxon_combo_list[taxon].currentText():
+                            tableWidget_vegCom.setItem(self.vegcom_row_count - 1, column, QTableWidgetItem(
+                                str(self.veg_com_popup.vegcom_taxon_double_list[taxon].value())))
 
                     # add value at right location to that column
 
                     pass
-                elif self.vegComPopup.vegcomtaxoncombolist[taxon] not in headerlist:
-                    self.vegcomcolumnCount += 1
-                    self.tableWidget_vegCom.setColumnCount(self.vegcomcolumnCount)
+                elif self.veg_com_popup.vegcom_taxon_combo_list[taxon] not in header_list:
+                    self.vegcom_column_count += 1
+                    self.tableWidget_vegCom.setColumnCount(self.vegcom_column_count)
                     # set header of new column
-                    vegcomtable.setHorizontalHeaderItem(self.vegcomcolumnCount-1, QTableWidgetItem(
-                                self.vegComPopup.vegcomtaxoncombolist[taxon].currentText()))
+                    tableWidget_vegCom.setHorizontalHeaderItem(self.vegcom_column_count - 1, QTableWidgetItem(
+                                self.veg_com_popup.vegcom_taxon_combo_list[taxon].currentText()))
                     # add value to new column
-                    vegcomtable.setItem(self.vegcomrowCount-1, self.vegcomcolumnCount-1, QTableWidgetItem(
-                        str(self.vegComPopup.vegcomtaxondoublelist[taxon].value())))
+                    tableWidget_vegCom.setItem(self.vegcom_row_count - 1, self.vegcom_column_count - 1, QTableWidgetItem(
+                        str(self.veg_com_popup.vegcom_taxon_double_list[taxon].value())))
 
                 else:
                     print('error in creating veg com columns')
 
     def removeTaxaEntry(self):
         """ Removes selected entries from a table with a pop-up warning"""
+        # popup
+        pass #TODO create pop-up warning
+
+
         #get selection
-        taxatable = self.tableWidget_Taxa
-        for row in taxatable.selectionModel().selectedRows():
-            taxatable.removeRow(row.row())
+        tableWidget_taxa = self.tableWidget_taxa
+        for row in tableWidget_taxa.selectionModel().selectedRows():
+            tableWidget_taxa.removeRow(row.row())
 
     def removeVegComEntry(self):
         """ Removes selected entries from a table with a pop-up warning"""
+        #Popup
+        pass #TODO create pop-up warning
+
+
         #remove row
-        vegcomtable = self.tableWidget_vegCom
+        tableWidget_vegCom = self.tableWidget_vegCom
         columns_to_remove = []
-        if vegcomtable.selectionModel().selectedRows():
-            for row in vegcomtable.selectionModel().selectedRows():
-                vegcomtable.removeRow(row.row())
-                self.vegcomrowCount -= 1
+
+        if tableWidget_vegCom.selectionModel().selectedRows():
+            for row in tableWidget_vegCom.selectionModel().selectedRows():
+                tableWidget_vegCom.removeRow(row.row())
+                self.vegcom_row_count -= 1
         #remove columns that no longer contain data after the row was removed
-        for column in range(1,vegcomtable.columnCount()):
+        for column in range(1,tableWidget_vegCom.columnCount()):
             item_list = []
-            for row in range(vegcomtable.rowCount()):
-                if vegcomtable.item(row,column):
-                    item_list.append(vegcomtable.item(row,column))
+            for row in range(tableWidget_vegCom.rowCount()):
+                if tableWidget_vegCom.item(row,column):
+                    item_list.append(tableWidget_vegCom.item(row,column))
             if not item_list:
                 columns_to_remove.append(column)
             else:
                 continue
-        for listitem in columns_to_remove:
-            vegcomtable.removeColumn(listitem)
-            self.vegcomcolumnCount -= 1
-            vegcomtable.setColumnCount(self.vegcomcolumnCount)
+        for list_item in columns_to_remove:
+            tableWidget_vegCom.removeColumn(list_item)
+            self.vegcom_column_count -= 1
+            tableWidget_vegCom.setColumnCount(self.vegcom_column_count)
 
 
 class MsaQgisAddTaxonPopup (QtWidgets.QDialog, FORM_CLASS_TAXA):
@@ -261,15 +270,15 @@ class MsaQgisAddVegComPopup (QtWidgets.QDialog, FORM_CLASS_VEGCOM):
 
         #class variables
         self.previous = 0
-        self.taxonlist = taxonlist
-        self.vegcomtaxondoublelist = []
-        self.vegcomtaxoncombolist = []
+        self.taxon_list = taxonlist
+        self.vegcom_taxon_double_list = []
+        self.vegcom_taxon_combo_list = []
 
 
         #add gridlayout to scrollarea
-        self.frameforscrolling = QFrame(self.scrollArea)
-        self.frameforscrolling.setLayout(self.gridLayout)
-        self.scrollArea.setWidget(self.frameforscrolling)
+        self.frameWidget_scroll = QFrame(self.scrollArea)
+        self.frameWidget_scroll.setLayout(self.gridLayout)
+        self.scrollArea.setWidget(self.frameWidget_scroll)
 
         #set locations of original widgets in grid (because Qt designer won't bloody work with me)
 
@@ -297,10 +306,10 @@ class MsaQgisAddVegComPopup (QtWidgets.QDialog, FORM_CLASS_VEGCOM):
         self.gridLayout.addWidget(self.buttonBox_2, self.previous + 6, 0, 1, 4)
         self.previous += 2
         # Fill the comboBox
-        self.comboBox.addItems(self.taxonlist)
+        self.comboBox.addItems(self.taxon_list)
         # Create list of items to pass to the main dialog
-        self.vegcomtaxoncombolist.append(self.comboBox)
-        self.vegcomtaxondoublelist.append(self.doubleSpin)
+        self.vegcom_taxon_combo_list.append(self.comboBox)
+        self.vegcom_taxon_double_list.append(self.doubleSpin)
 
 
 
