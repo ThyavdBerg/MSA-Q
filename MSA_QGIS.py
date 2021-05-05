@@ -354,7 +354,7 @@ class MsaQgis:
 # (id: qgis:rastersampling)
 # TODO Once the plugin is functional with this option, point sample needs to be replaced with a buffer + average
             vector_point_raster = vector_point_base
-            selection_table = self.dlg.tableWidget_Sel_Raster
+            selection_table = self.dlg.tableWidget_selRaster
             for rows_column1 in range(selection_table.rowCount()):
                 layer_name = selection_table.item(rows_column1, 0).text()
                 previous_row = selection_table.item(rows_column1-1, 0)
@@ -417,6 +417,7 @@ class MsaQgis:
                     break
 
 # Create layers for output files (may replace with direct reference to files instead)
+            # TODO output file can be referenced before assignment, needs failsafe
             vector_point_filled_vec = QgsVectorLayer(output_file, '', 'ogr')
             vector_point_filled_ras = QgsVectorLayer(output_file_ras, 'final', 'ogr')
 

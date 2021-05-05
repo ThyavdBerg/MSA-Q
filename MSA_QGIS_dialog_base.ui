@@ -23,7 +23,7 @@
     </rect>
    </property>
    <property name="currentIndex">
-    <number>0</number>
+    <number>1</number>
    </property>
    <widget class="QWidget" name="tabl_envAndSpatial">
     <attribute name="title">
@@ -336,7 +336,7 @@
     <attribute name="title">
      <string>Vegetation input</string>
     </attribute>
-    <widget class="QgsFileWidget" name="qgsFileWidget_vegetation">
+    <widget class="QgsFileWidget" name="qgsFileWidget_importHandbag">
      <property name="geometry">
       <rect>
        <x>150</x>
@@ -344,6 +344,12 @@
        <width>501</width>
        <height>27</height>
       </rect>
+     </property>
+     <property name="fullUrl">
+      <bool>true</bool>
+     </property>
+     <property name="filter">
+      <string/>
      </property>
     </widget>
     <widget class="QLabel" name="label_importHandbag">
@@ -366,7 +372,7 @@
      <property name="geometry">
       <rect>
        <x>150</x>
-       <y>60</y>
+       <y>80</y>
        <width>471</width>
        <height>231</height>
       </rect>
@@ -411,7 +417,7 @@
      <property name="geometry">
       <rect>
        <x>550</x>
-       <y>300</y>
+       <y>320</y>
        <width>71</width>
        <height>23</height>
       </rect>
@@ -424,7 +430,7 @@
      <property name="geometry">
       <rect>
        <x>10</x>
-       <y>140</y>
+       <y>160</y>
        <width>131</width>
        <height>31</height>
       </rect>
@@ -440,7 +446,7 @@
      <property name="geometry">
       <rect>
        <x>150</x>
-       <y>350</y>
+       <y>360</y>
        <width>471</width>
        <height>231</height>
       </rect>
@@ -464,7 +470,7 @@
      <property name="geometry">
       <rect>
        <x>550</x>
-       <y>590</y>
+       <y>600</y>
        <width>71</width>
        <height>23</height>
       </rect>
@@ -477,7 +483,7 @@
      <property name="geometry">
       <rect>
        <x>10</x>
-       <y>450</y>
+       <y>460</y>
        <width>131</width>
        <height>31</height>
       </rect>
@@ -493,7 +499,7 @@
      <property name="geometry">
       <rect>
        <x>470</x>
-       <y>590</y>
+       <y>600</y>
        <width>71</width>
        <height>23</height>
       </rect>
@@ -506,13 +512,26 @@
      <property name="geometry">
       <rect>
        <x>470</x>
-       <y>300</y>
+       <y>320</y>
        <width>71</width>
        <height>23</height>
       </rect>
      </property>
      <property name="text">
       <string>Remove</string>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="pushButton_importHandbag">
+     <property name="geometry">
+      <rect>
+       <x>540</x>
+       <y>40</y>
+       <width>75</width>
+       <height>24</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Import</string>
      </property>
     </widget>
    </widget>

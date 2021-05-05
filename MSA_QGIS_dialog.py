@@ -23,6 +23,7 @@
 """
 
 import os
+import re
 
 from PyQt5.QtCore import QRect
 from PyQt5.QtWidgets import QTableWidgetItem, QWidget, QLineEdit, QLabel, QVBoxLayout, QComboBox, QGridLayout, \
@@ -59,6 +60,9 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.vegcom_column_count = 1
         self.extent = None
 
+        # UI setup
+        self.qgsFileWidget_importHandbag.setFilter('*.hum')
+
         # events
         self.mExtentGroupBox.setMapCanvas(iface.mapCanvas())
         #self.mExtentGroupBox.setOutputExtentFromDrawOnCanvas() #for some reason causes really weird behaviour.
@@ -73,6 +77,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.pushButton_newVegCom.clicked.connect(self.addNewVegCom)
         self.pushButton_removeTaxa.clicked.connect(self.removeTaxaEntry)
         self.pushButton_removeVegCom.clicked.connect(self.removeVegComEntry)
+        self.pushButton_importHandbag.clicked.connect(self.loadHandbagFile)
 
 
     def setExtent(self):
@@ -105,8 +110,6 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                     row_count += 1
                     tableWidget_vector.setRowCount(row_count + 1)
                     column_count -= 1
-
-
             elif layer.type() == layer.RasterLayer:
                 for band in range(layer.bandCount()):
                     tableWidget_raster.setItem(ras_row_count, ras_column_count, QTableWidgetItem(layer.name()))
@@ -195,9 +198,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                         if header_text == self.veg_com_popup.vegcom_taxon_combo_list[taxon].currentText():
                             tableWidget_vegCom.setItem(self.vegcom_row_count - 1, column, QTableWidgetItem(
                                 str(self.veg_com_popup.vegcom_taxon_double_list[taxon].value())))
-
                     # add value at right location to that column
-
                     pass
                 elif self.veg_com_popup.vegcom_taxon_combo_list[taxon] not in header_list:
                     self.vegcom_column_count += 1
@@ -208,7 +209,6 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                     # add value to new column
                     tableWidget_vegCom.setItem(self.vegcom_row_count - 1, self.vegcom_column_count - 1, QTableWidgetItem(
                         str(self.veg_com_popup.vegcom_taxon_double_list[taxon].value())))
-
                 else:
                     print('error in creating veg com columns')
 
@@ -251,6 +251,70 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             tableWidget_vegCom.removeColumn(list_item)
             self.vegcom_column_count -= 1
             tableWidget_vegCom.setColumnCount(self.vegcom_column_count)
+
+    def loadHandbagFile(self):
+        #TODO sample points, windrose data, metadata, notes
+        file_name = self.qgsFileWidget_importHandbag.filePath()
+        tableWidget_vegCom = self.tableWidget_vegCom
+        if not os.path.isfile(file_name):
+            print('file does not exist')
+        else:
+            with open(file_name) as file:
+                for line in file:
+                    if line[0] == '1':
+                        if int(line[:4]) >= 1100:
+                            line = line[5:]
+                            line_list = list(re.split('\t|\n', line))
+                            row_count = self.tableWidget_taxa.rowCount()
+                            self.tableWidget_taxa.setRowCount(row_count + 1)
+                            self.tableWidget_taxa.setItem(row_count, 0, QTableWidgetItem(line_list[0]))
+                            self.tableWidget_taxa.setItem(row_count, 1, QTableWidgetItem(line_list[1]))
+                            self.tableWidget_taxa.setItem(row_count, 2, QTableWidgetItem(str(line_list[2])))
+                            self.tableWidget_taxa.setItem(row_count, 3, QTableWidgetItem(str(line_list[3])))
+                    elif line[0] == '2': #communities
+                        # skip community names (TODO but what to do if a handbag file has multiple community files?)
+                        if 2200 <= int(line[:4]) < 2300:
+                            line = line[7:]
+                            line = line.replace('\n','')
+                            self.vegcom_row_count += 1
+                            tableWidget_vegCom.setRowCount(self.vegcom_row_count)
+                            tableWidget_vegCom.setItem(self.vegcom_row_count - 1, 0, QTableWidgetItem(
+                                line))
+                        elif int(line[:4]) >= 2300:
+                            line = line[5:]
+                            line_list = list(re.split('\t|\n', line))
+                            # Only create a new column if the header does not yet exist note: this is a duplicate from addNewVegCom
+                            header_list = [tableWidget_vegCom.horizontalHeaderItem(column).text() for column in
+                                           range(1, tableWidget_vegCom.columnCount())]
+
+
+                            if line_list[0] in header_list:
+                                # get column number of named column
+                                for column in range(tableWidget_vegCom.columnCount()):
+                                    header_text = tableWidget_vegCom.horizontalHeaderItem(column).text()
+                                    if header_text == line_list[0]:
+                                        tableWidget_vegCom.setItem(self.vegcom_row_count - 1, column,
+                                                                   QTableWidgetItem(line_list[1]))
+                                # add value at right location to that column
+                                pass
+                            elif line_list[0] not in header_list:
+                                self.vegcom_column_count += 1
+                                self.tableWidget_vegCom.setColumnCount(self.vegcom_column_count)
+                                # set header of new column
+                                tableWidget_vegCom.setHorizontalHeaderItem(self.vegcom_column_count - 1,
+                                                                           QTableWidgetItem(line_list[0]))
+                                # add value to new column
+                                tableWidget_vegCom.setItem(self.vegcom_row_count - 1, self.vegcom_column_count - 1,
+                                                           QTableWidgetItem(
+                                                               str(line_list[1])))
+                            else:
+                                print('error in creating veg com columns')
+
+                        pass
+                    elif line[0] == '3': #sample points
+                        pass
+
+                file.close()
 
 
 class MsaQgisAddTaxonPopup (QtWidgets.QDialog, FORM_CLASS_TAXA):
