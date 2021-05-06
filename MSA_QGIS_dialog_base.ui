@@ -23,9 +23,9 @@
     </rect>
    </property>
    <property name="currentIndex">
-    <number>1</number>
+    <number>2</number>
    </property>
-   <widget class="QWidget" name="tabl_envAndSpatial">
+   <widget class="QWidget" name="tab_envAndSpatial">
     <attribute name="title">
      <string>Spatial and Environmetal input</string>
     </attribute>
@@ -545,7 +545,7 @@
        <x>650</x>
        <y>0</y>
        <width>16</width>
-       <height>621</height>
+       <height>641</height>
       </rect>
      </property>
      <property name="orientation">
@@ -556,7 +556,7 @@
      <property name="geometry">
       <rect>
        <x>10</x>
-       <y>10</y>
+       <y>310</y>
        <width>621</width>
        <height>241</height>
       </rect>
@@ -567,864 +567,320 @@
      <property name="frameShadow">
       <enum>QFrame::Sunken</enum>
      </property>
-     <widget class="QLabel" name="label_19">
+     <widget class="QWidget" name="">
       <property name="geometry">
        <rect>
-        <x>390</x>
-        <y>10</y>
-        <width>51</width>
-        <height>16</height>
+        <x>0</x>
+        <y>0</y>
+        <width>621</width>
+        <height>241</height>
        </rect>
       </property>
-      <property name="text">
-       <string>chance</string>
-      </property>
-     </widget>
-     <widget class="QComboBox" name="comboBox_prevVegCom">
-      <property name="geometry">
-       <rect>
-        <x>70</x>
-        <y>100</y>
-        <width>151</width>
-        <height>22</height>
-       </rect>
-      </property>
-      <item>
-       <property name="text">
-        <string>empty</string>
-       </property>
-      </item>
-     </widget>
-     <widget class="QLabel" name="label_16">
-      <property name="geometry">
-       <rect>
-        <x>70</x>
-        <y>70</y>
-        <width>281</width>
-        <height>16</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>choose previously placed vegetation community</string>
-      </property>
-     </widget>
-     <widget class="QLabel" name="label_17">
-      <property name="geometry">
-       <rect>
-        <x>70</x>
-        <y>10</y>
-        <width>171</width>
-        <height>16</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>choose vegetation community</string>
-      </property>
-     </widget>
-     <widget class="QComboBox" name="comboBox_rule">
-      <property name="geometry">
-       <rect>
-        <x>250</x>
-        <y>40</y>
-        <width>131</width>
-        <height>22</height>
-       </rect>
-      </property>
-      <item>
-       <property name="text">
-        <string>Place</string>
-       </property>
-      </item>
-      <item>
-       <property name="text">
-        <string>Replace</string>
-       </property>
-      </item>
-      <item>
-       <property name="text">
-        <string>Encroach</string>
-       </property>
-      </item>
-     </widget>
-     <widget class="QLabel" name="label_22">
-      <property name="geometry">
-       <rect>
-        <x>320</x>
-        <y>160</y>
-        <width>47</width>
-        <height>13</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>-</string>
-      </property>
-     </widget>
-     <widget class="QDoubleSpinBox" name="doubleSpinBox_chance">
-      <property name="geometry">
-       <rect>
-        <x>390</x>
-        <y>40</y>
-        <width>62</width>
-        <height>22</height>
-       </rect>
-      </property>
-      <property name="maximum">
-       <double>100.000000000000000</double>
-      </property>
-      <property name="value">
-       <double>100.000000000000000</double>
-      </property>
-     </widget>
-     <widget class="QLabel" name="label_20">
-      <property name="geometry">
-       <rect>
-        <x>70</x>
-        <y>200</y>
-        <width>411</width>
-        <height>31</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>Rule 2: Heath has 100 percent chance to be placed anywhere, replacing only empty</string>
-      </property>
-      <property name="wordWrap">
-       <bool>true</bool>
-      </property>
-     </widget>
-     <widget class="QLabel" name="label_15">
-      <property name="geometry">
-       <rect>
-        <x>10</x>
-        <y>110</y>
-        <width>47</width>
-        <height>13</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>Rule 2</string>
-      </property>
-     </widget>
-     <widget class="QDoubleSpinBox" name="doubleSpinBox_rangeMin">
-      <property name="geometry">
-       <rect>
-        <x>250</x>
-        <y>160</y>
-        <width>62</width>
-        <height>22</height>
-       </rect>
-      </property>
-      <property name="maximum">
-       <double>100000.000000000000000</double>
-      </property>
-      <property name="value">
-       <double>0.000000000000000</double>
-      </property>
-     </widget>
-     <widget class="QLabel" name="label_18">
-      <property name="geometry">
-       <rect>
-        <x>250</x>
-        <y>10</y>
-        <width>121</width>
-        <height>16</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>choose rule type</string>
-      </property>
-     </widget>
-     <widget class="QComboBox" name="comboBox_ruleVegCom">
-      <property name="geometry">
-       <rect>
-        <x>70</x>
-        <y>40</y>
-        <width>151</width>
-        <height>22</height>
-       </rect>
-      </property>
-      <item>
-       <property name="text">
-        <string>Heath</string>
-       </property>
-      </item>
-      <item>
-       <property name="text">
-        <string>Water</string>
-       </property>
-      </item>
-      <item>
-       <property name="text">
-        <string>Bare ground</string>
-       </property>
-      </item>
-      <item>
-       <property name="text">
-        <string>Birch</string>
-       </property>
-      </item>
-      <item>
-       <property name="text">
-        <string>Oak</string>
-       </property>
-      </item>
-      <item>
-       <property name="text">
-        <string>Hazel</string>
-       </property>
-      </item>
-      <item>
-       <property name="text">
-        <string>Mire</string>
-       </property>
-      </item>
-      <item>
-       <property name="text">
-        <string>Pasture</string>
-       </property>
-      </item>
-      <item>
-       <property name="text">
-        <string>Crops</string>
-       </property>
-      </item>
-     </widget>
-     <widget class="QComboBox" name="comboBox_envVar">
-      <property name="geometry">
-       <rect>
-        <x>70</x>
-        <y>160</y>
-        <width>151</width>
-        <height>22</height>
-       </rect>
-      </property>
-      <item>
-       <property name="text">
-        <string>Empty</string>
-       </property>
-      </item>
-      <item>
-       <property name="text">
-        <string>Geology</string>
-       </property>
-      </item>
-      <item>
-       <property name="text">
-        <string>Facing</string>
-       </property>
-      </item>
-      <item>
-       <property name="text">
-        <string>DEM</string>
-       </property>
-      </item>
-      <item>
-       <property name="text">
-        <string>Steepness</string>
-       </property>
-      </item>
-     </widget>
-     <widget class="QDoubleSpinBox" name="doubleSpinBox_rangeMax">
-      <property name="geometry">
-       <rect>
-        <x>330</x>
-        <y>160</y>
-        <width>62</width>
-        <height>22</height>
-       </rect>
-      </property>
-      <property name="maximum">
-       <double>100000.000000000000000</double>
-      </property>
-      <property name="value">
-       <double>0.000000000000000</double>
-      </property>
-     </widget>
-     <widget class="QLabel" name="label_23">
-      <property name="geometry">
-       <rect>
-        <x>250</x>
-        <y>130</y>
-        <width>171</width>
-        <height>16</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>range (if numerical)</string>
-      </property>
-     </widget>
-     <widget class="QComboBox" name="comboBox_category">
-      <property name="geometry">
-       <rect>
-        <x>430</x>
-        <y>160</y>
-        <width>171</width>
-        <height>22</height>
-       </rect>
-      </property>
-      <property name="currentText">
-       <string/>
-      </property>
-     </widget>
-     <widget class="QLabel" name="label_24">
-      <property name="geometry">
-       <rect>
-        <x>430</x>
-        <y>130</y>
-        <width>171</width>
-        <height>16</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>category (if categorical)</string>
-      </property>
-     </widget>
-     <widget class="QPushButton" name="pushButton_addCondition">
-      <property name="geometry">
-       <rect>
-        <x>504</x>
-        <y>210</y>
-        <width>101</width>
-        <height>23</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>add condition</string>
-      </property>
-     </widget>
-     <widget class="QLabel" name="label_56">
-      <property name="geometry">
-       <rect>
-        <x>70</x>
-        <y>120</y>
-        <width>171</width>
-        <height>41</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>choose an environmental variable</string>
-      </property>
-      <property name="wordWrap">
-       <bool>true</bool>
-      </property>
-     </widget>
-     <widget class="QRadioButton" name="radioButton_all">
-      <property name="geometry">
-       <rect>
-        <x>240</x>
-        <y>100</y>
-        <width>91</width>
-        <height>20</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>All</string>
-      </property>
-      <property name="checked">
-       <bool>false</bool>
-      </property>
+      <layout class="QVBoxLayout" name="verticalLayout_10">
+       <item>
+        <layout class="QHBoxLayout" name="horizontalLayout_2">
+         <item>
+          <layout class="QVBoxLayout" name="verticalLayout_4">
+           <item>
+            <widget class="QLabel" name="label_17">
+             <property name="text">
+              <string>Choose vegetation community</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QComboBox" name="comboBox_ruleVegCom"/>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <layout class="QVBoxLayout" name="verticalLayout_5">
+           <item>
+            <widget class="QLabel" name="label_18">
+             <property name="text">
+              <string>Choose rule type</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QComboBox" name="comboBox_rule">
+             <item>
+              <property name="text">
+               <string>(Re-)Place</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Encroach</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Extent</string>
+              </property>
+             </item>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <layout class="QVBoxLayout" name="verticalLayout_6">
+           <item>
+            <widget class="QLabel" name="label_19">
+             <property name="text">
+              <string>Chance</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QDoubleSpinBox" name="doubleSpinBox_chance">
+             <property name="minimum">
+              <double>1.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>100.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>100.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="horizontalLayout_3">
+         <item>
+          <layout class="QVBoxLayout" name="verticalLayout_7">
+           <item>
+            <widget class="QLabel" name="label_16">
+             <property name="text">
+              <string>Choose previously placed vegetation community</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QComboBox" name="comboBox_prevVegCom">
+             <item>
+              <property name="text">
+               <string>Empty</string>
+              </property>
+             </item>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <widget class="QRadioButton" name="radioButton_all">
+           <property name="text">
+            <string>All</string>
+           </property>
+           <property name="checked">
+            <bool>false</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="pushButton_addCondition_2">
+           <property name="text">
+            <string>Add conditional</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="horizontalLayout_4">
+         <item>
+          <layout class="QVBoxLayout" name="verticalLayout_8">
+           <item>
+            <widget class="QLabel" name="label_56">
+             <property name="text">
+              <string>Choose an environmental variable</string>
+             </property>
+             <property name="wordWrap">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QComboBox" name="comboBox_envVar">
+             <item>
+              <property name="text">
+               <string>Empty</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Geology</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Facing</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>DEM</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Steepness</string>
+              </property>
+             </item>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <layout class="QVBoxLayout" name="verticalLayout_9">
+           <item>
+            <widget class="QLabel" name="label_23">
+             <property name="text">
+              <string>Range</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <layout class="QHBoxLayout" name="horizontalLayout">
+             <item>
+              <widget class="QDoubleSpinBox" name="doubleSpinBox_rangeMin">
+               <property name="maximum">
+                <double>100000.000000000000000</double>
+               </property>
+               <property name="value">
+                <double>0.000000000000000</double>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="label_22">
+               <property name="text">
+                <string>-</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QDoubleSpinBox" name="doubleSpinBox_rangeMax">
+               <property name="maximum">
+                <double>100000.000000000000000</double>
+               </property>
+               <property name="value">
+                <double>0.000000000000000</double>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <widget class="QPushButton" name="pushButton_addConditionEvn">
+           <property name="text">
+            <string>Add conditional</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="QLabel" name="label_20">
+         <property name="text">
+          <string>Rule 1</string>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+      </layout>
      </widget>
     </widget>
-    <widget class="QFrame" name="frame_2">
+    <widget class="QWidget" name="layoutWidget">
      <property name="geometry">
       <rect>
        <x>10</x>
-       <y>260</y>
-       <width>621</width>
-       <height>341</height>
+       <y>10</y>
+       <width>631</width>
+       <height>25</height>
       </rect>
      </property>
-     <property name="frameShape">
-      <enum>QFrame::WinPanel</enum>
-     </property>
-     <property name="frameShadow">
-      <enum>QFrame::Sunken</enum>
-     </property>
-     <widget class="QLabel" name="label_45">
-      <property name="geometry">
-       <rect>
-        <x>390</x>
-        <y>10</y>
-        <width>51</width>
-        <height>16</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>chance</string>
-      </property>
-     </widget>
-     <widget class="QComboBox" name="comboBox_prevVegCom_4">
-      <property name="geometry">
-       <rect>
-        <x>70</x>
-        <y>100</y>
-        <width>151</width>
-        <height>22</height>
-       </rect>
-      </property>
+     <layout class="QHBoxLayout" name="horizontalLayout_rulesButtons">
       <item>
-       <property name="text">
-        <string>Heath</string>
-       </property>
-      </item>
-     </widget>
-     <widget class="QLabel" name="label_46">
-      <property name="geometry">
-       <rect>
-        <x>70</x>
-        <y>70</y>
-        <width>281</width>
-        <height>16</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>choose previously placed vegetation community</string>
-      </property>
-     </widget>
-     <widget class="QLabel" name="label_47">
-      <property name="geometry">
-       <rect>
-        <x>70</x>
-        <y>10</y>
-        <width>171</width>
-        <height>16</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>choose vegetation community</string>
-      </property>
-     </widget>
-     <widget class="QComboBox" name="comboBox_Rule_4">
-      <property name="geometry">
-       <rect>
-        <x>250</x>
-        <y>40</y>
-        <width>131</width>
-        <height>22</height>
-       </rect>
-      </property>
-      <item>
-       <property name="text">
-        <string>Encroach</string>
-       </property>
+       <spacer name="horizontalSpacer_2">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="sizeType">
+         <enum>QSizePolicy::Fixed</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>80</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
       </item>
       <item>
-       <property name="text">
-        <string>Place</string>
-       </property>
+       <widget class="QPushButton" name="pushButton_addRule">
+        <property name="text">
+         <string>Add new rule</string>
+        </property>
+       </widget>
       </item>
       <item>
-       <property name="text">
-        <string>Replace</string>
-       </property>
+       <spacer name="horizontalSpacer">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="sizeType">
+         <enum>QSizePolicy::Fixed</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>80</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
       </item>
-     </widget>
-     <widget class="QLabel" name="label_48">
-      <property name="geometry">
-       <rect>
-        <x>320</x>
-        <y>170</y>
-        <width>47</width>
-        <height>13</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>-</string>
-      </property>
-     </widget>
-     <widget class="QDoubleSpinBox" name="doubleSpinBox_Chance_4">
-      <property name="geometry">
-       <rect>
-        <x>390</x>
-        <y>40</y>
-        <width>62</width>
-        <height>22</height>
-       </rect>
-      </property>
-      <property name="maximum">
-       <double>100.000000000000000</double>
-      </property>
-      <property name="value">
-       <double>50.000000000000000</double>
-      </property>
-     </widget>
-     <widget class="QLabel" name="label_49">
-      <property name="geometry">
-       <rect>
-        <x>70</x>
-        <y>125</y>
-        <width>171</width>
-        <height>41</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>choose an environmental variable</string>
-      </property>
-      <property name="wordWrap">
-       <bool>true</bool>
-      </property>
-     </widget>
-     <widget class="QLabel" name="label_50">
-      <property name="geometry">
-       <rect>
-        <x>70</x>
-        <y>290</y>
-        <width>441</width>
-        <height>51</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>Example 2: Bare ground has 50% chance to encroach up to 1 point away on heath and grassland where DEM band 1 is &gt; 5000 or where Geology is limestone</string>
-      </property>
-      <property name="wordWrap">
-       <bool>true</bool>
-      </property>
-     </widget>
-     <widget class="QLabel" name="label_51">
-      <property name="geometry">
-       <rect>
-        <x>10</x>
-        <y>170</y>
-        <width>47</width>
-        <height>13</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>Rule 2</string>
-      </property>
-     </widget>
-     <widget class="QDoubleSpinBox" name="doubleSpinBox_rangeMin_4">
-      <property name="geometry">
-       <rect>
-        <x>250</x>
-        <y>170</y>
-        <width>62</width>
-        <height>22</height>
-       </rect>
-      </property>
-      <property name="maximum">
-       <double>100000.000000000000000</double>
-      </property>
-      <property name="value">
-       <double>5000.000000000000000</double>
-      </property>
-     </widget>
-     <widget class="QLabel" name="label_52">
-      <property name="geometry">
-       <rect>
-        <x>250</x>
-        <y>10</y>
-        <width>151</width>
-        <height>16</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>choose rule type</string>
-      </property>
-     </widget>
-     <widget class="QComboBox" name="comboBox_ruleVegCom_4">
-      <property name="geometry">
-       <rect>
-        <x>70</x>
-        <y>40</y>
-        <width>151</width>
-        <height>22</height>
-       </rect>
-      </property>
       <item>
-       <property name="text">
-        <string>Bare ground</string>
-       </property>
+       <widget class="QPushButton" name="pushButton_updateDropdown">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="text">
+         <string>Update dropdowns</string>
+        </property>
+       </widget>
       </item>
-     </widget>
-     <widget class="QComboBox" name="comboBox_envVar_4">
-      <property name="geometry">
-       <rect>
-        <x>70</x>
-        <y>170</y>
-        <width>151</width>
-        <height>22</height>
-       </rect>
-      </property>
       <item>
-       <property name="text">
-        <string>DEM band 1</string>
-       </property>
+       <spacer name="horizontalSpacer_3">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="sizeType">
+         <enum>QSizePolicy::Fixed</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>80</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
       </item>
-     </widget>
-     <widget class="QDoubleSpinBox" name="doubleSpinBox_rangeMax_4">
-      <property name="geometry">
-       <rect>
-        <x>330</x>
-        <y>170</y>
-        <width>62</width>
-        <height>22</height>
-       </rect>
-      </property>
-      <property name="maximum">
-       <double>100000.000000000000000</double>
-      </property>
-      <property name="value">
-       <double>100000.000000000000000</double>
-      </property>
-     </widget>
-     <widget class="QLabel" name="label_53">
-      <property name="geometry">
-       <rect>
-        <x>250</x>
-        <y>140</y>
-        <width>171</width>
-        <height>16</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>range (if numerical)</string>
-      </property>
-     </widget>
-     <widget class="QComboBox" name="comboBox_Category_4">
-      <property name="geometry">
-       <rect>
-        <x>430</x>
-        <y>170</y>
-        <width>171</width>
-        <height>22</height>
-       </rect>
-      </property>
-     </widget>
-     <widget class="QLabel" name="label_54">
-      <property name="geometry">
-       <rect>
-        <x>430</x>
-        <y>140</y>
-        <width>171</width>
-        <height>16</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>category (if categorical)</string>
-      </property>
-     </widget>
-     <widget class="QPushButton" name="pushButton_addCondition_4">
-      <property name="geometry">
-       <rect>
-        <x>510</x>
-        <y>310</y>
-        <width>91</width>
-        <height>23</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>add condition</string>
-      </property>
-     </widget>
-     <widget class="QComboBox" name="comboBox_envVar_5">
-      <property name="geometry">
-       <rect>
-        <x>70</x>
-        <y>260</y>
-        <width>151</width>
-        <height>22</height>
-       </rect>
-      </property>
-      <item>
-       <property name="text">
-        <string>Geology</string>
-       </property>
-      </item>
-     </widget>
-     <widget class="QLabel" name="label_55">
-      <property name="geometry">
-       <rect>
-        <x>320</x>
-        <y>260</y>
-        <width>47</width>
-        <height>13</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>-</string>
-      </property>
-     </widget>
-     <widget class="QDoubleSpinBox" name="doubleSpinBox_rangeMax_5">
-      <property name="geometry">
-       <rect>
-        <x>330</x>
-        <y>260</y>
-        <width>62</width>
-        <height>22</height>
-       </rect>
-      </property>
-      <property name="maximum">
-       <double>100000.000000000000000</double>
-      </property>
-      <property name="value">
-       <double>0.000000000000000</double>
-      </property>
-     </widget>
-     <widget class="QDoubleSpinBox" name="doubleSpinBox_rangeMin_5">
-      <property name="geometry">
-       <rect>
-        <x>250</x>
-        <y>260</y>
-        <width>62</width>
-        <height>22</height>
-       </rect>
-      </property>
-      <property name="maximum">
-       <double>100000.000000000000000</double>
-      </property>
-      <property name="value">
-       <double>0.000000000000000</double>
-      </property>
-     </widget>
-     <widget class="QComboBox" name="comboBox_Category_5">
-      <property name="geometry">
-       <rect>
-        <x>430</x>
-        <y>260</y>
-        <width>171</width>
-        <height>22</height>
-       </rect>
-      </property>
-      <item>
-       <property name="text">
-        <string>Limestone</string>
-       </property>
-      </item>
-     </widget>
-     <widget class="QLabel" name="label_57">
-      <property name="geometry">
-       <rect>
-        <x>250</x>
-        <y>230</y>
-        <width>171</width>
-        <height>16</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>range (if numerical)</string>
-      </property>
-     </widget>
-     <widget class="QLabel" name="label_58">
-      <property name="geometry">
-       <rect>
-        <x>430</x>
-        <y>230</y>
-        <width>171</width>
-        <height>16</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>category (if categorical)</string>
-      </property>
-     </widget>
-     <widget class="QComboBox" name="comboBox_prevVegCom_5">
-      <property name="geometry">
-       <rect>
-        <x>260</x>
-        <y>100</y>
-        <width>151</width>
-        <height>22</height>
-       </rect>
-      </property>
-      <item>
-       <property name="text">
-        <string>grassland</string>
-       </property>
-      </item>
-     </widget>
-     <widget class="QLabel" name="label_59">
-      <property name="geometry">
-       <rect>
-        <x>230</x>
-        <y>100</y>
-        <width>31</width>
-        <height>16</height>
-       </rect>
-      </property>
-      <property name="font">
-       <font>
-        <weight>75</weight>
-        <bold>true</bold>
-       </font>
-      </property>
-      <property name="text">
-       <string>AND</string>
-      </property>
-     </widget>
-     <widget class="QLabel" name="label_60">
-      <property name="geometry">
-       <rect>
-        <x>70</x>
-        <y>202</y>
-        <width>47</width>
-        <height>21</height>
-       </rect>
-      </property>
-      <property name="font">
-       <font>
-        <weight>75</weight>
-        <bold>true</bold>
-       </font>
-      </property>
-      <property name="text">
-       <string>OR</string>
-      </property>
-     </widget>
-     <widget class="QLabel" name="label_61">
-      <property name="geometry">
-       <rect>
-        <x>70</x>
-        <y>220</y>
-        <width>171</width>
-        <height>41</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>choose an environmental variable</string>
-      </property>
-      <property name="wordWrap">
-       <bool>true</bool>
-      </property>
-     </widget>
-     <widget class="QSpinBox" name="spinBox">
-      <property name="geometry">
-       <rect>
-        <x>470</x>
-        <y>40</y>
-        <width>41</width>
-        <height>22</height>
-       </rect>
-      </property>
-      <property name="value">
-       <number>1</number>
-      </property>
-     </widget>
-     <widget class="QLabel" name="label_62">
-      <property name="geometry">
-       <rect>
-        <x>470</x>
-        <y>10</y>
-        <width>101</width>
-        <height>16</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>number of points</string>
-      </property>
-     </widget>
-    </widget>
-    <widget class="QPushButton" name="pushButton_addCondition_5">
-     <property name="geometry">
-      <rect>
-       <x>270</x>
-       <y>610</y>
-       <width>121</width>
-       <height>23</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>add new rule</string>
-     </property>
+     </layout>
     </widget>
    </widget>
    <widget class="QWidget" name="tab_ruleTree">
@@ -1751,9 +1207,9 @@
      <property name="geometry">
       <rect>
        <x>150</x>
-       <y>250</y>
+       <y>290</y>
        <width>471</width>
-       <height>361</height>
+       <height>321</height>
       </rect>
      </property>
      <property name="currentIndex">
@@ -1836,6 +1292,45 @@
       <bool>true</bool>
      </property>
     </widget>
+    <widget class="QgsProjectionSelectionWidget" name="mQgsProjectionSelectionWidget">
+     <property name="geometry">
+      <rect>
+       <x>390</x>
+       <y>240</y>
+       <width>261</width>
+       <height>27</height>
+      </rect>
+     </property>
+    </widget>
+    <widget class="QLabel" name="label_sites_2">
+     <property name="geometry">
+      <rect>
+       <x>10</x>
+       <y>240</y>
+       <width>131</width>
+       <height>31</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Sample sites projection</string>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+    </widget>
+    <widget class="QRadioButton" name="radioButton">
+     <property name="geometry">
+      <rect>
+       <x>150</x>
+       <y>250</y>
+       <width>231</width>
+       <height>17</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Relative to extent</string>
+     </property>
+    </widget>
    </widget>
    <widget class="QWidget" name="tab_modelParameters">
     <attribute name="title">
@@ -1903,17 +1398,22 @@
   <widget class="QDialogButtonBox" name="button_box">
    <property name="geometry">
     <rect>
-     <x>310</x>
+     <x>400</x>
      <y>790</y>
-     <width>341</width>
+     <width>251</width>
      <height>32</height>
     </rect>
+   </property>
+   <property name="font">
+    <font>
+     <pointsize>10</pointsize>
+    </font>
    </property>
    <property name="orientation">
     <enum>Qt::Horizontal</enum>
    </property>
    <property name="standardButtons">
-    <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+    <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok|QDialogButtonBox::Save</set>
    </property>
   </widget>
   <widget class="QLabel" name="label_checklist">
@@ -2017,6 +1517,48 @@
     <string>Rules set</string>
    </property>
   </widget>
+  <widget class="QFrame" name="frame_3">
+   <property name="geometry">
+    <rect>
+     <x>10</x>
+     <y>790</y>
+     <width>371</width>
+     <height>31</height>
+    </rect>
+   </property>
+   <property name="styleSheet">
+    <string notr="true">background-color: rgb(199, 199, 199);</string>
+   </property>
+   <property name="frameShape">
+    <enum>QFrame::WinPanel</enum>
+   </property>
+   <property name="frameShadow">
+    <enum>QFrame::Sunken</enum>
+   </property>
+   <widget class="QLabel" name="label">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>5</y>
+      <width>351</width>
+      <height>21</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <family>Arial</family>
+      <pointsize>10</pointsize>
+      <italic>true</italic>
+     </font>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">color: rgb(170, 0, 0);</string>
+    </property>
+    <property name="text">
+     <string>Click OK to run MSA-QGIS... (status bar not yet functional)</string>
+    </property>
+   </widget>
+  </widget>
  </widget>
  <customwidgets>
   <customwidget>
@@ -2035,6 +1577,11 @@
    <class>QgsFileWidget</class>
    <extends>QWidget</extends>
    <header>qgsfilewidget.h</header>
+  </customwidget>
+  <customwidget>
+   <class>QgsProjectionSelectionWidget</class>
+   <extends>QWidget</extends>
+   <header>qgsprojectionselectionwidget.h</header>
   </customwidget>
  </customwidgets>
  <resources/>
