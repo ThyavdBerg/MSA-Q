@@ -62,7 +62,6 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.vegcom_column_count = 1
         self.extent = None
         self.rule_number = 0
-        self.rule_total_length = 0
 
         # UI setup
         self.qgsFileWidget_importHandbag.setFilter('*.hum')
@@ -88,6 +87,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.pushButton_removeVegCom.clicked.connect(self.removeVegComEntry)
         self.pushButton_importHandbag.clicked.connect(self.loadHandbagFile)
         self.pushButton_addRule.clicked.connect(self.addNewRule)
+        self.pushButton_updateDropdown.clicked.connect(self.updateRuleDropdowns)
 
 
     def setExtent(self):
@@ -263,6 +263,16 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             tableWidget_vegCom.setColumnCount(self.vegcom_column_count)
 
     def loadHandbagFile(self):
+        """
+        Loads a HUMPOL handbag (.hum) file into the software. This fills in the data (if specified in the file) for:
+        Taxa
+        Communities
+        Sample points
+        Windroses
+        Metadata
+        Notes
+        Compatible with the HUMPOL suite (Bunting & Middleton 2005) and LandPolFlow (Bunting & Middleton 2009)
+        """
         #TODO sample points, windrose data, metadata, notes
         file_name = self.qgsFileWidget_importHandbag.filePath()
         tableWidget_vegCom = self.tableWidget_vegCom
@@ -325,12 +335,25 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 file.close()
 
     def addNewRule(self):
+        """ Allows the dynamic adding of new rules under the rules tab in the main dialog UI."""
         # Make all the initial widgets
         # comboboxes
         self.comboBox_ruleVegCom = QComboBox()
         self.comboBox_rule = QComboBox()
         self.comboBox_prevVegCom = QComboBox()
         self.comboBox_envVar = QComboBox()
+        # fill comboBoxes
+        self.comboBox_ruleVegCom.addItem('Empty')
+        for row in range(self.tableWidget_vegCom.rowCount()):
+            self.comboBox_ruleVegCom.addItem(self.tableWidget_vegCom.item(row,0).text())
+            self.comboBox_prevVegCom.addItem(self.tableWidget_vegCom.item(row, 0).text())
+        self.comboBox_prevVegCom.addItem('Empty')
+        for row in range(self.tableWidget_selected.rowCount()):
+            self.comboBox_envVar.addItem(self.tableWidget_selected.item(row,0).text()+' '+self.tableWidget_selected.item(row,1).text())
+        self.comboBox_envVar.addItem('Empty')
+        for row in range(self.tableWidget_selRaster.rowCount()):
+            self.comboBox_envVar.addItem(self.tableWidget_selRaster.item(row,0).text()+' '+self.tableWidget_selRaster.item(row,1).text())
+        self.comboBox_rule.addItems(['(Re-)place', 'Encroach', 'Adjacent', 'Extent'])
         # labels
         self.label_chooseVegCom = QLabel('Choose vegetation community')
         self.label_chooseRuleType = QLabel('Choose rule type')
@@ -341,8 +364,9 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         # push buttons
         self.pushButton_condVegCom = QPushButton('Add conditional')
         self.pushButton_conEnvVar = QPushButton('Add conditional')
-        # double
+        # double spin box
         self.doubleSpin_chance = QDoubleSpinBox()
+
         # radio buttons
         self.radioButton_all = QRadioButton('All')
         # layouts
@@ -359,7 +383,6 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.hLayout_top = QHBoxLayout()
         self.hLayout_prevVegCom = QHBoxLayout()
         self.hLayout_envVar = QHBoxLayout()
-
         # place everything within their respective layouts - verticals
         self.vLayout_vegCom.addWidget(self.label_chooseVegCom)
         self.vLayout_vegCom.addWidget(self.comboBox_ruleVegCom)
@@ -388,38 +411,50 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.hLayout_envVar.addLayout(self.vLayout_envVar)
         self.hLayout_envVar.insertStretch(1,1)
         self.hLayout_envVar.addLayout(self.vLayout_condEnvVar)
-        # place in frame, place frame in window
+        # place in overarching layout
         self.vLayout_total.addLayout(self.hLayout_top)
         self.vLayout_total.addLayout(self.hLayout_prevVegCom)
         self.vLayout_total.addLayout(self.hLayout_envVar)
         self.vLayout_total.addWidget(self.label_writtenRule)
-        # set the spacings
+        # set the sizes of widgets where necessary
         self.pushButton_conEnvVar.setMinimumSize(192, 23)
         self.pushButton_condVegCom.setMinimumSize(192, 23)
         self.comboBox_ruleVegCom.setMinimumSize(231,20)
         self.comboBox_prevVegCom.setMinimumSize(231, 20)
         self.comboBox_envVar.setMinimumSize(231, 20)
+        self.comboBox_envVar.setMaximumSize(231, 20)
 
-        #dynamically add whole rule frames
+        #dynamically add whole rule frames to the scrollframe/tab
         if self.rule_number == 0:
-            self.rule_number +=1
+            self.rule_number += 1
             self.scrollFrame_rule = QFrame()
             self.scrollFrame_rule.setLayout(self.vLayout_total)
             self.scrollFrame_rule.setFrameShape(QFrame.WinPanel)
             self.scrollFrame_rule.setFrameShadow(QFrame.Sunken)
-            self.scrollFrame_rule.setGeometry(0, self.rule_total_length, 645, 200)
             self.vLayout_scrollArea.insertWidget(0, self.scrollFrame_rule)
+            self.scrollFrame_rule.setMaximumHeight(170)
             self.scrollFrame_rule.show()
         else:
-            self.rule_number +=1
+            self.rule_number += 1
             self.scrollFrame_rule = QFrame()
             self.scrollFrame_rule.setLayout(self.vLayout_total)
             self.scrollFrame_rule.setFrameShape(QFrame.WinPanel)
             self.scrollFrame_rule.setFrameShadow(QFrame.Sunken)
-            self.rule_total_length += 200
-            self.scrollFrame_rule.setGeometry(0, self.rule_total_length, 645, 200)
             self.vLayout_scrollArea.insertWidget(self.rule_number-1,self.scrollFrame_rule)
+            self.scrollFrame_rule.setMaximumHeight(170)
             self.scrollFrame_rule.show()
+
+    def addNofPointsToRule(self):
+        pass
+
+
+    def updateRuleDropdowns(self):
+        pass
+        # take env var from selected fields and bands tables
+        # take prev com and veg com from veg com table
+
+
+
 
 
 

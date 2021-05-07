@@ -23,7 +23,7 @@
     </rect>
    </property>
    <property name="currentIndex">
-    <number>2</number>
+    <number>0</number>
    </property>
    <widget class="QWidget" name="tab_envAndSpatial">
     <attribute name="title">
@@ -780,8 +780,8 @@
       <rect>
        <x>510</x>
        <y>10</y>
-       <width>170</width>
-       <height>206</height>
+       <width>179</width>
+       <height>213</height>
       </rect>
      </property>
      <layout class="QVBoxLayout" name="verticalLayout_2">
