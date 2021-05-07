@@ -27,7 +27,7 @@ import re
 
 from PyQt5.QtCore import QRect
 from PyQt5.QtWidgets import QTableWidgetItem, QWidget, QLineEdit, QLabel, QVBoxLayout, QComboBox, QGridLayout, \
-    QDoubleSpinBox, QFrame, QRadioButton, QHBoxLayout, QPushButton
+    QDoubleSpinBox, QFrame, QRadioButton, QHBoxLayout, QPushButton, QSpacerItem, QScrollArea
 from qgis.PyQt import uic
 from qgis.PyQt import QtWidgets
 from qgis.utils import iface
@@ -62,9 +62,15 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.vegcom_column_count = 1
         self.extent = None
         self.rule_number = 0
+        self.rule_total_length = 0
 
         # UI setup
         self.qgsFileWidget_importHandbag.setFilter('*.hum')
+            #create the whole mess that allows scrolling in the rules tab- widgets within widgets within widgets
+        self.frameWidget_rules = QFrame(self.scrollArea_rules)
+        self.frameWidget_rules.setLayout(self.vLayout_scrollArea)
+        self.scrollArea_rules.setWidget(self.frameWidget_rules)
+
 
         # events
         self.mExtentGroupBox.setMapCanvas(iface.mapCanvas())
@@ -320,36 +326,41 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
 
     def addNewRule(self):
         # Make all the initial widgets
-        #comboboxes
+        # comboboxes
         self.comboBox_ruleVegCom = QComboBox()
         self.comboBox_rule = QComboBox()
         self.comboBox_prevVegCom = QComboBox()
         self.comboBox_envVar = QComboBox()
-        #labels
+        # labels
         self.label_chooseVegCom = QLabel('Choose vegetation community')
         self.label_chooseRuleType = QLabel('Choose rule type')
         self.label_chance = QLabel('Chance')
         self.label_choosePrevVegCom = QLabel('Choose previously placed vegetation community')
         self.label_chooseEnvVar = QLabel('Choose environmental variable')
         self.label_writtenRule = QLabel('Rule '+str(self.rule_number))
-        #push buttons
+        # push buttons
         self.pushButton_condVegCom = QPushButton('Add conditional')
         self.pushButton_conEnvVar = QPushButton('Add conditional')
-        #double
+        # double
         self.doubleSpin_chance = QDoubleSpinBox()
-        #radio buttons
+        # radio buttons
         self.radioButton_all = QRadioButton('All')
-        #layouts
+        # layouts
         self.vLayout_vegCom = QVBoxLayout()
         self.vLayout_ruleType = QVBoxLayout()
         self.vLayout_chance = QVBoxLayout()
         self.vLayout_prevVegCom = QVBoxLayout()
         self.vLayout_envVar = QVBoxLayout()
+        self.vLayout_all = QVBoxLayout()
+        self.vLayout_condVegCom = QVBoxLayout()
+        self.vLayout_condEnvVar = QVBoxLayout()
+        self.vLayout_total = QVBoxLayout()
+        self.vLayout_rules = QVBoxLayout()
         self.hLayout_top = QHBoxLayout()
         self.hLayout_prevVegCom = QHBoxLayout()
         self.hLayout_envVar = QHBoxLayout()
-        self.vLayout_all = QVBoxLayout()
-        #place everything within their respective layouts - verticals
+
+        # place everything within their respective layouts - verticals
         self.vLayout_vegCom.addWidget(self.label_chooseVegCom)
         self.vLayout_vegCom.addWidget(self.comboBox_ruleVegCom)
         self.vLayout_ruleType.addWidget(self.label_chooseRuleType)
@@ -360,29 +371,55 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.vLayout_prevVegCom.addWidget(self.comboBox_prevVegCom)
         self.vLayout_envVar.addWidget(self.label_chooseEnvVar)
         self.vLayout_envVar.addWidget(self.comboBox_envVar)
-        #place everything within their respective layouts -horizontals
+        self.vLayout_all.insertStretch(0, 1)
+        self.vLayout_all.addWidget(self.radioButton_all)
+        self.vLayout_condVegCom.insertStretch(0, 1)
+        self.vLayout_condVegCom.addWidget(self.pushButton_condVegCom)
+        self.vLayout_condEnvVar.insertStretch(0,1)
+        self.vLayout_condEnvVar.addWidget(self.pushButton_conEnvVar)
+        self.scrollArea_rules.setLayout(self.vLayout_rules)
+        # place everything within their respective layouts -horizontals
         self.hLayout_top.addLayout(self.vLayout_vegCom)
         self.hLayout_top.addLayout(self.vLayout_ruleType)
         self.hLayout_top.addLayout(self.vLayout_chance)
         self.hLayout_prevVegCom.addLayout(self.vLayout_prevVegCom)
-        self.hLayout_prevVegCom.addWidget(self.radioButton_all)
-        self.hLayout_prevVegCom.addWidget(self.pushButton_condVegCom)
+        self.hLayout_prevVegCom.addLayout(self.vLayout_all)
+        self.hLayout_prevVegCom.addLayout(self.vLayout_condVegCom)
         self.hLayout_envVar.addLayout(self.vLayout_envVar)
-        self.hLayout_envVar.addWidget(self.pushButton_conEnvVar)
+        self.hLayout_envVar.insertStretch(1,1)
+        self.hLayout_envVar.addLayout(self.vLayout_condEnvVar)
         # place in frame, place frame in window
-        self.vLayout_all.addLayout(self.hLayout_top)
-        self.vLayout_all.addLayout(self.hLayout_prevVegCom)
-        self.vLayout_all.addLayout(self.hLayout_envVar)
-        self.vLayout_all.addWidget(self.label_writtenRule)
-        self.frame_ruleFrame = QFrame()
-        self.frame_ruleFrame.setLayout(self.vLayout_all)
-        self.frame_ruleFrame.setParent(self.tab_rules)
-        self.frame_ruleFrame.setGeometry(0, 30, 645, 200)
-        self.frame_ruleFrame.show()
-        #make it look pretty!
+        self.vLayout_total.addLayout(self.hLayout_top)
+        self.vLayout_total.addLayout(self.hLayout_prevVegCom)
+        self.vLayout_total.addLayout(self.hLayout_envVar)
+        self.vLayout_total.addWidget(self.label_writtenRule)
+        # set the spacings
+        self.pushButton_conEnvVar.setMinimumSize(192, 23)
+        self.pushButton_condVegCom.setMinimumSize(192, 23)
+        self.comboBox_ruleVegCom.setMinimumSize(231,20)
+        self.comboBox_prevVegCom.setMinimumSize(231, 20)
+        self.comboBox_envVar.setMinimumSize(231, 20)
 
-
-        #move buttons to below frame
+        #dynamically add whole rule frames
+        if self.rule_number == 0:
+            self.rule_number +=1
+            self.scrollFrame_rule = QFrame()
+            self.scrollFrame_rule.setLayout(self.vLayout_total)
+            self.scrollFrame_rule.setFrameShape(QFrame.WinPanel)
+            self.scrollFrame_rule.setFrameShadow(QFrame.Sunken)
+            self.scrollFrame_rule.setGeometry(0, self.rule_total_length, 645, 200)
+            self.vLayout_scrollArea.insertWidget(0, self.scrollFrame_rule)
+            self.scrollFrame_rule.show()
+        else:
+            self.rule_number +=1
+            self.scrollFrame_rule = QFrame()
+            self.scrollFrame_rule.setLayout(self.vLayout_total)
+            self.scrollFrame_rule.setFrameShape(QFrame.WinPanel)
+            self.scrollFrame_rule.setFrameShadow(QFrame.Sunken)
+            self.rule_total_length += 200
+            self.scrollFrame_rule.setGeometry(0, self.rule_total_length, 645, 200)
+            self.vLayout_scrollArea.insertWidget(self.rule_number-1,self.scrollFrame_rule)
+            self.scrollFrame_rule.show()
 
 
 
