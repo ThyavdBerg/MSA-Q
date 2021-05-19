@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>669</width>
+    <width>671</width>
     <height>829</height>
    </rect>
   </property>
@@ -23,7 +23,7 @@
     </rect>
    </property>
    <property name="currentIndex">
-    <number>0</number>
+    <number>2</number>
    </property>
    <widget class="QWidget" name="tab_envAndSpatial">
     <attribute name="title">
@@ -562,11 +562,11 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>652</width>
+        <width>648</width>
         <height>619</height>
        </rect>
       </property>
-      <widget class="QWidget" name="">
+      <widget class="QWidget" name="layoutWidget">
        <property name="geometry">
         <rect>
          <x>0</x>
@@ -598,35 +598,6 @@
            <widget class="QPushButton" name="pushButton_addRule">
             <property name="text">
              <string>Add new rule</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <spacer name="horizontalSpacer">
-            <property name="orientation">
-             <enum>Qt::Horizontal</enum>
-            </property>
-            <property name="sizeType">
-             <enum>QSizePolicy::Fixed</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>80</width>
-              <height>20</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
-          <item>
-           <widget class="QPushButton" name="pushButton_updateDropdown">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="text">
-             <string>Update dropdowns</string>
             </property>
            </widget>
           </item>
@@ -693,8 +664,8 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>482</width>
-        <height>622</height>
+        <width>478</width>
+        <height>618</height>
        </rect>
       </property>
       <widget class="QPushButton" name="pushButton_11">
@@ -781,7 +752,7 @@
        <x>510</x>
        <y>10</y>
        <width>179</width>
-       <height>213</height>
+       <height>240</height>
       </rect>
      </property>
      <layout class="QVBoxLayout" name="verticalLayout_2">

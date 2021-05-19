@@ -25,13 +25,13 @@
 import os
 import re
 
-from PyQt5.QtCore import QRect
+from PyQt5.QtCore import QRect, Qt
 from PyQt5.QtWidgets import QTableWidgetItem, QWidget, QLineEdit, QLabel, QVBoxLayout, QComboBox, QGridLayout, \
-    QDoubleSpinBox, QFrame, QRadioButton, QHBoxLayout, QPushButton, QSpacerItem, QScrollArea
+    QDoubleSpinBox, QFrame, QRadioButton, QHBoxLayout, QPushButton, QSpacerItem, QScrollArea, QCheckBox, QMessageBox
 from qgis.PyQt import uic
 from qgis.PyQt import QtWidgets
 from qgis.utils import iface
-from qgis.core import QgsWkbTypes
+from qgis.core import *
 
 
 # This loads your .ui file so that PyQt can populate your plugin with the elements from Qt Designer
@@ -41,7 +41,8 @@ FORM_CLASS_TAXA, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'MSA_QGIS_dialog_popup_taxa.ui'))
 FORM_CLASS_VEGCOM, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'MSA_QGIS_dialog_popup_vegcom.ui'))
-
+FORM_CLASS_RULES, _ = uic.loadUiType(os.path.join(
+    os.path.dirname(__file__), 'MSA_QGIS_dialog_popup_add_rule.ui'))
 
 ### Main dialog window
 
@@ -63,13 +64,21 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.extent = None
         self.rule_number = 0
 
+        # class lists & dictionaries
+        self.list_cb_rule_veg_com = []
+        self.list_cb_env_var = []
+        self.list_cb_rule_type = []
+        self.nest_dict_rules = {}    # {'rule number': [rule_number(int), vegcom(str), chance(float), n of prev vegcoms(int),
+                                # n of env vars(int), # all(bool),
+                                # prevvegcom (QTableItem), AND(bool), OR(bool), nextprevvegcom...etc,
+                                # envvar (QtableItem), AND(bool), OR(bool), next envvar...etc}
+
         # UI setup
         self.qgsFileWidget_importHandbag.setFilter('*.hum')
             #create the whole mess that allows scrolling in the rules tab- widgets within widgets within widgets
         self.frameWidget_rules = QFrame(self.scrollArea_rules)
         self.frameWidget_rules.setLayout(self.vLayout_scrollArea)
         self.scrollArea_rules.setWidget(self.frameWidget_rules)
-
 
         # events
         self.mExtentGroupBox.setMapCanvas(iface.mapCanvas())
@@ -87,7 +96,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.pushButton_removeVegCom.clicked.connect(self.removeVegComEntry)
         self.pushButton_importHandbag.clicked.connect(self.loadHandbagFile)
         self.pushButton_addRule.clicked.connect(self.addNewRule)
-        self.pushButton_updateDropdown.clicked.connect(self.updateRuleDropdowns)
+
 
 
     def setExtent(self):
@@ -336,126 +345,300 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
 
     def addNewRule(self):
         """ Allows the dynamic adding of new rules under the rules tab in the main dialog UI."""
-        # Make all the initial widgets
-        # comboboxes
-        self.comboBox_ruleVegCom = QComboBox()
-        self.comboBox_rule = QComboBox()
-        self.comboBox_prevVegCom = QComboBox()
-        self.comboBox_envVar = QComboBox()
-        # fill comboBoxes
-        self.comboBox_ruleVegCom.addItem('Empty')
+
+        self.add_rule_popup = MsaQgisAddRulePopup(self.rule_number, self.nest_dict_rules, self.tableWidget_vegCom,
+                                                  self.tableWidget_selected, self.tableWidget_selRaster)
+        self.add_rule_popup.show()
+
+        if self.add_rule_popup.exec_():
+            self.rule_number += 1
+            # fill the dictionary
+
+            # add the rule to the rule list
+
+class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
+    def __init__(self, rule_number, nest_dict_rules, tableWidget_vegCom, tableWidget_selected, tableWidget_selRaster, parent = None):
+        """Popup Constructor"""
+        super(MsaQgisAddRulePopup, self).__init__(parent)
+        self.setupUi(self)
+
+        # Class variables
+        self.rule_number = rule_number
+        self.tableWidget_vegCom = tableWidget_vegCom
+        self.tableWidget_selected = tableWidget_selected
+        self.tableWidget_selRaster = tableWidget_selRaster
+        self.index_latest_layout_vegcom = 1
+        self.index_latest_layout_envvar = 3
+
+        # Dictionaries & lists
+        self.list_prevVegCom = []
+        self.list_envVar = []
+        self.nest_dict_rules = nest_dict_rules
+        #self.dict_prev_veg_com = {self.comboBox_envVar:[self.doubleSpin_rangeMin, self.doubleSpin_rangeMax, self.comboBox_category]}
+
+        self.dict_rules = {}
+        # TODO Create dictionary of rule
+            # {'rule number': [rule_number(int), vegcom(str), chance(float), n of prev vegcoms(int),
+            # n of env vars(int), # all(bool),
+            # prevvegcom (QTableItem), AND(bool), OR(bool), nextprevvegcom...etc,
+            # envvar (QtableItem), rangemin (float or NULL), rangemax (~), category (str or NULL), AND(bool), OR(bool), next envvar...etc}
+
+        # self.dict_rules['Rule '+rule_number] =
+
+        # create scrollArea
+        self.frameWidget_scroll = QFrame(self.scrollArea)
+        self.frameWidget_scroll.setLayout(self.vLayout_total)
+        self.scrollArea.setWidget(self.frameWidget_scroll)
+
+        # Set (in)visible
+        self.label_rangeMinMax.hide()
+        self.doubleSpin_rangeMin.hide()
+        self.doubleSpin_rangeMax.hide()
+        self.label_category.hide()
+        self.comboBox_category.hide()
+        self.label_nOfPoints.hide()
+        self.spinBox_nOfPoints.hide()
+        self.comboBox_condTypePrevVeg.hide()
+        self.label_condTypePrevVeg.hide()
+        self.comboBox_condTypeEnvVar.hide()
+        self.label_condTypeEnvVar.hide()
+
+        # Events
+        self.pushButton_condVegCom.clicked.connect(self.addConditionalPrevVegCom)
+        self.pushButton_condEnvVar.clicked.connect(self.addConditionalEnvVar)
+        self.comboBox_envVar.currentTextChanged.connect(lambda: self.addRangeOrCatToEnvVar(self.comboBox_envVar,
+                                                                                   self.label_rangeMinMax,
+                                                                                   self.doubleSpin_rangeMin,
+                                                                                   self.doubleSpin_rangeMax,
+                                                                                   self.label_selectEnvVar,
+                                                                                   self.label_category,
+                                                                                   self.comboBox_category))
+        self.comboBox_rule.currentTextChanged.connect(self.addNofPointsToRule)
+
+        # Fill comboBoxes
         for row in range(self.tableWidget_vegCom.rowCount()):
-            self.comboBox_ruleVegCom.addItem(self.tableWidget_vegCom.item(row,0).text())
+            self.comboBox_ruleVegCom.addItem(self.tableWidget_vegCom.item(row, 0).text())
             self.comboBox_prevVegCom.addItem(self.tableWidget_vegCom.item(row, 0).text())
-        self.comboBox_prevVegCom.addItem('Empty')
         for row in range(self.tableWidget_selected.rowCount()):
-            self.comboBox_envVar.addItem(self.tableWidget_selected.item(row,0).text()+' '+self.tableWidget_selected.item(row,1).text())
-        self.comboBox_envVar.addItem('Empty')
+            self.comboBox_envVar.addItem(self.tableWidget_selected.item(row, 0).text()+' - '+self.tableWidget_selected.item(row,1).text())
         for row in range(self.tableWidget_selRaster.rowCount()):
-            self.comboBox_envVar.addItem(self.tableWidget_selRaster.item(row,0).text()+' '+self.tableWidget_selRaster.item(row,1).text())
-        self.comboBox_rule.addItems(['(Re-)place', 'Encroach', 'Adjacent', 'Extent'])
-        # labels
-        self.label_chooseVegCom = QLabel('Choose vegetation community')
-        self.label_chooseRuleType = QLabel('Choose rule type')
-        self.label_chance = QLabel('Chance')
-        self.label_choosePrevVegCom = QLabel('Choose previously placed vegetation community')
-        self.label_chooseEnvVar = QLabel('Choose environmental variable')
-        self.label_writtenRule = QLabel('Rule '+str(self.rule_number))
-        # push buttons
-        self.pushButton_condVegCom = QPushButton('Add conditional')
-        self.pushButton_conEnvVar = QPushButton('Add conditional')
-        # double spin box
-        self.doubleSpin_chance = QDoubleSpinBox()
+            self.comboBox_envVar.addItem(self.tableWidget_selRaster.item(row, 0).text()+' - '+self.tableWidget_selRaster.item(row,1).text())
+        #set min & max size for comboBox envVar
+        self.label_writtenRule.setText('Rule '+str(rule_number))
 
-        # radio buttons
-        self.radioButton_all = QRadioButton('All')
-        # layouts
-        self.vLayout_vegCom = QVBoxLayout()
-        self.vLayout_ruleType = QVBoxLayout()
-        self.vLayout_chance = QVBoxLayout()
-        self.vLayout_prevVegCom = QVBoxLayout()
-        self.vLayout_envVar = QVBoxLayout()
-        self.vLayout_all = QVBoxLayout()
-        self.vLayout_condVegCom = QVBoxLayout()
-        self.vLayout_condEnvVar = QVBoxLayout()
-        self.vLayout_total = QVBoxLayout()
-        self.vLayout_rules = QVBoxLayout()
-        self.hLayout_top = QHBoxLayout()
-        self.hLayout_prevVegCom = QHBoxLayout()
-        self.hLayout_envVar = QHBoxLayout()
-        # place everything within their respective layouts - verticals
-        self.vLayout_vegCom.addWidget(self.label_chooseVegCom)
-        self.vLayout_vegCom.addWidget(self.comboBox_ruleVegCom)
-        self.vLayout_ruleType.addWidget(self.label_chooseRuleType)
-        self.vLayout_ruleType.addWidget(self.comboBox_rule)
-        self.vLayout_chance.addWidget(self.label_chance)
-        self.vLayout_chance.addWidget(self.doubleSpin_chance)
-        self.vLayout_prevVegCom.addWidget(self.label_choosePrevVegCom)
-        self.vLayout_prevVegCom.addWidget(self.comboBox_prevVegCom)
-        self.vLayout_envVar.addWidget(self.label_chooseEnvVar)
-        self.vLayout_envVar.addWidget(self.comboBox_envVar)
-        self.vLayout_all.insertStretch(0, 1)
-        self.vLayout_all.addWidget(self.radioButton_all)
-        self.vLayout_condVegCom.insertStretch(0, 1)
-        self.vLayout_condVegCom.addWidget(self.pushButton_condVegCom)
-        self.vLayout_condEnvVar.insertStretch(0,1)
-        self.vLayout_condEnvVar.addWidget(self.pushButton_conEnvVar)
-        self.scrollArea_rules.setLayout(self.vLayout_rules)
-        # place everything within their respective layouts -horizontals
-        self.hLayout_top.addLayout(self.vLayout_vegCom)
-        self.hLayout_top.addLayout(self.vLayout_ruleType)
-        self.hLayout_top.addLayout(self.vLayout_chance)
-        self.hLayout_prevVegCom.addLayout(self.vLayout_prevVegCom)
-        self.hLayout_prevVegCom.addLayout(self.vLayout_all)
-        self.hLayout_prevVegCom.addLayout(self.vLayout_condVegCom)
-        self.hLayout_envVar.addLayout(self.vLayout_envVar)
-        self.hLayout_envVar.insertStretch(1,1)
-        self.hLayout_envVar.addLayout(self.vLayout_condEnvVar)
-        # place in overarching layout
-        self.vLayout_total.addLayout(self.hLayout_top)
-        self.vLayout_total.addLayout(self.hLayout_prevVegCom)
-        self.vLayout_total.addLayout(self.hLayout_envVar)
-        self.vLayout_total.addWidget(self.label_writtenRule)
-        # set the sizes of widgets where necessary
-        self.pushButton_conEnvVar.setMinimumSize(192, 23)
-        self.pushButton_condVegCom.setMinimumSize(192, 23)
-        self.comboBox_ruleVegCom.setMinimumSize(231,20)
-        self.comboBox_prevVegCom.setMinimumSize(231, 20)
-        self.comboBox_envVar.setMinimumSize(231, 20)
-        self.comboBox_envVar.setMaximumSize(231, 20)
 
-        #dynamically add whole rule frames to the scrollframe/tab
-        if self.rule_number == 0:
-            self.rule_number += 1
-            self.scrollFrame_rule = QFrame()
-            self.scrollFrame_rule.setLayout(self.vLayout_total)
-            self.scrollFrame_rule.setFrameShape(QFrame.WinPanel)
-            self.scrollFrame_rule.setFrameShadow(QFrame.Sunken)
-            self.vLayout_scrollArea.insertWidget(0, self.scrollFrame_rule)
-            self.scrollFrame_rule.setMaximumHeight(170)
-            self.scrollFrame_rule.show()
+    def addRangeOrCatToEnvVar(self, env_var, label_range, rangeMin, rangeMax,label_noChoice, label_category, category): #TODO change to accomodate dynamic buttons
+        """ An option to fill in range for the environmental variable appears if the variable is numerical"""
+        #get layer associated with current item
+        category.clear()
+        rangeMin.clear()
+        rangeMax.clear()
+        if env_var.currentText() == 'Empty':
+            label_range.hide()
+            rangeMin.hide()
+            rangeMax.hide()
+            label_noChoice.show()
+            label_category.hide()
+            category.hide()
         else:
-            self.rule_number += 1
-            self.scrollFrame_rule = QFrame()
-            self.scrollFrame_rule.setLayout(self.vLayout_total)
-            self.scrollFrame_rule.setFrameShape(QFrame.WinPanel)
-            self.scrollFrame_rule.setFrameShadow(QFrame.Sunken)
-            self.vLayout_scrollArea.insertWidget(self.rule_number-1,self.scrollFrame_rule)
-            self.scrollFrame_rule.setMaximumHeight(170)
-            self.scrollFrame_rule.show()
+            layer_name = list(re.split(' - ', env_var.currentText()))[0]
+            field_or_band = list(re.split(' - |:', env_var.currentText()))[1]
+            layer = QgsProject.instance().mapLayersByName(layer_name)[0]
+            data_provider = layer.dataProvider()
+            if (layer.type() == layer.VectorLayer):
+                field_index = data_provider.fieldNameIndex(field_or_band)
+                field = data_provider.fields().at(field_index)
+                if field.type() == 10 or field.type() == 1: # 10 is str, 1 is bool TODO check if these and int & double are the only options
+                    label_range.hide()
+                    rangeMin.hide()
+                    rangeMax.hide()
+                    label_noChoice.hide()
+                    label_category.show()
+                    category.show()
+                    #get categories from fields
+                    feat_field = 0
+                    for feat in data_provider.getFeatures():
+                        if feat_field == 0:
+                            feat_field = feat.attribute(field.name())
+                            category.addItem(str(feat_field))
+                        elif feat_field == feat.attribute(field.name()):
+                            pass
+                        else:
+                            feat_field = feat.attribute(field.name())
+                            category.addItem(str(feat_field))
+
+                else:
+                    label_range.show()
+                    rangeMin.show()
+                    rangeMax.show()
+                    label_noChoice.hide()
+                    label_category.hide()
+                    category.hide()
+                    #get range from fields
+                    rangeMin.setMinimum(data_provider.minimumValue(field_index))
+                    rangeMin.setMaximum(data_provider.maximumValue(field_index))
+                    rangeMax.setMinimum(data_provider.minimumValue(field_index))
+                    rangeMax.setMaximum(data_provider.maximumValue(field_index))
+                pass
+            elif layer.type() == layer.RasterLayer:
+                band_nr = int(list(re.split(' ',field_or_band))[1]) #TODO check if the format 'band [number]:' is consistent for all raster layers!
+                if data_provider.dataType(band_nr) != 0: # Checks if band contains numerical data
+                    label_range.show()
+                    rangeMin.show()
+                    rangeMax.show()
+                    label_noChoice.hide()
+                    label_category.hide()
+                    category.hide()
+                    #get range from bands
+                    stats = data_provider.bandStatistics(band_nr, QgsRasterBandStats.All)
+                    minimum_value = stats.minimumValue
+                    maximum_value = stats.maximumValue
+                    rangeMin.setMinimum(minimum_value)
+                    rangeMin.setMaximum(maximum_value)
+                    rangeMax.setMinimum(minimum_value)
+                    rangeMax.setMaximum(maximum_value)
+                else: #NOTE honestly, currently not necessary, unless there is a way to find out if a raster layer is actually categorical...
+                    label_range.hide()
+                    rangeMin.hide()
+                    rangeMax.hide()
+                    label_noChoice.hide()
+                    label_category.show()
+                    category.show()
+                    #get categories from band TODO don't think there is currently a way to do this
+        pass
+
 
     def addNofPointsToRule(self):
+        """ Makes a spin box appear when adjacent or encroach is selected under choose rule type"""
+        if self.comboBox_rule.currentText() == 'Encroach' or self.comboBox_rule.currentText() == 'Adjacent':
+            self.label_nOfPoints.show()
+            self.spinBox_nOfPoints.show()
+        else:
+            self.label_nOfPoints.hide()
+            self.spinBox_nOfPoints.hide()
         pass
 
+    def addConditionalPrevVegCom(self, prev_layout):
+        """ A comboBox appears from which the user can choose whether they want to apply OR or AND rules, and an
+        extra row where an additional previous vegetation community can be chosen appears """
+        # combobox and/or
+        self.comboBox_condTypePrevVeg.show()
+        self.label_condTypePrevVeg.show()
+        self.radioButton_all.hide()
+        # create new widgets
+        comboBox_prevVegCom = QComboBox()
+        label_prevVegCom = QLabel()
+        pushButton_rmPrevVegCom = QPushButton('Remove conditional')
 
-    def updateRuleDropdowns(self):
+        #fill combobox
+        comboBox_prevVegCom.addItem('Empty')
+        for row in range(self.tableWidget_vegCom.rowCount()):
+            comboBox_prevVegCom.addItem(self.tableWidget_vegCom.item(row, 0).text())
+        #create layouts
+        vLayout_prevVegCom = QVBoxLayout()
+        vLayout_removeButton = QVBoxLayout()
+        hLayout_prevVegCom = QHBoxLayout()
+        widget_total = QWidget()
+        #fill layouts
+        vLayout_prevVegCom.addWidget(label_prevVegCom)
+        vLayout_prevVegCom.addWidget(comboBox_prevVegCom)
+        vLayout_removeButton.addWidget(pushButton_rmPrevVegCom)
+        vLayout_removeButton.insertStretch(0)
+        hLayout_prevVegCom.addLayout(vLayout_prevVegCom)
+        hLayout_prevVegCom.addLayout(vLayout_removeButton)
+        widget_total.setLayout(hLayout_prevVegCom)
+
+        self.vLayout_total.insertWidget(self.index_latest_layout_vegcom + 1, widget_total)
+        #event for subsequent remove
+        pushButton_rmPrevVegCom.clicked.connect(lambda *args, widget = widget_total:
+                                                self.removeConditionalPrevVegCom(widget_total))
+
+        self.index_latest_layout_vegcom +=1
+
         pass
-        # take env var from selected fields and bands tables
-        # take prev com and veg com from veg com table
 
+    def removeConditionalPrevVegCom(self, widget_to_remove):
+        """ Removes selected conditionals that were added to the list of previous vegcoms. If all but the
+        start prev veg com are gone, the all radioButton reappears and choose condition comboBox type disappears"""
+        widget_to_remove.deleteLater()
+        self.index_latest_layout_vegcom -=1
 
+        if self.index_latest_layout_vegcom == 1:
+            self.comboBox_condTypePrevVeg.hide()
+            self.label_condTypePrevVeg.hide()
+            self.radioButton_all.show()
 
+    def addConditionalEnvVar(self):
+        """ A comboBox appears from which the user can choose whether the want to apply OR or AND rules, and an
+        extra row where an additional environmental variable can be chosen appears"""
+        self.comboBox_condTypeEnvVar.show()
+        self.label_condTypeEnvVar.show()
 
+        # create new widgets
+        label_envVar = QLabel()
+        comboBox_envVar = QComboBox()
+        label_range = QLabel('Range')
+        doubleSpin_rangeMin = QDoubleSpinBox()
+        doubleSpin_rangeMax = QDoubleSpinBox()
+        label_noChoice = QLabel('[No environmental variable selected]')
+        label_chooseCategory = QLabel('Category')
+        comboBox_category = QComboBox()
+        pushButton_rmPrevVegCom = QPushButton('Remove conditional')
+
+        # fill combobox
+
+        # create layouts
+        vLayout_envVar = QVBoxLayout()
+        vLayout_rangeOrCat = QVBoxLayout()
+        hLayout_range = QHBoxLayout()
+        vLayout_removeButton = QVBoxLayout()
+        hLayout_envVar = QHBoxLayout()
+        widget_total = QWidget()
+
+        # fill layouts
+        vLayout_envVar.addWidget(label_envVar)
+        vLayout_envVar.addWidget(comboBox_envVar)
+        vLayout_rangeOrCat.addWidget(label_range)
+        hLayout_range.addWidget(doubleSpin_rangeMin)
+        hLayout_range.addWidget(doubleSpin_rangeMax)
+        vLayout_rangeOrCat.addLayout(hLayout_range)
+        vLayout_rangeOrCat.addWidget(label_noChoice)
+        vLayout_rangeOrCat.addWidget(label_chooseCategory)
+        vLayout_rangeOrCat.addWidget(comboBox_category)
+        vLayout_removeButton.addWidget(pushButton_rmPrevVegCom)
+        vLayout_removeButton.insertStretch(0)
+        hLayout_envVar.addLayout(vLayout_envVar)
+        hLayout_envVar.addLayout(vLayout_rangeOrCat)
+        hLayout_envVar.addLayout(vLayout_removeButton)
+        widget_total.setLayout(hLayout_envVar)
+        self.vLayout_total.insertWidget(self.index_latest_layout_envvar+self.index_latest_layout_vegcom, widget_total)
+
+        # hide
+        label_range.hide()
+        doubleSpin_rangeMin.hide()
+        doubleSpin_rangeMax.hide()
+        label_chooseCategory.hide()
+        comboBox_category.hide()
+
+        # create signals (to hide/show range/category and to remove later
+        comboBox_envVar.currentTextChanged.connect(lambda *args, env_var = comboBox_envVar, label_range = label_range, rangeMin =doubleSpin_rangeMin,
+                                                          rangeMax = doubleSpin_rangeMax, label_noChoice = label_noChoice,
+                                                          label_category = label_chooseCategory,category = comboBox_category:
+                                                   self.addRangeOrCatToEnvVar(env_var, label_range, rangeMin, rangeMax,
+                                                                              label_noChoice, label_category, category))
+        pushButton_rmPrevVegCom.clicked.connect(lambda *args, widget = widget_total:
+                                                self.removeConditionalEnvVar(widget))
+
+        self.index_latest_layout_envvar += 1
+        pass
+
+    def removeConditionalEnvVar(self, widget):
+        widget.deleteLater()
+        self.index_latest_layout_envvar -=1
+
+        if self.index_latest_layout_envvar ==1:
+            #show and hide where appropriate
+            pass
 
 
 class MsaQgisAddTaxonPopup (QtWidgets.QDialog, FORM_CLASS_TAXA):
