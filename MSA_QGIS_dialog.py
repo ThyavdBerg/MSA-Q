@@ -75,10 +75,6 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
 
         # UI setup
         self.qgsFileWidget_importHandbag.setFilter('*.hum')
-            #create the whole mess that allows scrolling in the rules tab- widgets within widgets within widgets
-        self.frameWidget_rules = QFrame(self.scrollArea_rules)
-        self.frameWidget_rules.setLayout(self.vLayout_scrollArea)
-        self.scrollArea_rules.setWidget(self.frameWidget_rules)
 
         # events
         self.mExtentGroupBox.setMapCanvas(iface.mapCanvas())
@@ -353,6 +349,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         if self.add_rule_popup.exec_():
             self.rule_number += 1
             # fill the dictionary
+        print(self.add_rule_popup.dict_rules)
 
             # add the rule to the rule list
 
@@ -367,23 +364,15 @@ class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
         self.tableWidget_vegCom = tableWidget_vegCom
         self.tableWidget_selected = tableWidget_selected
         self.tableWidget_selRaster = tableWidget_selRaster
-        self.index_latest_layout_vegcom = 1
-        self.index_latest_layout_envvar = 3
+        self.n_of_vegcom = 1
+        self.n_of_envvar = 1
 
         # Dictionaries & lists
         self.list_prevVegCom = []
-        self.list_envVar = []
+        self.dict_envVar = {}
         self.nest_dict_rules = nest_dict_rules
-        #self.dict_prev_veg_com = {self.comboBox_envVar:[self.doubleSpin_rangeMin, self.doubleSpin_rangeMax, self.comboBox_category]}
-
-        self.dict_rules = {}
-        # TODO Create dictionary of rule
-            # {'rule number': [rule_number(int), vegcom(str), chance(float), n of prev vegcoms(int),
-            # n of env vars(int), # all(bool),
-            # prevvegcom (QTableItem), AND(bool), OR(bool), nextprevvegcom...etc,
-            # envvar (QtableItem), rangemin (float or NULL), rangemax (~), category (str or NULL), AND(bool), OR(bool), next envvar...etc}
-
-        # self.dict_rules['Rule '+rule_number] =
+        self.dict_rules_list = []
+        self.dict_rules = {'rule' + str(self.rule_number): self.dict_rules_list}
 
         # create scrollArea
         self.frameWidget_scroll = QFrame(self.scrollArea)
@@ -414,6 +403,7 @@ class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
                                                                                    self.label_category,
                                                                                    self.comboBox_category))
         self.comboBox_rule.currentTextChanged.connect(self.addNofPointsToRule)
+        self.accepted.connect(self.updateDictionary)
 
         # Fill comboBoxes
         for row in range(self.tableWidget_vegCom.rowCount()):
@@ -518,13 +508,14 @@ class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
             self.spinBox_nOfPoints.hide()
         pass
 
-    def addConditionalPrevVegCom(self, prev_layout):
+    def addConditionalPrevVegCom(self):
         """ A comboBox appears from which the user can choose whether they want to apply OR or AND rules, and an
         extra row where an additional previous vegetation community can be chosen appears """
         # combobox and/or
         self.comboBox_condTypePrevVeg.show()
         self.label_condTypePrevVeg.show()
         self.radioButton_all.hide()
+        self.radioButton_all.setChecked(False)
         # create new widgets
         comboBox_prevVegCom = QComboBox()
         label_prevVegCom = QLabel()
@@ -548,22 +539,23 @@ class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
         hLayout_prevVegCom.addLayout(vLayout_removeButton)
         widget_total.setLayout(hLayout_prevVegCom)
 
-        self.vLayout_total.insertWidget(self.index_latest_layout_vegcom + 1, widget_total)
+        self.vLayout_total.insertWidget(self.n_of_vegcom + 1, widget_total)
         #event for subsequent remove
         pushButton_rmPrevVegCom.clicked.connect(lambda *args, widget = widget_total:
                                                 self.removeConditionalPrevVegCom(widget_total))
 
-        self.index_latest_layout_vegcom +=1
+        self.n_of_vegcom +=1
+        self.list_prevVegCom.append(comboBox_prevVegCom)
 
         pass
 
     def removeConditionalPrevVegCom(self, widget_to_remove):
-        """ Removes selected conditionals that were added to the list of previous vegcoms. If all but the
-        start prev veg com are gone, the all radioButton reappears and choose condition comboBox type disappears"""
+        """ Removes selected conditionals that were added to the UI. If all but the start prev veg com are gone, the all
+         radioButton reappears and choose condition type comboBox disappears"""
         widget_to_remove.deleteLater()
-        self.index_latest_layout_vegcom -=1
+        self.n_of_vegcom -=1
 
-        if self.index_latest_layout_vegcom == 1:
+        if self.n_of_vegcom == 1:
             self.comboBox_condTypePrevVeg.hide()
             self.label_condTypePrevVeg.hide()
             self.radioButton_all.show()
@@ -586,6 +578,11 @@ class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
         pushButton_rmPrevVegCom = QPushButton('Remove conditional')
 
         # fill combobox
+        comboBox_envVar.addItem('Empty')
+        for row in range(self.tableWidget_selected.rowCount()):
+            comboBox_envVar.addItem(self.tableWidget_selected.item(row, 0).text()+' - '+self.tableWidget_selected.item(row,1).text())
+        for row in range(self.tableWidget_selRaster.rowCount()):
+            comboBox_envVar.addItem(self.tableWidget_selRaster.item(row, 0).text()+' - '+self.tableWidget_selRaster.item(row,1).text())
 
         # create layouts
         vLayout_envVar = QVBoxLayout()
@@ -611,7 +608,7 @@ class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
         hLayout_envVar.addLayout(vLayout_rangeOrCat)
         hLayout_envVar.addLayout(vLayout_removeButton)
         widget_total.setLayout(hLayout_envVar)
-        self.vLayout_total.insertWidget(self.index_latest_layout_envvar+self.index_latest_layout_vegcom, widget_total)
+        self.vLayout_total.insertWidget(self.n_of_envvar+2 + self.n_of_vegcom, widget_total)
 
         # hide
         label_range.hide()
@@ -628,17 +625,71 @@ class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
                                                                               label_noChoice, label_category, category))
         pushButton_rmPrevVegCom.clicked.connect(lambda *args, widget = widget_total:
                                                 self.removeConditionalEnvVar(widget))
+        #pass stuff on along to list
 
-        self.index_latest_layout_envvar += 1
+
+        self.n_of_envvar += 1
+        self.dict_envVar[comboBox_envVar] = [doubleSpin_rangeMin, doubleSpin_rangeMax, comboBox_category] # cat_range_none(str), rangeMin, rangeMax, category
         pass
 
     def removeConditionalEnvVar(self, widget):
-        widget.deleteLater()
-        self.index_latest_layout_envvar -=1
+        """ Removes selected conditionals that were added to the UI. If all but the start env var are gone,
+        the choose conditional type comboBox disappears"""
 
-        if self.index_latest_layout_envvar ==1:
-            #show and hide where appropriate
+        widget.deleteLater()
+        self.n_of_envvar -= 1
+
+        if self.n_of_envvar == 1:
+            self.comboBox_condTypeEnvVar.hide()
+            self.label_condTypeEnvVar.hide()
             pass
+
+    def updateDictionary(self):
+        self.dict_rules_list.clear()
+        # TODO Create dictionary of rule
+            # {'rule number': [rule_number(int), vegcom(str), rule type(str) chance(float), n of prev vegcoms(int),type of conditional(str),
+            # n of env vars(int), type of conditional(str), all(bool),
+            # prevvegcom (QTableItem), AND(bool), OR(bool), nextprevvegcom...etc,
+            # envvar (QtableItem), rangemin (float or NULL), rangemax (~), category (str or NULL), AND(bool), OR(bool), next envvar...etc}
+        # insert directly ffrom UI
+        self.dict_rules_list.append(self.rule_number)
+        self.dict_rules_list.append(self.comboBox_ruleVegCom.currentText())
+        self.dict_rules_list.append(self.comboBox_rule.currentText())
+        self.dict_rules_list.append(self.doubleSpin_chance.value())
+        self.dict_rules_list.append(self.spinBox_nOfPoints.value())
+        self.dict_rules_list.append(self.n_of_vegcom)
+        self.dict_rules_list.append(self.comboBox_condTypePrevVeg.currentText())
+        self.dict_rules_list.append(self.n_of_envvar)
+        self.dict_rules_list.append(self.comboBox_condTypeEnvVar.currentText())
+        self.dict_rules_list.append(self.radioButton_all.isChecked())
+        # insert from dynamically added widgets
+        list_prevVegCom = []
+        list_prevVegCom.append(self.comboBox_prevVegCom.currentText())
+        for vegcoms in self.list_prevVegCom:
+            list_prevVegCom.append(vegcoms.currentText())
+        self.dict_rules_list.append(list_prevVegCom)
+        dict_envVar = {}
+        list_envVar = []
+        dict_envVar[self.comboBox_envVar.currentText()] = [self.doubleSpin_rangeMin.value(), self.doubleSpin_rangeMax.value(),
+                                                           self.comboBox_category.currentText()]
+        for key in self.dict_envVar:
+            for value in self.dict_envVar[key]:
+                print(value)
+                if isinstance(value, QtWidgets.QDoubleSpinBox):
+                    list_envVar.append(value.value())
+                if isinstance(value, QtWidgets.QComboBox):
+                    list_envVar.append(value.currentText())
+            dict_envVar[key.currentText()] = list_envVar
+        self.dict_rules_list.append(dict_envVar)
+
+
+
+
+    def updateRuleDescription(self):
+        pass
+
+
+
 
 
 class MsaQgisAddTaxonPopup (QtWidgets.QDialog, FORM_CLASS_TAXA):

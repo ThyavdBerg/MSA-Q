@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>671</width>
-    <height>829</height>
+    <width>672</width>
+    <height>830</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -539,102 +539,81 @@
     <attribute name="title">
      <string>Rules</string>
     </attribute>
-    <widget class="QScrollArea" name="scrollArea_rules">
+    <widget class="QWidget" name="">
      <property name="geometry">
       <rect>
        <x>0</x>
        <y>0</y>
-       <width>671</width>
-       <height>621</height>
+       <width>661</width>
+       <height>631</height>
       </rect>
      </property>
-     <property name="verticalScrollBarPolicy">
-      <enum>Qt::ScrollBarAlwaysOn</enum>
-     </property>
-     <property name="horizontalScrollBarPolicy">
-      <enum>Qt::ScrollBarAlwaysOff</enum>
-     </property>
-     <property name="widgetResizable">
-      <bool>true</bool>
-     </property>
-     <widget class="QWidget" name="scrollAreaWidgetContents_2">
-      <property name="geometry">
-       <rect>
-        <x>0</x>
-        <y>0</y>
-        <width>648</width>
-        <height>619</height>
-       </rect>
-      </property>
-      <widget class="QWidget" name="layoutWidget">
-       <property name="geometry">
-        <rect>
-         <x>0</x>
-         <y>0</y>
-         <width>651</width>
-         <height>621</height>
-        </rect>
-       </property>
-       <layout class="QVBoxLayout" name="vLayout_scrollArea">
+     <layout class="QVBoxLayout" name="verticalLayout_5">
+      <item>
+       <widget class="QListWidget" name="listWidget">
+        <property name="verticalScrollBarPolicy">
+         <enum>Qt::ScrollBarAlwaysOn</enum>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout">
         <item>
-         <layout class="QHBoxLayout" name="hLayout_rulesButtons">
-          <item>
-           <spacer name="horizontalSpacer_2">
-            <property name="orientation">
-             <enum>Qt::Horizontal</enum>
-            </property>
-            <property name="sizeType">
-             <enum>QSizePolicy::Fixed</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>80</width>
-              <height>20</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
-          <item>
-           <widget class="QPushButton" name="pushButton_addRule">
-            <property name="text">
-             <string>Add new rule</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <spacer name="horizontalSpacer_3">
-            <property name="orientation">
-             <enum>Qt::Horizontal</enum>
-            </property>
-            <property name="sizeType">
-             <enum>QSizePolicy::Fixed</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>80</width>
-              <height>20</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
-         </layout>
-        </item>
-        <item>
-         <spacer name="verticalSpacer">
+         <spacer name="horizontalSpacer_2">
           <property name="orientation">
-           <enum>Qt::Vertical</enum>
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeType">
+           <enum>QSizePolicy::Fixed</enum>
           </property>
           <property name="sizeHint" stdset="0">
            <size>
-            <width>20</width>
-            <height>40</height>
+            <width>77</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item>
+         <widget class="QPushButton" name="pushButton_addRule">
+          <property name="text">
+           <string>Add new rule</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="pushButton_editRule">
+          <property name="text">
+           <string>Edit rule</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="pushButton_removeRule">
+          <property name="text">
+           <string>Remove rule</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="horizontalSpacer_3">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeType">
+           <enum>QSizePolicy::Fixed</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>77</width>
+            <height>20</height>
            </size>
           </property>
          </spacer>
         </item>
        </layout>
-      </widget>
-     </widget>
+      </item>
+     </layout>
     </widget>
    </widget>
    <widget class="QWidget" name="tab_ruleTree">
@@ -664,8 +643,8 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>478</width>
-        <height>618</height>
+        <width>482</width>
+        <height>622</height>
        </rect>
       </property>
       <widget class="QPushButton" name="pushButton_11">
@@ -1289,7 +1268,7 @@
    <property name="frameShadow">
     <enum>QFrame::Sunken</enum>
    </property>
-   <widget class="QLabel" name="label">
+   <widget class="QLabel" name="labels_status">
     <property name="geometry">
      <rect>
       <x>10</x>
@@ -1312,6 +1291,17 @@
      <string>Click OK to run MSA-QGIS... (status bar not yet functional)</string>
     </property>
    </widget>
+  </widget>
+  <widget class="QWidget" name="">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>2</width>
+     <height>2</height>
+    </rect>
+   </property>
+   <layout class="QVBoxLayout" name="verticalLayout_4"/>
   </widget>
  </widget>
  <customwidgets>
