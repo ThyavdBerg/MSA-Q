@@ -24,6 +24,7 @@
 
 import os
 import re
+import sys
 
 from PyQt5.QtCore import QRect, Qt
 from PyQt5.QtWidgets import QTableWidgetItem, QWidget, QLineEdit, QLabel, QVBoxLayout, QComboBox, QGridLayout, \
@@ -32,6 +33,9 @@ from qgis.PyQt import uic
 from qgis.PyQt import QtWidgets
 from qgis.utils import iface
 from qgis.core import *
+
+
+from .MSA_QGIS_custom_widget_rule_tree import RuleTreeWidget
 
 
 # This loads your .ui file so that PyQt can populate your plugin with the elements from Qt Designer
@@ -43,6 +47,8 @@ FORM_CLASS_VEGCOM, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'MSA_QGIS_dialog_popup_vegcom.ui'))
 FORM_CLASS_RULES, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'MSA_QGIS_dialog_popup_add_rule.ui'))
+FORM_CLASS_RULE_TREE, _ = uic.loadUiType(os.path.join(
+    os.path.dirname(__file__), 'MSA_QGIS_dialog_add_to_rule_tree.ui'))
 
 ### Main dialog window
 
@@ -75,6 +81,9 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
 
         # UI setup
         self.qgsFileWidget_importHandbag.setFilter('*.hum')
+        self.ruleTreeGrid = QGridLayout()
+        self.scrollArea_ruleTree.setLayout(self.ruleTreeGrid)
+
 
         # events
         self.mExtentGroupBox.setMapCanvas(iface.mapCanvas())
@@ -92,6 +101,8 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.pushButton_removeVegCom.clicked.connect(self.removeVegComEntry)
         self.pushButton_importHandbag.clicked.connect(self.loadHandbagFile)
         self.pushButton_addRule.clicked.connect(self.addNewRule)
+        self.pushButton_ruleBelow.clicked.connect(self.addRuleToRuleTree)
+        #TODO close all assocated windows when main dialog is closed
 
 
 
@@ -342,19 +353,33 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
     def addNewRule(self):
         """ Allows the dynamic adding of new rules under the rules tab in the main dialog UI."""
 
-        self.add_rule_popup = MsaQgisAddRulePopup(self.rule_number, self.nest_dict_rules, self.tableWidget_vegCom,
+        self.add_rule_popup = MsaQgisAddRulePopup(self.rule_number, self.tableWidget_vegCom,
                                                   self.tableWidget_selected, self.tableWidget_selRaster)
         self.add_rule_popup.show()
 
         if self.add_rule_popup.exec_():
+            self.nest_dict_rules['Rule ' + str(self.rule_number)] = self.add_rule_popup.dict_rules_list
+            self.listWidget_rules.addItem(self.nest_dict_rules['Rule ' + str(self.rule_number)][1])
             self.rule_number += 1
-            # fill the dictionary
-        print(self.add_rule_popup.dict_rules)
-
             # add the rule to the rule list
 
+    def addRuleToRuleTree(self, previous = None, rule_tree_type = 'Insert Above'): # TODO make universally applicable
+        self.ruleTreePopup = MsaQgisAddRuleToTreePopup(self.nest_dict_rules)
+        n_row = 1
+        n_column = 1
+        if self.nest_dict_rules:
+            self.ruleTreePopup.show()
+        else:
+            iface.messageBar().pushMessage("Error", "There are no rules to add", level = 1) # TODO replace with popup once I have the energy
+
+        if self.ruleTreePopup.exec_():
+            list_rule = self.nest_dict_rules[self.ruleTreePopup.comboBox_ruleToAdd.currentText()]
+            ruleTreeWidget = RuleTreeWidget(list_rule, n_row, n_column)
+            self.ruleTreeGrid.addWidget(ruleTreeWidget)
+            self.ruleTreeGrid.setRowStretch(n_row + 1, 1)
+
 class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
-    def __init__(self, rule_number, nest_dict_rules, tableWidget_vegCom, tableWidget_selected, tableWidget_selRaster, parent = None):
+    def __init__(self, rule_number, tableWidget_vegCom, tableWidget_selected, tableWidget_selRaster, parent = None):
         """Popup Constructor"""
         super(MsaQgisAddRulePopup, self).__init__(parent)
         self.setupUi(self)
@@ -370,14 +395,7 @@ class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
         # Dictionaries & lists
         self.list_prevVegCom = []
         self.dict_envVar = {}
-        self.nest_dict_rules = nest_dict_rules
         self.dict_rules_list = []
-        self.dict_rules = {'rule' + str(self.rule_number): self.dict_rules_list}
-
-        # create scrollArea
-        self.frameWidget_scroll = QFrame(self.scrollArea)
-        self.frameWidget_scroll.setLayout(self.vLayout_total)
-        self.scrollArea.setWidget(self.frameWidget_scroll)
 
         # Set (in)visible
         self.label_rangeMinMax.hide()
@@ -404,6 +422,9 @@ class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
                                                                                    self.comboBox_category))
         self.comboBox_rule.currentTextChanged.connect(self.addNofPointsToRule)
         self.accepted.connect(self.updateDictionary)
+        self.pushButton_checkRule.clicked.connect(lambda: self.updateRuleDescription(self.label_writtenRule))
+        #TODO give warnings for empty boxes
+        self.buttonBox.accepted.connect(self.checkIfLegit)
 
         # Fill comboBoxes
         for row in range(self.tableWidget_vegCom.rowCount()):
@@ -417,7 +438,7 @@ class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
         self.label_writtenRule.setText('Rule '+str(rule_number))
 
 
-    def addRangeOrCatToEnvVar(self, env_var, label_range, rangeMin, rangeMax,label_noChoice, label_category, category): #TODO change to accomodate dynamic buttons
+    def addRangeOrCatToEnvVar(self, env_var, label_range, rangeMin, rangeMax,label_noChoice, label_category, category):
         """ An option to fill in range for the environmental variable appears if the variable is numerical"""
         #get layer associated with current item
         category.clear()
@@ -555,6 +576,8 @@ class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
         widget_to_remove.deleteLater()
         self.n_of_vegcom -=1
 
+        # TODO make it delete from list
+
         if self.n_of_vegcom == 1:
             self.comboBox_condTypePrevVeg.hide()
             self.label_condTypePrevVeg.hide()
@@ -638,6 +661,7 @@ class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
 
         widget.deleteLater()
         self.n_of_envvar -= 1
+        #TODO make it delete from dictionary
 
         if self.n_of_envvar == 1:
             self.comboBox_condTypeEnvVar.hide()
@@ -645,14 +669,15 @@ class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
             pass
 
     def updateDictionary(self):
+        """ Fills in all of the parameters the user has given in the UI in a list to be added to the dictionary in the
+        main dialog"""
         self.dict_rules_list.clear()
-        # TODO Create dictionary of rule
-            # {'rule number': [rule_number(int), vegcom(str), rule type(str) chance(float), n of prev vegcoms(int),type of conditional(str),
-            # n of env vars(int), type of conditional(str), all(bool),
-            # prevvegcom (QTableItem), AND(bool), OR(bool), nextprevvegcom...etc,
-            # envvar (QtableItem), rangemin (float or NULL), rangemax (~), category (str or NULL), AND(bool), OR(bool), next envvar...etc}
-        # insert directly ffrom UI
+        #lists and dicts
+        list_prevVegCom = []
+        dict_envVar = {}
+        # insert from static objects
         self.dict_rules_list.append(self.rule_number)
+        self.dict_rules_list.append(self.updateRuleDescription())
         self.dict_rules_list.append(self.comboBox_ruleVegCom.currentText())
         self.dict_rules_list.append(self.comboBox_rule.currentText())
         self.dict_rules_list.append(self.doubleSpin_chance.value())
@@ -662,34 +687,116 @@ class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
         self.dict_rules_list.append(self.n_of_envvar)
         self.dict_rules_list.append(self.comboBox_condTypeEnvVar.currentText())
         self.dict_rules_list.append(self.radioButton_all.isChecked())
+
         # insert from dynamically added widgets
-        list_prevVegCom = []
+        # previous vegetation communities
         list_prevVegCom.append(self.comboBox_prevVegCom.currentText())
         for vegcoms in self.list_prevVegCom:
             list_prevVegCom.append(vegcoms.currentText())
         self.dict_rules_list.append(list_prevVegCom)
-        dict_envVar = {}
-        list_envVar = []
-        dict_envVar[self.comboBox_envVar.currentText()] = [self.doubleSpin_rangeMin.value(), self.doubleSpin_rangeMax.value(),
-                                                           self.comboBox_category.currentText()]
+        # environmental variables
+        if self.comboBox_category.currentText() == '':
+            dict_envVar[self.comboBox_envVar.currentText()] = [self.doubleSpin_rangeMin.value(), self.doubleSpin_rangeMax.value()]
+        else:
+            dict_envVar[self.comboBox_envVar.currentText()] = self.comboBox_category.currentText()
+
         for key in self.dict_envVar:
-            for value in self.dict_envVar[key]:
-                print(value)
-                if isinstance(value, QtWidgets.QDoubleSpinBox):
-                    list_envVar.append(value.value())
-                if isinstance(value, QtWidgets.QComboBox):
-                    list_envVar.append(value.currentText())
-            dict_envVar[key.currentText()] = list_envVar
+            if self.dict_envVar[key][2].currentText() == '':
+                dict_envVar[key.currentText()] = [self.dict_envVar[key][0].value(), self.dict_envVar[key][1].value()]
+            else:
+                dict_envVar[key.currentText()] = self.dict_envVar[key][2].currentText()
         self.dict_rules_list.append(dict_envVar)
 
 
+    def updateRuleDescription(self, writtenRule = None): #TODO get the description to be gramatically correct
+        """ Writes a common language description string of the rule and either returns it or fills it in for a QLabel"""
+        #rule type
+        rule_type_string = ' [no rule type selected] '
+        if self.comboBox_rule.currentText() == '(Re)place':
+            rule_type_string = ' to be placed on '
+        elif self.comboBox_rule.currentText() == 'Encroach':
+            rule_type_string = ' to encroach by ' + str(self.spinBox_nOfPoints.value()) + ' points on '
+        elif self.comboBox_rule.currentText() == 'Adjacent':
+            rule_type_string = ' to be placed ' + str(self.spinBox_nOfPoints.value()) + ' points adjacent to '
+        elif self.comboBox_rule.currentText() == 'Extent':
+            rule_type_string = ' to be placed on '
+        #vegetation community/ies
+        prev_veg_com_string = ' [no prev veg com selected] '
+        if self.radioButton_all.isChecked():
+            prev_veg_com_string = 'any vegetation community'
+        elif not self.list_prevVegCom:
+            if self.comboBox_prevVegCom.currentText() == 'Empty':
+                prev_veg_com_string = 'only points with no previously assigned vegetation community'
+            else:
+                prev_veg_com_string = self.comboBox_prevVegCom.currentText() + ' '
+        else:
+            prev_veg_com_string = self.comboBox_prevVegCom.currentText()
+            for index in range(len(self.list_prevVegCom)):
+                if index != len(self.list_prevVegCom)-1:
+                    prev_veg_com_string += ', ' + self.list_prevVegCom[index].currentText()
+                if index == len(self.list_prevVegCom)-1:
+                    prev_veg_com_string += ' ' + self.comboBox_condTypeEnvVar.currentText() + ' ' + self.list_prevVegCom[index].currentText()
+        #environmental variables
+        env_var_string = '[no environmental variable selected]'
+        if len(self.dict_envVar) == 0:
+            if self.comboBox_envVar.currentText() == 'Empty':
+                env_var_string = ' regardless of environmental variables'
+            elif self.comboBox_category.currentText() == '':
+                env_var_string = ', where ' + self.comboBox_envVar.currentText() + ' is between ' + \
+                str(self.doubleSpin_rangeMin.value()) + ' and ' +str(self.doubleSpin_rangeMax.value()) + ' '
+            else:
+                env_var_string = ', where ' + self.comboBox_envVar.currentText() + ' is '+ self.comboBox_category.currentText() + ', '
+        else:
+            if self.comboBox_category.currentText() == '':
+                env_var_string = ', where ' + self.comboBox_envVar.currentText() + ' is between ' + \
+                str(self.doubleSpin_rangeMin.value()) + ' and ' +str(self.doubleSpin_rangeMax.value()) + ' '
+            else:
+                env_var_string = ', where ' + self.comboBox_envVar.currentText() + ' is '+ self.comboBox_category.currentText()+ ', '
+            counter = 1
+            for key in self.dict_envVar:
+                if counter != len(self.dict_envVar):
+                    if self.dict_envVar[key][2].currentText() != '':
+                        env_var_string += key.currentText() + ' is ' + self.dict_envVar[key][2].currentText() + ', '
+                        counter += 1
+                    else:
+                        env_var_string += key.currentText() + ' is between ' + str(self.dict_envVar[key][0].value()) + \
+                                            ' and ' + str(self.dict_envVar[key][1].value()) + ', '
+                        counter += 1
+
+                else:
+                    if self.dict_envVar[key][2].currentText() != '':
+                        env_var_string += self.comboBox_condTypeEnvVar.currentText() + ' ' + key.currentText() + ' is ' +\
+                                          self.dict_envVar[key][2].currentText()
+                    else:
+                        env_var_string += self.comboBox_condTypeEnvVar.currentText() + ' ' + key.currentText() + ' is between ' \
+                                          + str(self.dict_envVar[key][0].value()) + ' and ' + str(self.dict_envVar[key][1].value())
 
 
-    def updateRuleDescription(self):
+
+        rule_string = 'Rule ' + str(self.rule_number) + ': ' + self.comboBox_ruleVegCom.currentText() + ' has ' + \
+                      str(self.doubleSpin_chance.value()) + '% chance'+ rule_type_string + prev_veg_com_string + \
+                      env_var_string + '.'
+
+        if isinstance(writtenRule, QLabel):
+            writtenRule.setText(rule_string)
+        else:
+            return rule_string
         pass
 
-
-
+    def checkIfLegit(self): # TODO not yet functional
+        """ Checks whether the all boxes have been filled in the correct way, otherwise aborts making the rule and
+        gives a warning popup"""
+        messageBox = QMessageBox()
+        comboBoxes = [self.comboBox_ruleVegCom.currentIndex(),self.comboBox_rule.currentIndex(),self.comboBox_rule.currentIndex(),
+                      self.comboBox_envVar.currentIndex()]
+        if all(index ==0 for index in comboBoxes)and self.doubleSpin_chance.value() == 100 and self.n_of_envvar ==1 and self.n_of_vegcom ==1:
+            messageBox.setWindowTitle('Warning')
+            messageBox.setText('No changes were detected, are you sure you want to use this rule?')
+        if self.comboBox_envVar.count() == 1:
+            messageBox.setWindowTitle("Warning")
+            messageBox.setText('No environmental variables were detected as input, are you sure you want to use this rule?')
+            messageBox.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
+        #TODO Can probably think of more warnings
 
 
 class MsaQgisAddTaxonPopup (QtWidgets.QDialog, FORM_CLASS_TAXA):
@@ -749,6 +856,30 @@ class MsaQgisAddVegComPopup (QtWidgets.QDialog, FORM_CLASS_VEGCOM):
         # Create list of items to pass to the main dialog
         self.vegcom_taxon_combo_list.append(self.comboBox)
         self.vegcom_taxon_double_list.append(self.doubleSpin)
+
+class MsaQgisAddRuleToTreePopup (QtWidgets.QDialog, FORM_CLASS_RULE_TREE):
+    def __init__(self, nest_rule_dict, rule_tree_type = 'Insert', parent=None):
+        """Popup Constructor."""
+        super(MsaQgisAddRuleToTreePopup, self).__init__(parent)
+        self.setupUi(self)
+
+        #dicts and lists
+        self.nest_dict_rules = nest_rule_dict
+        print(self.nest_dict_rules)
+
+        #events
+        self.comboBox_ruleToAdd.currentTextChanged.connect(self.insertRuleDescription)
+
+
+        #fill UI elements
+        for key in self.nest_dict_rules:
+            self.comboBox_ruleToAdd.addItem(key)
+
+        self.label_ruleTreeType.setText(rule_tree_type)
+
+    def insertRuleDescription(self):
+        self.label_writtenRule.setText(self.nest_dict_rules[self.comboBox_ruleToAdd.currentText()][1])
+
 
 
 

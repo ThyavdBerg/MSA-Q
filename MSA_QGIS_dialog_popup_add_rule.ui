@@ -11,388 +11,392 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>Dialog</string>
+   <string>Add New Rule</string>
   </property>
-  <widget class="QDialogButtonBox" name="buttonBox">
-   <property name="geometry">
-    <rect>
-     <x>320</x>
-     <y>590</y>
-     <width>341</width>
-     <height>32</height>
-    </rect>
-   </property>
-   <property name="orientation">
-    <enum>Qt::Horizontal</enum>
-   </property>
-   <property name="standardButtons">
-    <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
-   </property>
-  </widget>
-  <widget class="QScrollArea" name="scrollArea">
-   <property name="geometry">
-    <rect>
-     <x>0</x>
-     <y>20</y>
-     <width>671</width>
-     <height>531</height>
-    </rect>
-   </property>
-   <property name="verticalScrollBarPolicy">
-    <enum>Qt::ScrollBarAlwaysOn</enum>
-   </property>
-   <property name="widgetResizable">
-    <bool>true</bool>
-   </property>
-   <widget class="QWidget" name="scrollAreaWidgetContents">
-    <property name="geometry">
-     <rect>
-      <x>0</x>
-      <y>0</y>
-      <width>652</width>
-      <height>529</height>
-     </rect>
-    </property>
-    <widget class="QWidget" name="layoutWidget">
-     <property name="geometry">
-      <rect>
-       <x>0</x>
-       <y>0</y>
-       <width>651</width>
-       <height>521</height>
-      </rect>
+  <layout class="QVBoxLayout" name="verticalLayout_9">
+   <item>
+    <widget class="QScrollArea" name="scrollArea">
+     <property name="verticalScrollBarPolicy">
+      <enum>Qt::ScrollBarAlwaysOn</enum>
      </property>
-     <layout class="QVBoxLayout" name="vLayout_total">
-      <item>
-       <layout class="QHBoxLayout" name="hLayout_top">
-        <item>
-         <layout class="QVBoxLayout" name="vLayout_vegCom">
-          <item>
-           <widget class="QLabel" name="label_chooseVegCom">
-            <property name="text">
-             <string>Choose a vegetation community</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QComboBox" name="comboBox_ruleVegCom"/>
-          </item>
-         </layout>
-        </item>
-        <item>
-         <layout class="QVBoxLayout" name="vLayout_ruleType">
-          <item>
-           <widget class="QLabel" name="label_chooseRuleType">
-            <property name="text">
-             <string>Choose a rule type</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QComboBox" name="comboBox_rule">
-            <item>
-             <property name="text">
-              <string>(Re)place</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Encroach</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Adjacent</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Extent</string>
-             </property>
-            </item>
-           </widget>
-          </item>
-         </layout>
-        </item>
-        <item>
-         <layout class="QVBoxLayout" name="vLayout_chance">
-          <item>
-           <widget class="QLabel" name="label_chance">
-            <property name="text">
-             <string>Chance</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QDoubleSpinBox" name="doubleSpin_chance">
-            <property name="minimum">
-             <double>0.500000000000000</double>
-            </property>
-            <property name="maximum">
-             <double>100.000000000000000</double>
-            </property>
-            <property name="singleStep">
-             <double>0.500000000000000</double>
-            </property>
-            <property name="value">
-             <double>100.000000000000000</double>
-            </property>
-           </widget>
-          </item>
-         </layout>
-        </item>
-        <item>
-         <layout class="QVBoxLayout" name="verticalLayout_5">
-          <item>
-           <widget class="QLabel" name="label_nOfPoints">
-            <property name="text">
-             <string>Spread by N points</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QSpinBox" name="spinBox_nOfPoints">
-            <property name="minimum">
-             <number>1</number>
-            </property>
-           </widget>
-          </item>
-         </layout>
-        </item>
-       </layout>
-      </item>
-      <item>
-       <layout class="QHBoxLayout" name="hLayout_prevVegCom">
-        <item>
-         <layout class="QVBoxLayout" name="vLayout_prevVegCom">
-          <item>
-           <widget class="QLabel" name="label_choosePrevVegCom">
-            <property name="text">
-             <string>Choose a previous community</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QComboBox" name="comboBox_prevVegCom">
-            <item>
-             <property name="text">
-              <string>Empty</string>
-             </property>
-            </item>
-           </widget>
-          </item>
-         </layout>
-        </item>
-        <item>
-         <layout class="QVBoxLayout" name="vLayout_all">
-          <item>
-           <spacer name="vSpacer_all">
-            <property name="orientation">
-             <enum>Qt::Vertical</enum>
-            </property>
-            <property name="sizeType">
-             <enum>QSizePolicy::Maximum</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>20</width>
-              <height>40</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
-          <item>
-           <widget class="QRadioButton" name="radioButton_all">
-            <property name="text">
-             <string>All</string>
-            </property>
-           </widget>
-          </item>
-         </layout>
-        </item>
-        <item>
-         <layout class="QVBoxLayout" name="verticalLayout_6">
-          <item>
-           <widget class="QLabel" name="label_condTypePrevVeg">
-            <property name="text">
-             <string>condition type</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QComboBox" name="comboBox_condTypePrevVeg">
-            <item>
-             <property name="text">
-              <string>AND</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>OR</string>
-             </property>
-            </item>
-           </widget>
-          </item>
-         </layout>
-        </item>
-       </layout>
-      </item>
-      <item>
-       <layout class="QHBoxLayout" name="horizontalLayout_2">
-        <item>
-         <widget class="QPushButton" name="pushButton_condVegCom">
-          <property name="text">
-           <string>Add conditional</string>
-          </property>
-         </widget>
-        </item>
-       </layout>
-      </item>
-      <item>
-       <layout class="QHBoxLayout" name="hLayout_envVar" stretch="0,0,0">
-        <item>
-         <layout class="QVBoxLayout" name="vLayout_envVar">
-          <item>
-           <widget class="QLabel" name="label_chooseEnvVar">
-            <property name="text">
-             <string>Choose an environmental variable</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QComboBox" name="comboBox_envVar">
-            <property name="enabled">
-             <bool>true</bool>
-            </property>
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <item>
-             <property name="text">
-              <string>Empty</string>
-             </property>
-            </item>
-           </widget>
-          </item>
-         </layout>
-        </item>
-        <item>
-         <layout class="QVBoxLayout" name="verticalLayout_2">
-          <item>
-           <layout class="QVBoxLayout" name="verticalLayout_4">
-            <item>
-             <widget class="QLabel" name="label_rangeMinMax">
-              <property name="text">
-               <string>Range minimum - maximum</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <layout class="QHBoxLayout" name="horizontalLayout">
-              <item>
-               <widget class="QDoubleSpinBox" name="doubleSpin_rangeMin"/>
-              </item>
-              <item>
-               <widget class="QDoubleSpinBox" name="doubleSpin_rangeMax"/>
-              </item>
-             </layout>
-            </item>
-           </layout>
-          </item>
-          <item>
-           <widget class="QLabel" name="label_selectEnvVar">
-            <property name="text">
-             <string>[No environmental variable selected]</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <layout class="QVBoxLayout" name="verticalLayout_3">
-            <item>
-             <widget class="QLabel" name="label_category">
-              <property name="text">
-               <string>Category</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QComboBox" name="comboBox_category"/>
-            </item>
-           </layout>
-          </item>
-         </layout>
-        </item>
-        <item>
-         <layout class="QVBoxLayout" name="verticalLayout_7">
-          <item>
-           <widget class="QLabel" name="label_condTypeEnvVar">
-            <property name="text">
-             <string>condition type</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QComboBox" name="comboBox_condTypeEnvVar">
-            <item>
-             <property name="text">
-              <string>AND</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>OR</string>
-             </property>
-            </item>
-           </widget>
-          </item>
-         </layout>
-        </item>
-       </layout>
-      </item>
-      <item>
-       <layout class="QHBoxLayout" name="horizontalLayout_3">
-        <item>
-         <widget class="QPushButton" name="pushButton_condEnvVar">
-          <property name="text">
-           <string>Add conditional</string>
-          </property>
-         </widget>
-        </item>
-       </layout>
-      </item>
-      <item>
-       <spacer name="vSpacer_total">
-        <property name="orientation">
-         <enum>Qt::Vertical</enum>
-        </property>
-        <property name="sizeHint" stdset="0">
-         <size>
-          <width>20</width>
-          <height>900</height>
-         </size>
-        </property>
-       </spacer>
-      </item>
-     </layout>
+     <property name="widgetResizable">
+      <bool>true</bool>
+     </property>
+     <widget class="QWidget" name="scrollAreaWidgetContents">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>0</y>
+        <width>632</width>
+        <height>550</height>
+       </rect>
+      </property>
+      <layout class="QHBoxLayout" name="horizontalLayout_2">
+       <item>
+        <layout class="QVBoxLayout" name="vLayout_total">
+         <item>
+          <layout class="QHBoxLayout" name="hLayout_top">
+           <item>
+            <layout class="QVBoxLayout" name="vLayout_vegCom">
+             <item>
+              <widget class="QLabel" name="label_chooseVegCom">
+               <property name="text">
+                <string>Choose a vegetation community</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QComboBox" name="comboBox_ruleVegCom"/>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QVBoxLayout" name="vLayout_ruleType">
+             <item>
+              <widget class="QLabel" name="label_chooseRuleType">
+               <property name="text">
+                <string>Choose a rule type</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QComboBox" name="comboBox_rule">
+               <item>
+                <property name="text">
+                 <string>(Re)place</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Encroach</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Adjacent</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Extent</string>
+                </property>
+               </item>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QVBoxLayout" name="vLayout_chance">
+             <item>
+              <widget class="QLabel" name="label_chance">
+               <property name="text">
+                <string>Chance</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QDoubleSpinBox" name="doubleSpin_chance">
+               <property name="minimum">
+                <double>0.500000000000000</double>
+               </property>
+               <property name="maximum">
+                <double>100.000000000000000</double>
+               </property>
+               <property name="singleStep">
+                <double>0.500000000000000</double>
+               </property>
+               <property name="value">
+                <double>100.000000000000000</double>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QVBoxLayout" name="verticalLayout_5">
+             <item>
+              <widget class="QLabel" name="label_nOfPoints">
+               <property name="text">
+                <string>Spread by N points</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QSpinBox" name="spinBox_nOfPoints">
+               <property name="minimum">
+                <number>1</number>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="hLayout_prevVegCom">
+           <item>
+            <layout class="QVBoxLayout" name="vLayout_prevVegCom">
+             <item>
+              <widget class="QLabel" name="label_choosePrevVegCom">
+               <property name="text">
+                <string>Choose a previous community</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QComboBox" name="comboBox_prevVegCom">
+               <item>
+                <property name="text">
+                 <string>Empty</string>
+                </property>
+               </item>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QVBoxLayout" name="vLayout_all">
+             <item>
+              <spacer name="vSpacer_all">
+               <property name="orientation">
+                <enum>Qt::Vertical</enum>
+               </property>
+               <property name="sizeType">
+                <enum>QSizePolicy::Maximum</enum>
+               </property>
+               <property name="sizeHint" stdset="0">
+                <size>
+                 <width>20</width>
+                 <height>40</height>
+                </size>
+               </property>
+              </spacer>
+             </item>
+             <item>
+              <widget class="QRadioButton" name="radioButton_all">
+               <property name="text">
+                <string>All</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QVBoxLayout" name="verticalLayout_6">
+             <item>
+              <widget class="QLabel" name="label_condTypePrevVeg">
+               <property name="text">
+                <string>condition type</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QComboBox" name="comboBox_condTypePrevVeg">
+               <item>
+                <property name="text">
+                 <string>AND</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>OR</string>
+                </property>
+               </item>
+              </widget>
+             </item>
+            </layout>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <widget class="QPushButton" name="pushButton_condVegCom">
+           <property name="text">
+            <string>Add conditional</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="hLayout_envVar" stretch="0,0,0">
+           <item>
+            <layout class="QVBoxLayout" name="vLayout_envVar">
+             <item>
+              <widget class="QLabel" name="label_chooseEnvVar">
+               <property name="text">
+                <string>Choose an environmental variable</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QComboBox" name="comboBox_envVar">
+               <property name="enabled">
+                <bool>true</bool>
+               </property>
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <item>
+                <property name="text">
+                 <string>Empty</string>
+                </property>
+               </item>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QVBoxLayout" name="verticalLayout_2">
+             <item>
+              <layout class="QVBoxLayout" name="verticalLayout_4">
+               <item>
+                <widget class="QLabel" name="label_rangeMinMax">
+                 <property name="text">
+                  <string>Range minimum - maximum</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <layout class="QHBoxLayout" name="horizontalLayout">
+                 <item>
+                  <widget class="QDoubleSpinBox" name="doubleSpin_rangeMin"/>
+                 </item>
+                 <item>
+                  <widget class="QDoubleSpinBox" name="doubleSpin_rangeMax"/>
+                 </item>
+                </layout>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <widget class="QLabel" name="label_selectEnvVar">
+               <property name="text">
+                <string>[No environmental variable selected]</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <layout class="QVBoxLayout" name="verticalLayout_3">
+               <item>
+                <widget class="QLabel" name="label_category">
+                 <property name="text">
+                  <string>Category</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QComboBox" name="comboBox_category"/>
+               </item>
+              </layout>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QVBoxLayout" name="verticalLayout_7">
+             <item>
+              <widget class="QLabel" name="label_condTypeEnvVar">
+               <property name="text">
+                <string>condition type</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QComboBox" name="comboBox_condTypeEnvVar">
+               <item>
+                <property name="text">
+                 <string>AND</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>OR</string>
+                </property>
+               </item>
+              </widget>
+             </item>
+            </layout>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <widget class="QPushButton" name="pushButton_condEnvVar">
+           <property name="text">
+            <string>Add conditional</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <spacer name="vSpacer_total">
+           <property name="orientation">
+            <enum>Qt::Vertical</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>17</width>
+             <height>240</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+        </layout>
+       </item>
+      </layout>
+     </widget>
     </widget>
-   </widget>
-  </widget>
-  <widget class="QLabel" name="label_writtenRule">
-   <property name="geometry">
-    <rect>
-     <x>10</x>
-     <y>550</y>
-     <width>659</width>
-     <height>16</height>
-    </rect>
-   </property>
-   <property name="text">
-    <string>Rule X</string>
-   </property>
-  </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="horizontalLayout_4" stretch="0,1,0">
+     <item>
+      <widget class="QLabel" name="label_writtenRule">
+       <property name="text">
+        <string>Rule X</string>
+       </property>
+       <property name="wordWrap">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="horizontalSpacer">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeType">
+        <enum>QSizePolicy::MinimumExpanding</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <layout class="QVBoxLayout" name="verticalLayout">
+       <item>
+        <widget class="QPushButton" name="pushButton_checkRule">
+         <property name="text">
+          <string>Check rule</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QDialogButtonBox" name="buttonBox">
+         <property name="orientation">
+          <enum>Qt::Horizontal</enum>
+         </property>
+         <property name="standardButtons">
+          <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </item>
+    </layout>
+   </item>
+  </layout>
  </widget>
  <resources/>
  <connections>
