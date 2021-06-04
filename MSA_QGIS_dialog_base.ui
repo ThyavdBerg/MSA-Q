@@ -587,10 +587,22 @@
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>458</width>
-                <height>583</height>
+                <width>430</width>
+                <height>568</height>
                </rect>
               </property>
+              <layout class="QHBoxLayout" name="horizontalLayout_18">
+               <item>
+                <widget class="QFrame" name="frame_ruleTree">
+                 <property name="frameShape">
+                  <enum>QFrame::StyledPanel</enum>
+                 </property>
+                 <property name="frameShadow">
+                  <enum>QFrame::Raised</enum>
+                 </property>
+                </widget>
+               </item>
+              </layout>
              </widget>
             </widget>
            </item>

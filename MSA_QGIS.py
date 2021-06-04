@@ -190,6 +190,12 @@ class MsaQgis:
                 action)
             self.iface.removeToolBarIcon(action)
 
+    def assignVegetation(self, rule, map): # TODO
+        """ This assigns the vegetation to a map based on the environmental rules defined by the user in the UI"""
+        #return new map
+        #recurse
+        pass
+
     def run(self):
         """Run method that performs all the real work"""
 
@@ -440,7 +446,52 @@ class MsaQgis:
 
 
 
-###
+### Processing the rules
+
+
+            list_memory_branches = [] # List for storing which ruleTreeWidget needs to be returned to
+            list_base_group_ids = [] # Take from UI MAKE SURE THEY ARE IN ORDER LOWEST-> HIGHEST
+            list_rule_ids = [] # take from UI
+            #run base group before starting with iterations
+            for rule in list_base_group_ids:
+                if not hasattr(self,'vector_point_base_group'):
+                    #this is the first of the base map, run function that makes map using vector_point_filled_vec
+                    vector_point_base_group = self.assignVegetation(rule,vector_point_filled_vec)
+                else:
+                    vector_point_base_group = self.assignVegetation(rule,vector_point_base_group)
+                list_rule_ids.remove(rule) # remove base group from list used to iter
+
+            #pseudocode
+            for number in range(self.dlg.lineEdit_iter):
+                list_rule_ids_no_base = list_rule_ids # so this is the list after the base group has been removed, it needs to get remade everytime a new iter starts
+                start_rule = min(list_rule_ids_no_base)
+                if not list_base_group_ids:  # if no rules in base group, use vector_point_filled_vec
+                    vector_point_previous = self.assignVegetation(start_rule, vector_point_filled_vec)
+
+                elif not hasattr(self,
+                                 'vector_point_previous'):  # if first after base group, use vector_point_base_group
+                    vector_point_previous = self.assignVegetation(rule, vector_point_base_group)
+                else:  # if subsequent rule, use result previous rule
+                    vector_point_previous = self.assignVegetation(rule, vector_point_previous)
+                while list_rule_ids_no_base != []: # while there are rules to compute
+
+                    for rule in list_rule_ids_no_base:
+                        # add to list_memory_branches if rule has more than 1 branch.
+                        if len(rule.next_ruleTreeWidgets) >1:
+                            for n in range(1, len(rule.next_ruleTreeWidgets)):
+                                list_memory_branches.append(rule)
+
+                    for rule in list_rule_ids_no_base:
+                        pass
+
+
+
+
+
+
+
+
+
 
             #...
             pass

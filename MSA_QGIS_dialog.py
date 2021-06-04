@@ -24,11 +24,10 @@
 
 import os
 import re
-import sys
 
-from PyQt5.QtCore import QRect, Qt
 from PyQt5.QtWidgets import QTableWidgetItem, QWidget, QLineEdit, QLabel, QVBoxLayout, QComboBox, QGridLayout, \
-    QDoubleSpinBox, QFrame, QRadioButton, QHBoxLayout, QPushButton, QSpacerItem, QScrollArea, QCheckBox, QMessageBox
+    QDoubleSpinBox, QFrame, QRadioButton, QHBoxLayout, QPushButton, QSpacerItem, QScrollArea, QCheckBox, QMessageBox, \
+    QSizePolicy
 from qgis.PyQt import uic
 from qgis.PyQt import QtWidgets
 from qgis.utils import iface
@@ -69,6 +68,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.vegcom_column_count = 1
         self.extent = None
         self.rule_number = 0
+        self.selected_rule = None
 
         # class lists & dictionaries
         self.list_cb_rule_veg_com = []
@@ -78,11 +78,13 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                                 # n of env vars(int), # all(bool),
                                 # prevvegcom (QTableItem), AND(bool), OR(bool), nextprevvegcom...etc,
                                 # envvar (QtableItem), AND(bool), OR(bool), next envvar...etc}
+        self.dict_ruleTreeWidgets = {}
 
         # UI setup
         self.qgsFileWidget_importHandbag.setFilter('*.hum')
         self.ruleTreeGrid = QGridLayout()
-        self.scrollArea_ruleTree.setLayout(self.ruleTreeGrid)
+        self.ruleTreeGrid.setVerticalSpacing(1)
+        self.frame_ruleTree.setLayout(self.ruleTreeGrid)
 
 
         # events
@@ -363,20 +365,83 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             self.rule_number += 1
             # add the rule to the rule list
 
-    def addRuleToRuleTree(self, previous = None, rule_tree_type = 'Insert Above'): # TODO make universally applicable
-        self.ruleTreePopup = MsaQgisAddRuleToTreePopup(self.nest_dict_rules)
-        n_row = 1
-        n_column = 1
+    def addRuleToRuleTree(self, selected_rule = None, rule_tree_type = 'Insert Above'): # TODO make universally applicable
+        # check if there are any rules in the rule dictionary
         if self.nest_dict_rules:
-            self.ruleTreePopup.show()
+            #determine which of the rules in the rule tree is selected
+            for key in self.dict_ruleTreeWidgets:
+                if self.dict_ruleTreeWidgets[key].isSelected:
+                    selected_rule = key
+                    print(selected_rule)
+            x_position_for_spoilerplate = self.scrollArea_ruleTree.x() + self.tab_top.x() + self.x()
+            y_position_for_spoilerplate = self.scrollArea_ruleTree.y() + self.tab_top.y() + self.y()
+            # Determine rule ID
+            if selected_rule >= 1:
+                if self.dict_ruleTreeWidgets[selected_rule].next_ruleTreeWidgets: # NOTE max number of branches possible is 10, but can adjust for higher by adding 00 or 000 in other option.
+                    rule_id = max(self.dict_ruleTreeWidgets[selected_rule].next_ruleTreeWidgets) + 1
+                else:
+                    rule_id = int(str(self.dict_ruleTreeWidgets[selected_rule].order_id)+str(0))
+            else:
+                if not self.dict_ruleTreeWidgets:
+                    rule_id = 1
+                else:
+                    iface.messageBar().pushMessage("Error", "select a rule to add a new rule to the rule tree",
+                                                   level=1)  # TODO replace with popup once I have the energy
+                    return #exit function
+            # Determine location of rule in grid
+            if self.dict_ruleTreeWidgets:
+                if selected_rule:
+                    if len(self.dict_ruleTreeWidgets[selected_rule].next_ruleTreeWidgets) > 0:
+                        prev_rule = self.dict_ruleTreeWidgets[max(self.dict_ruleTreeWidgets[selected_rule].next_ruleTreeWidgets)]
+                        grid_index = self.ruleTreeGrid.indexOf(prev_rule)
+                        n_row = self.ruleTreeGrid.getItemPosition(grid_index)[0]
+                        n_column = self.ruleTreeGrid.getItemPosition(grid_index)[1] +1
+                    else:
+                        grid_index = self.ruleTreeGrid.indexOf(self.dict_ruleTreeWidgets[selected_rule])
+                        n_row = self.ruleTreeGrid.getItemPosition(grid_index)[0] + 1
+                        n_column = self.ruleTreeGrid.getItemPosition(grid_index)[1]
+            else:
+                n_row = 0
+                n_column = 0
+
+            #make and place widget
+            if selected_rule >= 1:
+                ruleTreeWidget = RuleTreeWidget(self.nest_dict_rules,rule_id, selected_rule, main_dialog_x = x_position_for_spoilerplate, # TODO get order_id and list_previousRuleTreeWidgets form selected ruleTreeWidget
+                                            main_dialog_y = y_position_for_spoilerplate)
+            else:
+                ruleTreeWidget = RuleTreeWidget(self.nest_dict_rules,rule_id, main_dialog_x = x_position_for_spoilerplate, # TODO get order_id and list_previousRuleTreeWidgets form selected ruleTreeWidget
+                                            main_dialog_y = y_position_for_spoilerplate)
+
+            self.ruleTreeGrid.addWidget(ruleTreeWidget,n_row, n_column)
+            self.ruleTreeGrid.setRowStretch(n_row+1, 1)
+            self.ruleTreeGrid.setRowStretch(n_row, 0)
+            # add widget to dict of existing widgets
+            self.dict_ruleTreeWidgets[ruleTreeWidget.order_id] = ruleTreeWidget
+            # find previous rule tree widget and add this widget to its next_ruleTreeWidgets
+            if selected_rule >= 1:
+                self.dict_ruleTreeWidgets[selected_rule].next_ruleTreeWidgets.append(rule_id)
+            # displace widgets in same column
+            for row in range(n_row-1, 0, -1):
+                item = self.ruleTreeGrid.itemAtPosition(row,n_column)
+                if item:
+                    widget = item.widget()
+                    print('there is an item at this position: ', row, ', ',  n_column)
+                    if isinstance(widget,QWidget) and not isinstance(widget,RuleTreeWidget):
+                        print('it is an empty QWidget')
+                        self.ruleTreeGrid.replaceWidget(widget,QWidget())
+                        self.ruleTreeGrid.addWidget(widget, row, n_column+1)
+                    elif rule_id in widget.next_ruleTreeWidgets:
+                        print('but it is the previous ruleTreeWidget')
+                        break
+                    else:
+                        print('and it is not the previous ruleTreeWidget')
+                        self.ruleTreeGrid.replaceWidget(widget,QWidget())
+                        self.ruleTreeGrid.addWidget(widget, row, n_column+1)
+
+
         else:
             iface.messageBar().pushMessage("Error", "There are no rules to add", level = 1) # TODO replace with popup once I have the energy
-
-        if self.ruleTreePopup.exec_():
-            list_rule = self.nest_dict_rules[self.ruleTreePopup.comboBox_ruleToAdd.currentText()]
-            ruleTreeWidget = RuleTreeWidget(list_rule, n_row, n_column)
-            self.ruleTreeGrid.addWidget(ruleTreeWidget)
-            self.ruleTreeGrid.setRowStretch(n_row + 1, 1)
+            return # exit function
 
 class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
     def __init__(self, rule_number, tableWidget_vegCom, tableWidget_selected, tableWidget_selRaster, parent = None):
