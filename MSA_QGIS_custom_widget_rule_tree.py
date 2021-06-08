@@ -1,8 +1,11 @@
+from PyQt5.QtCore import pyqtSignal, pyqtSlot
 from PyQt5.QtWidgets import QLabel, QSizePolicy, QPushButton, QHBoxLayout, QFrame, QComboBox
 
 class RuleTreeWidget(QFrame):
     """ A custom widget that functions as a spoiler widget and can be placed in a rule tree with other ruleTreeWidgets
     parent: QWidget"""
+    clicked = pyqtSignal()
+
     def __init__(self, nest_dict_rule, order_id, prev_ruleTreeWidgets = None, next_ruleTreeWidgets = [],  main_dialog_x=1, main_dialog_y=1, parent = None):
         super(RuleTreeWidget, self).__init__(parent)
         ### variables before UI
@@ -15,6 +18,7 @@ class RuleTreeWidget(QFrame):
         self.main_dialog_y = main_dialog_y
         self.isSelected = False
         self.isBaseGroup = False
+
 
         #setup UI
         self.setupUI()
@@ -79,24 +83,9 @@ class RuleTreeWidget(QFrame):
             self.spoilerplate.hide()
         pass
 
-    def mouseReleaseEvent(self, e):
-        """ Sets isSelected to true/false when the widget is clicked and changes the colour of the widget to indicate
-        its selection status"""
-        if self.isSelected == True:
-            self.isSelected = False
-            self.setStyleSheet("background-color: #c3c3c3;"
-                               "border: 3px outset #5b5b5b;")
-            self.toggleButton.setStyleSheet("background-color: #c3c3c3;"
-                                            "border: 2px outset #5b5b5b;")
-        elif self.isSelected == False:
-            self.isSelected = True
-            self.setStyleSheet("background-color: #7dc376;"
-                               "border: 3px inset #3a5b37;")
-            self.toggleButton.setStyleSheet("background-color: #7dc376;"
-                                            "border: 2px outset #3a5b37;")
-
-
-
+    def mouseReleaseEvent(self, event):
+        """ connect the clicked signal to a mouseReleaseEvent, so that it emits when the widget is clicked"""
+        self.clicked.emit()
 
 class RuleTreeSpoilerPlate(QLabel): # TODO this one needs to be placed in the scrollarea rather than on the screen
     """ Creates the spoiler plate associated with the rule number in ruleTreeWidget"""
@@ -128,7 +117,6 @@ class RuleTreeComboBox(QComboBox):
         #setup UI
         self.setupUI(nest_dict_rule)
 
-
     def setupUI(self, nest_dict_rule):
         self.setSizePolicy(QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed))
         self.setMaximumSize(60, 13)
@@ -136,8 +124,6 @@ class RuleTreeComboBox(QComboBox):
         self.setStyleSheet('border: 1px;')
         for item in nest_dict_rule:
             self.addItem(item)
-
-
 
 
 class RuleTreeToggleButton(QPushButton):

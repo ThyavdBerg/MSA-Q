@@ -209,7 +209,7 @@ class MsaQgis:
         # show the dialog
         self.dlg.show()
         # Run the dialog event loop
-        result = self.dlg.exec_()
+        result = self.dlg.exec_() #TODO change so that window stays open while running main analysis
         # See if OK was pressed
         if result:
 

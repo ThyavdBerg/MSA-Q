@@ -25,6 +25,7 @@
 import os
 import re
 
+from PyQt5.QtCore import pyqtSlot
 from PyQt5.QtWidgets import QTableWidgetItem, QWidget, QLineEdit, QLabel, QVBoxLayout, QComboBox, QGridLayout, \
     QDoubleSpinBox, QFrame, QRadioButton, QHBoxLayout, QPushButton, QSpacerItem, QScrollArea, QCheckBox, QMessageBox, \
     QSizePolicy
@@ -438,10 +439,45 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                         self.ruleTreeGrid.replaceWidget(widget,QWidget())
                         self.ruleTreeGrid.addWidget(widget, row, n_column+1)
 
+            # allow widget to remove selection from other widgets when selected
+            ruleTreeWidget.clicked.connect(lambda *args, ruleTreeWidget_id = ruleTreeWidget.order_id, ruleTreeWidget = ruleTreeWidget:
+                                           self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
+
+
 
         else:
             iface.messageBar().pushMessage("Error", "There are no rules to add", level = 1) # TODO replace with popup once I have the energy
             return # exit function
+
+
+    def changeRuleTreeSelection(self, ruleTreeWidget_id, ruleTreeWidget):
+        """ (De-)Select a ruleTreeWidget. If a new ruleTreeWidget is selected, all previously selected ruleTreeWidgets
+        are deselected"""
+        dict_for_remove_selection = self.dict_ruleTreeWidgets.copy()
+        dict_for_remove_selection.pop(ruleTreeWidget_id)
+
+        if ruleTreeWidget.isSelected == True:
+            ruleTreeWidget.isSelected = False
+            ruleTreeWidget.setStyleSheet("background-color: #c3c3c3;"
+                               "border: 3px outset #5b5b5b;")
+            ruleTreeWidget.toggleButton.setStyleSheet("background-color: #c3c3c3;"
+                                            "border: 2px outset #5b5b5b;")
+        elif ruleTreeWidget.isSelected == False:
+            for key in dict_for_remove_selection:
+                if dict_for_remove_selection[key].isSelected == True:
+                    dict_for_remove_selection[key].isSelected = False
+                    dict_for_remove_selection[key].setStyleSheet("background-color: #c3c3c3;"
+                                                                 "border: 3px outset #5b5b5b;")
+                    dict_for_remove_selection[key].toggleButton.setStyleSheet("background-color: #c3c3c3;"
+                                                                              "border: 2px outset #5b5b5b;")
+            ruleTreeWidget.isSelected = True
+            ruleTreeWidget.setStyleSheet("background-color: #7dc376;"
+                               "border: 3px inset #3a5b37;")
+            ruleTreeWidget.toggleButton.setStyleSheet("background-color: #7dc376;"
+                                            "border: 2px outset #3a5b37;")
+
+
+
 
 class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
     def __init__(self, rule_number, tableWidget_vegCom, tableWidget_selected, tableWidget_selRaster, parent = None):
