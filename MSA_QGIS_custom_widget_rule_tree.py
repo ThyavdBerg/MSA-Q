@@ -1,12 +1,14 @@
 from PyQt5.QtCore import pyqtSignal, pyqtSlot
 from PyQt5.QtWidgets import QLabel, QSizePolicy, QPushButton, QHBoxLayout, QFrame, QComboBox
+from qgis.utils import iface
+
 
 class RuleTreeWidget(QFrame):
     """ A custom widget that functions as a spoiler widget and can be placed in a rule tree with other ruleTreeWidgets
     parent: QWidget"""
     clicked = pyqtSignal()
 
-    def __init__(self, nest_dict_rule, order_id, prev_ruleTreeWidgets = None, next_ruleTreeWidgets = [],  main_dialog_x=1, main_dialog_y=1, parent = None):
+    def __init__(self, nest_dict_rule, order_id,  next_hlayout, own_vlayout = None, prev_ruleTreeWidgets = [], next_ruleTreeWidgets = [],  main_dialog_x=1, main_dialog_y=1, parent = None):
         super(RuleTreeWidget, self).__init__(parent)
         ### variables before UI
         self.nest_dict_rule = nest_dict_rule
@@ -18,7 +20,8 @@ class RuleTreeWidget(QFrame):
         self.main_dialog_y = main_dialog_y
         self.isSelected = False
         self.isBaseGroup = False
-
+        self.next_hlayout = next_hlayout
+        self.own_vlayout = own_vlayout
 
         #setup UI
         self.setupUI()
@@ -31,35 +34,14 @@ class RuleTreeWidget(QFrame):
         ### events
         self.toggleButton.clicked.connect(self.toggleShowWrittenRule)
 
-
-        ### functions
-        #DrawLine: draws lines from the bottom middle of all previous ruleTreeWidgets to the middle top of this ruleTreeWidget
-                    #removes previous lines associated with the ruleTreeWidget
-        #Paint: Draws the widget
-    def toggleBaseGroup(self):
-        """ Toggles whether the rule is part of a base group. Function is only available for rules with 100% chance to
-        happen, that have no prev_ruleTreeWidgets or 1 prev_ruleTreeWidget that also has base_group = True"""
-
-        if self.nest_dict_rule[self.selectedRule] == 100:
-            if self.isSelected == True and self.isBaseGroup == False:
-                self.isBaseGroup = True
-            elif self.isSelected == True and self.isBaseGroup == True:
-                self.isBaseGroup = False
-        else:
-            self.isBaseGroup = False
-            #TODO: give warning message: cannot assign as base group if rule does not have 100% chance to happen wherever it applies
-            #TODO: give warning message: cannot assign as base group if has branches >1
-            pass
-
-
     def setupUI(self):
         """ Creates the UI component"""
         ### Construct the thing
         self.setSizePolicy(QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed))
-        self.setMaximumSize(150, 40)
-        self.setMinimumSize(150, 40)
+        self.setMaximumSize(100, 30)
+        self.setMinimumSize(100, 30)
         self.setStyleSheet("background-color: #c3c3c3;"
-                           "border: 3px outset #5b5b5b;")
+                           "border: 2px outset #5b5b5b;")
 
 
         self.toggleButton = RuleTreeToggleButton()
@@ -67,9 +49,37 @@ class RuleTreeWidget(QFrame):
                                         "border: 2px outset #5b5b5b;")
         self.comboboxname = RuleTreeComboBox(self.nest_dict_rule)
         self.hLayout = QHBoxLayout()
+        self.hLayout.setContentsMargins(0,0,0,0)
         self.hLayout.addWidget(self.toggleButton)
         self.hLayout.addWidget(self.comboboxname)
         self.setLayout(self.hLayout)
+
+
+    def toggleBaseGroup(self):
+        """ Toggles whether the rule is part of a base group. Function is only available for rules with 100% chance to
+        happen, that have no prev_ruleTreeWidgets or 1 prev_ruleTreeWidget that also has base_group = True"""
+        if self.nest_dict_rule[self.selectedRule][4] == 100.0:
+            if len(self.next_ruleTreeWidgets) <= 1:
+                if self.isSelected == True and self.isBaseGroup == False:
+                    self.isBaseGroup = True
+                    self.setStyleSheet("background-color: #c37676;"
+                                       "border: 3px outset #5b3737;")
+                    self.toggleButton.setStyleSheet("background-color: #c37676;"
+                                                    "border: 2px outset #5b3737;")
+                    self.isSelected = False
+                elif self.isSelected == True and self.isBaseGroup == True:
+                    self.isBaseGroup = False
+            else:
+                iface.messageBar().pushMessage("Error", "cannot add rule with multiple branches to base group",
+                                               level=1)  # TODO replace with popup once I have the energy
+                return # exit function
+        else:
+            self.isBaseGroup = False
+            print(self.nest_dict_rule[self.selectedRule][4])
+            iface.messageBar().pushMessage("Error", "cannot add rule with less than 100% chance to base group",
+                                           level=1)  # TODO replace with popup once I have the energy
+
+
 
     def toggleShowWrittenRule(self):
         """Opens or closes a spoilerplate with the fully written out version of the rule taken from the rule data"""

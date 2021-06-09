@@ -83,9 +83,16 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
 
         # UI setup
         self.qgsFileWidget_importHandbag.setFilter('*.hum')
-        self.ruleTreeGrid = QGridLayout()
-        self.ruleTreeGrid.setVerticalSpacing(1)
-        self.frame_ruleTree.setLayout(self.ruleTreeGrid)
+        # self.ruleTreeGrid = QGridLayout()
+        # self.ruleTreeGrid.setHorizontalSpacing(5)
+        # self.ruleTreeGrid.setVerticalSpacing(40)
+        # self.frame_ruleTree.setLayout(self.ruleTreeGrid)
+
+        self.ruleTreeLayout = QVBoxLayout()
+        self.ruleTreeLayout.setSpacing(40)
+        self.frame_ruleTree.setLayout(self.ruleTreeLayout)
+
+
 
 
         # events
@@ -105,6 +112,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.pushButton_importHandbag.clicked.connect(self.loadHandbagFile)
         self.pushButton_addRule.clicked.connect(self.addNewRule)
         self.pushButton_ruleBelow.clicked.connect(self.addRuleToRuleTree)
+        self.pushButton_asBaseGroup.clicked.connect(self.addAndRemoveFromBaseGroup)
         #TODO close all assocated windows when main dialog is closed
 
 
@@ -373,7 +381,6 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             for key in self.dict_ruleTreeWidgets:
                 if self.dict_ruleTreeWidgets[key].isSelected:
                     selected_rule = key
-                    print(selected_rule)
             x_position_for_spoilerplate = self.scrollArea_ruleTree.x() + self.tab_top.x() + self.x()
             y_position_for_spoilerplate = self.scrollArea_ruleTree.y() + self.tab_top.y() + self.y()
             # Determine rule ID
@@ -382,69 +389,53 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                     rule_id = max(self.dict_ruleTreeWidgets[selected_rule].next_ruleTreeWidgets) + 1
                 else:
                     rule_id = int(str(self.dict_ruleTreeWidgets[selected_rule].order_id)+str(0))
+            elif not self.dict_ruleTreeWidgets:
+                rule_id = 1
             else:
-                if not self.dict_ruleTreeWidgets:
-                    rule_id = 1
-                else:
-                    iface.messageBar().pushMessage("Error", "select a rule to add a new rule to the rule tree",
-                                                   level=1)  # TODO replace with popup once I have the energy
-                    return #exit function
-            # Determine location of rule in grid
-            if self.dict_ruleTreeWidgets:
-                if selected_rule:
-                    if len(self.dict_ruleTreeWidgets[selected_rule].next_ruleTreeWidgets) > 0:
-                        prev_rule = self.dict_ruleTreeWidgets[max(self.dict_ruleTreeWidgets[selected_rule].next_ruleTreeWidgets)]
-                        grid_index = self.ruleTreeGrid.indexOf(prev_rule)
-                        n_row = self.ruleTreeGrid.getItemPosition(grid_index)[0]
-                        n_column = self.ruleTreeGrid.getItemPosition(grid_index)[1] +1
-                    else:
-                        grid_index = self.ruleTreeGrid.indexOf(self.dict_ruleTreeWidgets[selected_rule])
-                        n_row = self.ruleTreeGrid.getItemPosition(grid_index)[0] + 1
-                        n_column = self.ruleTreeGrid.getItemPosition(grid_index)[1]
-            else:
-                n_row = 0
-                n_column = 0
+                iface.messageBar().pushMessage("Error", "select a rule to add a new rule to the rule tree",
+                                               level=1)  # TODO replace with popup once I have the energy
+                return #exit function
 
-            #make and place widget
-            if selected_rule >= 1:
-                ruleTreeWidget = RuleTreeWidget(self.nest_dict_rules,rule_id, selected_rule, main_dialog_x = x_position_for_spoilerplate, # TODO get order_id and list_previousRuleTreeWidgets form selected ruleTreeWidget
-                                            main_dialog_y = y_position_for_spoilerplate)
-            else:
-                ruleTreeWidget = RuleTreeWidget(self.nest_dict_rules,rule_id, main_dialog_x = x_position_for_spoilerplate, # TODO get order_id and list_previousRuleTreeWidgets form selected ruleTreeWidget
-                                            main_dialog_y = y_position_for_spoilerplate)
+            #if nothing in dict, place first ruleTreeWidget in overarching layout index 0
+            next_hlayout = QHBoxLayout()
+            own_vlayout = QVBoxLayout()
 
-            self.ruleTreeGrid.addWidget(ruleTreeWidget,n_row, n_column)
-            self.ruleTreeGrid.setRowStretch(n_row+1, 1)
-            self.ruleTreeGrid.setRowStretch(n_row, 0)
-            # add widget to dict of existing widgets
-            self.dict_ruleTreeWidgets[ruleTreeWidget.order_id] = ruleTreeWidget
-            # find previous rule tree widget and add this widget to its next_ruleTreeWidgets
-            if selected_rule >= 1:
+            if rule_id == 1:
+                print('create first ruleTreeWidget')
+                ruleTreeWidget = RuleTreeWidget(self.nest_dict_rules, rule_id, next_hlayout, main_dialog_x = x_position_for_spoilerplate, # TODO get order_id and list_previousRuleTreeWidgets form selected ruleTreeWidget
+                                            main_dialog_y = y_position_for_spoilerplate)
+                #insert itself
+                self.ruleTreeLayout.insertWidget(0, ruleTreeWidget)
+                #insert holder for next widgets
+                self.ruleTreeLayout.insertLayout(1, ruleTreeWidget.next_hlayout)
+                #insert stretch to push to top
+                self.ruleTreeLayout.insertStretch(2,1)
+
+                #Add rule to v_box location 0 and assign a hboxlayouy
+            else:
+                print('create ruleTreeWidget,', rule_id, ' for selected rule: ', selected_rule)
+                ruleTreeWidget = RuleTreeWidget(self.nest_dict_rules, rule_id, next_hlayout, own_vlayout, main_dialog_x = x_position_for_spoilerplate, # TODO get order_id and list_previousRuleTreeWidgets form selected ruleTreeWidget
+                                            main_dialog_y = y_position_for_spoilerplate)
+                #create own layout and insert itself
                 self.dict_ruleTreeWidgets[selected_rule].next_ruleTreeWidgets.append(rule_id)
-            # displace widgets in same column
-            for row in range(n_row-1, 0, -1):
-                item = self.ruleTreeGrid.itemAtPosition(row,n_column)
-                if item:
-                    widget = item.widget()
-                    print('there is an item at this position: ', row, ', ',  n_column)
-                    if isinstance(widget,QWidget) and not isinstance(widget,RuleTreeWidget):
-                        print('it is an empty QWidget')
-                        self.ruleTreeGrid.replaceWidget(widget,QWidget())
-                        self.ruleTreeGrid.addWidget(widget, row, n_column+1)
-                    elif rule_id in widget.next_ruleTreeWidgets:
-                        print('but it is the previous ruleTreeWidget')
-                        break
-                    else:
-                        print('and it is not the previous ruleTreeWidget')
-                        self.ruleTreeGrid.replaceWidget(widget,QWidget())
-                        self.ruleTreeGrid.addWidget(widget, row, n_column+1)
+                self.dict_ruleTreeWidgets[selected_rule].next_hlayout.addLayout(own_vlayout)
+                own_vlayout.addWidget(ruleTreeWidget)
+                own_vlayout.addLayout(next_hlayout)
+                own_vlayout.insertStretch(2,1)
+
+                ruleTreeWidget.prev_ruleTreeWidgets = self.dict_ruleTreeWidgets[selected_rule].prev_ruleTreeWidgets.copy()
+                ruleTreeWidget.prev_ruleTreeWidgets.append(selected_rule)
+
+
+            #add ruleTreeWidget to dict and add prev to list
+            self.dict_ruleTreeWidgets[ruleTreeWidget.order_id] = ruleTreeWidget
+
+            print('added to dictionary')
+            print('previous rules: ', ruleTreeWidget.prev_ruleTreeWidgets)
 
             # allow widget to remove selection from other widgets when selected
             ruleTreeWidget.clicked.connect(lambda *args, ruleTreeWidget_id = ruleTreeWidget.order_id, ruleTreeWidget = ruleTreeWidget:
                                            self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
-
-
-
         else:
             iface.messageBar().pushMessage("Error", "There are no rules to add", level = 1) # TODO replace with popup once I have the energy
             return # exit function
@@ -458,26 +449,50 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
 
         if ruleTreeWidget.isSelected == True:
             ruleTreeWidget.isSelected = False
-            ruleTreeWidget.setStyleSheet("background-color: #c3c3c3;"
-                               "border: 3px outset #5b5b5b;")
-            ruleTreeWidget.toggleButton.setStyleSheet("background-color: #c3c3c3;"
-                                            "border: 2px outset #5b5b5b;")
+            if ruleTreeWidget.isBaseGroup == True:
+                ruleTreeWidget.setStyleSheet("background-color: #c37676;"
+                                   "border: 3px outset #5b3737;")
+                ruleTreeWidget.toggleButton.setStyleSheet("background-color: #c37676;"
+                                                "border: 3px outset #5b3737;")
+            else:
+                ruleTreeWidget.setStyleSheet("background-color: #c3c3c3;"
+                                   "border: 3px outset #5b5b5b;")
+                ruleTreeWidget.toggleButton.setStyleSheet("background-color: #c3c3c3;"
+                                                "border: 2px outset #5b5b5b;")
         elif ruleTreeWidget.isSelected == False:
             for key in dict_for_remove_selection:
                 if dict_for_remove_selection[key].isSelected == True:
                     dict_for_remove_selection[key].isSelected = False
-                    dict_for_remove_selection[key].setStyleSheet("background-color: #c3c3c3;"
-                                                                 "border: 3px outset #5b5b5b;")
-                    dict_for_remove_selection[key].toggleButton.setStyleSheet("background-color: #c3c3c3;"
-                                                                              "border: 2px outset #5b5b5b;")
+                    if dict_for_remove_selection[key].isBaseGroup == True:
+                        dict_for_remove_selection[key].setStyleSheet("background-color: #c37676;"
+                                                                     "border: 3px outset #5b3737;")
+                        dict_for_remove_selection[key].toggleButton.setStyleSheet("background-color: #c37676;"
+                                                                                  "border: 2px outset #5b3737;")
+                    else:
+                        dict_for_remove_selection[key].setStyleSheet("background-color: #c3c3c3;"
+                                                                     "border: 3px outset #5b5b5b;")
+                        dict_for_remove_selection[key].toggleButton.setStyleSheet("background-color: #c3c3c3;"
+                                                                                  "border: 2px outset #5b5b5b;")
             ruleTreeWidget.isSelected = True
             ruleTreeWidget.setStyleSheet("background-color: #7dc376;"
-                               "border: 3px inset #3a5b37;")
+                                         "border: 3px inset #3a5b37;")
             ruleTreeWidget.toggleButton.setStyleSheet("background-color: #7dc376;"
-                                            "border: 2px outset #3a5b37;")
+                                                      "border: 2px outset #3a5b37;")
 
-
-
+    def addAndRemoveFromBaseGroup(self):
+        for ruleTreeWidget in self.dict_ruleTreeWidgets:
+                if self.dict_ruleTreeWidgets[ruleTreeWidget].isSelected == True:
+                    if len(self.dict_ruleTreeWidgets[ruleTreeWidget].prev_ruleTreeWidgets) >0:
+                        for previous in self.dict_ruleTreeWidgets[ruleTreeWidget].prev_ruleTreeWidgets:
+                            if len(self.dict_ruleTreeWidgets[previous].next_ruleTreeWidgets) <= 1:
+                                pass
+                            else:
+                                iface.messageBar().pushMessage("Error", "branched rules cannot be base group",
+                                                               level=1)  # TODO replace with popup once I have the energy
+                                return #exit function
+                        self.dict_ruleTreeWidgets[ruleTreeWidget].toggleBaseGroup()
+                    else:
+                        self.dict_ruleTreeWidgets[ruleTreeWidget].toggleBaseGroup()
 
 class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
     def __init__(self, rule_number, tableWidget_vegCom, tableWidget_selected, tableWidget_selRaster, parent = None):
@@ -957,6 +972,7 @@ class MsaQgisAddVegComPopup (QtWidgets.QDialog, FORM_CLASS_VEGCOM):
         # Create list of items to pass to the main dialog
         self.vegcom_taxon_combo_list.append(self.comboBox)
         self.vegcom_taxon_double_list.append(self.doubleSpin)
+
 
 class MsaQgisAddRuleToTreePopup (QtWidgets.QDialog, FORM_CLASS_RULE_TREE):
     def __init__(self, nest_rule_dict, rule_tree_type = 'Insert', parent=None):

@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>673</width>
+    <width>610</width>
     <height>828</height>
    </rect>
   </property>
@@ -587,11 +587,23 @@
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>430</width>
-                <height>568</height>
+                <width>395</width>
+                <height>583</height>
                </rect>
               </property>
               <layout class="QHBoxLayout" name="horizontalLayout_18">
+               <property name="leftMargin">
+                <number>0</number>
+               </property>
+               <property name="topMargin">
+                <number>0</number>
+               </property>
+               <property name="rightMargin">
+                <number>0</number>
+               </property>
+               <property name="bottomMargin">
+                <number>0</number>
+               </property>
                <item>
                 <widget class="QFrame" name="frame_ruleTree">
                  <property name="frameShape">
