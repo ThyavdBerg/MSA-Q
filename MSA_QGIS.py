@@ -288,14 +288,12 @@ class MsaQgis:
             vector_point_polygon = vector_point_base
             selection_table = self.dlg.tableWidget_selected
             for rows_column1 in range(selection_table.rowCount()):
-                print('forloop 1')
                 layer_name = selection_table.item(rows_column1, 0).text()
                 previous_row = selection_table.item(rows_column1-1, 0)
                 fields = []
 
                 #find the next layer name in the list, if it exists
                 for rows_column3 in range((selection_table.rowCount())+1):
-                    print('forloop 2')
                     next_name = selection_table.item(rows_column3, 0)
                     if rows_column3 <= rows_column1: #ignore layers under current row
                         pass
@@ -317,7 +315,6 @@ class MsaQgis:
                         and next_row != None:
                     layer = QgsProject.instance().mapLayersByName(layer_name)[0]
                     for rows_column2 in range(selection_table.rowCount()):
-                        print('forloop 3')
                         if selection_table.item(rows_column2, 0).text() == layer_name:
                             field = selection_table.item(rows_column2, 1).text()
                             fields.append(field)
@@ -335,7 +332,6 @@ class MsaQgis:
                     # Then print the last added layer to an actual output file
                     layer = QgsProject.instance().mapLayersByName(layer_name)[0]
                     for rows_column2 in range(selection_table.rowCount()):
-                        print('forloop 4')
                         if selection_table.item(rows_column2, 0).text() == layer_name:
                             field = selection_table.item(rows_column2, 1).text()
                             fields.append(field)
@@ -352,7 +348,6 @@ class MsaQgis:
                 elif previous_row.text() == layer_name:
                     pass
                 else:
-                    print(layer_name)
                     print('something went wrong around the processing algorithm')
                     break
 
@@ -418,7 +413,6 @@ class MsaQgis:
                 elif previous_row.text() == layer_name:
                     pass
                 else:
-                    print(layer_name)
                     print('something went wrong around the processing algorithm')
                     break
 
@@ -448,7 +442,7 @@ class MsaQgis:
 
 ### Processing the rules
 
-
+            ### TODO if rule is duplicate, copy current text from the rule of which it is a copy
             list_memory_branches = [] # List for storing which ruleTreeWidget needs to be returned to
             list_base_group_ids = [] # Take from UI MAKE SURE THEY ARE IN ORDER LOWEST-> HIGHEST
             list_rule_ids = [] # take from UI

@@ -1,4 +1,4 @@
-from PyQt5.QtCore import pyqtSignal, pyqtSlot
+from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import QLabel, QSizePolicy, QPushButton, QHBoxLayout, QFrame, QComboBox
 from qgis.utils import iface
 
@@ -8,20 +8,23 @@ class RuleTreeWidget(QFrame):
     parent: QWidget"""
     clicked = pyqtSignal()
 
-    def __init__(self, nest_dict_rule, order_id,  next_hlayout, own_vlayout = None, prev_ruleTreeWidgets = [], next_ruleTreeWidgets = [],  main_dialog_x=1, main_dialog_y=1, parent = None):
+    def __init__(self, nest_dict_rule, order_id, next_layout, own_layout = None, connection_type ='normal', prev_ruleTreeWidgets = [], next_ruleTreeWidgets = [], duplicate_ruleTreeWidgets = [], main_dialog_x=1, main_dialog_y=1, parent = None):
         super(RuleTreeWidget, self).__init__(parent)
         ### variables before UI
         self.nest_dict_rule = nest_dict_rule
         self.order_id = order_id
         self.prev_ruleTreeWidgets = prev_ruleTreeWidgets
         self.next_ruleTreeWidgets = next_ruleTreeWidgets
+        self.duplicate_ruleTreeWidgets = duplicate_ruleTreeWidgets
+        self.connection_type = connection_type
         self.next_ruleTreeWidgets = []
         self.main_dialog_x = main_dialog_x
         self.main_dialog_y = main_dialog_y
         self.isSelected = False
         self.isBaseGroup = False
-        self.next_hlayout = next_hlayout
-        self.own_vlayout = own_vlayout
+        self.next_layout = next_layout
+        self.own_layout = own_layout
+
 
         #setup UI
         self.setupUI()
@@ -75,7 +78,6 @@ class RuleTreeWidget(QFrame):
                 return # exit function
         else:
             self.isBaseGroup = False
-            print(self.nest_dict_rule[self.selectedRule][4])
             iface.messageBar().pushMessage("Error", "cannot add rule with less than 100% chance to base group",
                                            level=1)  # TODO replace with popup once I have the energy
 
@@ -96,6 +98,7 @@ class RuleTreeWidget(QFrame):
     def mouseReleaseEvent(self, event):
         """ connect the clicked signal to a mouseReleaseEvent, so that it emits when the widget is clicked"""
         self.clicked.emit()
+
 
 class RuleTreeSpoilerPlate(QLabel): # TODO this one needs to be placed in the scrollarea rather than on the screen
     """ Creates the spoiler plate associated with the rule number in ruleTreeWidget"""

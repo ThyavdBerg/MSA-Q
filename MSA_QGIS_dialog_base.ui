@@ -587,7 +587,7 @@
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>395</width>
+                <width>402</width>
                 <height>583</height>
                </rect>
               </property>
@@ -604,16 +604,6 @@
                <property name="bottomMargin">
                 <number>0</number>
                </property>
-               <item>
-                <widget class="QFrame" name="frame_ruleTree">
-                 <property name="frameShape">
-                  <enum>QFrame::StyledPanel</enum>
-                 </property>
-                 <property name="frameShadow">
-                  <enum>QFrame::Raised</enum>
-                 </property>
-                </widget>
-               </item>
               </layout>
              </widget>
             </widget>
@@ -626,13 +616,6 @@
                 <widget class="QPushButton" name="pushButton_ruleBelow">
                  <property name="text">
                   <string>Insert rule below</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QPushButton" name="pushButton_ruleAbove">
-                 <property name="text">
-                  <string>Insert rule above</string>
                  </property>
                 </widget>
                </item>
@@ -651,23 +634,16 @@
                 </widget>
                </item>
                <item>
-                <widget class="QPushButton" name="pushButton_ruleBranch">
-                 <property name="text">
-                  <string>Insert rule in branch</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QPushButton" name="pushButton_branchCombine">
-                 <property name="text">
-                  <string>Combine branches with rule</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
                 <widget class="QPushButton" name="pushButton_asBaseGroup">
                  <property name="text">
                   <string>Designate as base group</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="pushButton_deleteBranch">
+                 <property name="text">
+                  <string>Delete branch/rule</string>
                  </property>
                 </widget>
                </item>
