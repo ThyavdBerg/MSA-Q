@@ -628,8 +628,11 @@
                </item>
                <item>
                 <widget class="QPushButton" name="pushButton_ruleParallel">
+                 <property name="enabled">
+                  <bool>false</bool>
+                 </property>
                  <property name="text">
-                  <string>Insert rule in parallel</string>
+                  <string>(Insert rule in parallel)</string>
                  </property>
                 </widget>
                </item>
@@ -647,51 +650,20 @@
                  </property>
                 </widget>
                </item>
-              </layout>
-             </item>
-             <item>
-              <spacer name="verticalSpacer">
-               <property name="orientation">
-                <enum>Qt::Vertical</enum>
-               </property>
-               <property name="sizeHint" stdset="0">
-                <size>
-                 <width>20</width>
-                 <height>40</height>
-                </size>
-               </property>
-              </spacer>
-             </item>
-             <item>
-              <layout class="QVBoxLayout" name="verticalLayout_3">
                <item>
-                <widget class="QPushButton" name="pushButton_copyRule">
-                 <property name="text">
-                  <string>Copy rule</string>
+                <spacer name="verticalSpacer">
+                 <property name="orientation">
+                  <enum>Qt::Vertical</enum>
                  </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QPushButton" name="pushButton_pasteRule">
-                 <property name="text">
-                  <string>Paste rule</string>
+                 <property name="sizeHint" stdset="0">
+                  <size>
+                   <width>20</width>
+                   <height>40</height>
+                  </size>
                  </property>
-                </widget>
+                </spacer>
                </item>
               </layout>
-             </item>
-             <item>
-              <spacer name="verticalSpacer_2">
-               <property name="orientation">
-                <enum>Qt::Vertical</enum>
-               </property>
-               <property name="sizeHint" stdset="0">
-                <size>
-                 <width>20</width>
-                 <height>40</height>
-                </size>
-               </property>
-              </spacer>
              </item>
              <item>
               <layout class="QVBoxLayout" name="verticalLayout">
@@ -719,6 +691,9 @@
              </item>
              <item>
               <widget class="QPushButton" name="pushButton_ruleList">
+               <property name="enabled">
+                <bool>false</bool>
+               </property>
                <property name="text">
                 <string>View rule list</string>
                </property>
@@ -1123,6 +1098,9 @@ background-color: rgb(199, 199, 199);</string>
        </item>
        <item>
         <widget class="QDialogButtonBox" name="button_box">
+         <property name="enabled">
+          <bool>true</bool>
+         </property>
          <property name="font">
           <font>
            <pointsize>10</pointsize>
