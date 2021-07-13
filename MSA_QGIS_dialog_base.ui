@@ -22,7 +22,7 @@
      <item>
       <widget class="QTabWidget" name="tab_top">
        <property name="currentIndex">
-        <number>3</number>
+        <number>0</number>
        </property>
        <widget class="QWidget" name="tab_envAndSpatial">
         <attribute name="title">
@@ -58,7 +58,7 @@
               <number>1000000</number>
              </property>
              <property name="value">
-              <number>1000000</number>
+              <number>10000</number>
              </property>
             </widget>
            </item>

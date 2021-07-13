@@ -190,10 +190,84 @@ class MsaQgis:
                 action)
             self.iface.removeToolBarIcon(action)
 
-    def assignVegetation(self, rule, map): # TODO
+    def assignVegetation(self, order_id, map): # TODO
         """ This assigns the vegetation to a map based on the environmental rules defined by the user in the UI"""
-        #return new map
-        #recurse
+        #variables
+        list_of_features_env_var = []
+        list_of_env_var = []
+        list_of_features_prev_vegcom = []
+        #from nested dict get rule
+        if self.dlg.dict_ruleTreeWidgets[order_id].duplicate_ruleTreeWidgets:
+            visible_duplicate = min(self.dlg.dict_ruleTreeWidgets[order_id].duplicate_ruleTreeWidgets)
+            rule = self.dlg.dict_ruleTreeWidgets[visible_duplicate].selectedRule
+        else:
+            rule = self.dlg.dict_ruleTreeWidgets[order_id].selectedRule
+        print(rule)
+        print(self.dlg.nest_dict_rules)
+
+        #from nested dict get vegcom
+        veg_com = self.dlg.nest_dict_rules[rule][2]
+        #get lists of features and fields
+        mapFeatures = map.getFeatures()
+        mapFields = map.fields()
+        if self.dlg.nest_dict_rules[rule][3] == '(Re)place':
+            # limit the features to those with the right veg com in previous veg com
+            list_of_prev_vegcom = self.dlg.nest_dict_rules[rule][10]
+            if self.dlg.nest_dict_rules[rule][8]:
+                print('Copy over features from all veg coms')
+                list_of_features_prev_vegcom = mapFeatures
+            elif self.dlg.nest_dict_rules[rule][9][0]== 'Empty':
+                print('copy over features from empty veg coms')
+                for feature in mapFeatures:
+                    print(feature.attribute('veg_com'))
+                    if feature.attribute('veg_com') == NULL:
+                        list_of_features_prev_vegcom.append(feature)
+            else:
+                print('copy over features from listed veg coms')
+                for feature in mapFeatures:
+                    if feature.attribute(veg_com) in list_of_prev_vegcom:
+                        list_of_features_prev_vegcom.append(feature)
+            print('features prev veg com ',  list_of_features_prev_vegcom)
+
+            # create a list of the env var relevant to the rule
+            for key in self.dlg.nest_dict_rules[rule][10]:
+                list_of_env_var.append(key)
+            print('env var ', list_of_env_var)
+
+            # limit the features to those with the right values of the environmental variables
+            if self.dlg.nest_dict_rules[rule][10]['Empty']:
+                list_of_features_env_var = list_of_features_prev_vegcom
+            else:
+                for feature in list_of_features_prev_vegcom:
+                    for attribute in mapFields:
+                        if attribute in list_of_env_var:
+                            if isinstance(self.dlg.nest_dict_rules[rule][10][attribute][0], str):
+                                if feature.attribute() == self.dlg.nest_dict_rules[rule][10][attribute][0]:
+                                    list_of_features_env_var.append(feature)
+                            else:
+                                if feature.attribute() == self.dlg.nest_dict_rules[rule][10][attribute][0] \
+                                        <= feature.attribute() <= feature.attribute() == self.dlg.nest_dict_rules[rule][10][attribute][1]:
+                                    list_of_features_env_var.append()
+            print(list_of_features_env_var)
+        elif self.dlg.nest_dict_rules[rule][3] == 'Enchroach':
+            pass
+        elif self.dlg.nest_dict_rules[rule][3] == 'Adjacent':
+            pass
+        elif self.dlg.nest_dict_rules[rule][3] == 'Extent':
+            pass
+        # get index of veg_com field
+        data_provider = map.dataProvider()
+        veg_com_field_index = data_provider.fieldNameIndex('veg_com')
+        print('index is ',veg_com_field_index)
+        print('veg_com is', veg_com)
+        map.startEditing()
+        if self.dlg.nest_dict_rules[rule][4] == 100:
+            for feature in list_of_features_env_var:
+                feature.setAttribute(veg_com_field_index,veg_com)
+                map.updateFeature(feature)
+        map.commitChanges()
+
+        return(map)
         pass
 
     def run(self):
@@ -434,9 +508,9 @@ class MsaQgis:
             vector_point_filled_ras.commitChanges()
 
 # add to map canvas
-            QgsProject.instance().addMapLayer(vector_point_filled_vec)
-            QgsProject.instance().addMapLayer(vector_point_filled_ras)
-# TODO vector_point_filled_ras not loading correctly when vector_point_filled_vec is not loaded as well
+#             QgsProject.instance().addMapLayer(vector_point_filled_vec)
+#             QgsProject.instance().addMapLayer(vector_point_filled_ras)
+# vector_point_filled_ras not loading correctly when vector_point_filled_vec is not loaded as well, edit: but vector_point_basemap does work.
 
 
 
@@ -446,37 +520,54 @@ class MsaQgis:
             list_memory_branches = [] # List for storing which ruleTreeWidget needs to be returned to
             list_base_group_ids = [] # Take from UI MAKE SURE THEY ARE IN ORDER LOWEST-> HIGHEST
             list_rule_ids = [] # take from UI
-            #run base group before starting with iterations
-            for rule in list_base_group_ids:
-                if not hasattr(self,'vector_point_base_group'):
-                    #this is the first of the base map, run function that makes map using vector_point_filled_vec
-                    vector_point_base_group = self.assignVegetation(rule,vector_point_filled_vec)
-                else:
-                    vector_point_base_group = self.assignVegetation(rule,vector_point_base_group)
-                list_rule_ids.remove(rule) # remove base group from list used to iter
+            number_of_iters = self.dlg.lineEdit_iter.text()
+            dict_of_rules = self.dlg.dict_ruleTreeWidgets.copy() # copy so original is still available at save
 
-            #pseudocode
-            for number in range(self.dlg.lineEdit_iter):
-                list_rule_ids_no_base = list_rule_ids # so this is the list after the base group has been removed, it needs to get remade everytime a new iter starts
-                start_rule = min(list_rule_ids_no_base)
-                if not list_base_group_ids:  # if no rules in base group, use vector_point_filled_vec
-                    vector_point_previous = self.assignVegetation(start_rule, vector_point_filled_vec)
+            #create a new empty column and rename the base map
+            data_provider = vector_point_filled_ras.dataProvider()
+            data_provider.addAttributes([QgsField('veg_com', QVariant.String)])
+            output_file_basemap = self.dlg.qgsFileWidget_vectorPoint.filePath() + 'basemap.shp'
+            vector_point_filled_ras.updateFields()
+            QgsVectorFileWriter.writeAsVectorFormat(vector_point_filled_ras, output_file_basemap, 'utf-8', driverName= 'ESRI Shapefile')
 
-                elif not hasattr(self,
-                                 'vector_point_previous'):  # if first after base group, use vector_point_base_group
-                    vector_point_previous = self.assignVegetation(rule, vector_point_base_group)
-                else:  # if subsequent rule, use result previous rule
-                    vector_point_previous = self.assignVegetation(rule, vector_point_previous)
-                while list_rule_ids_no_base != []: # while there are rules to compute
+            vector_point_basemap = QgsVectorLayer(output_file_basemap, 'basemap', 'ogr')
+            QgsProject.instance().addMapLayer(vector_point_basemap)
 
-                    for rule in list_rule_ids_no_base:
-                        # add to list_memory_branches if rule has more than 1 branch.
-                        if len(rule.next_ruleTreeWidgets) >1:
-                            for n in range(1, len(rule.next_ruleTreeWidgets)):
-                                list_memory_branches.append(rule)
+            #create the list of basegroups
+            for key in dict_of_rules:
+                if dict_of_rules[key].isBaseGroup:
+                    list_base_group_ids.append(key)
+            #create the map with basegroup
+            for widget in list_base_group_ids:
+                vector_point_basemap = self.assignVegetation(widget, vector_point_basemap)
+                print('basemap', vector_point_basemap)
+                list_base_group_ids.remove(widget)
+                vector_point_basemap.updateFields()
+                QgsProject.instance().addMapLayer(vector_point_basemap)
 
-                    for rule in list_rule_ids_no_base:
-                        pass
+            #
+            # #pseudocode
+            # for number in range(self.dlg.lineEdit_iter):
+            #     list_rule_ids_no_base = list_rule_ids # so this is the list after the base group has been removed, it needs to get remade everytime a new iter starts
+            #     start_rule = min(list_rule_ids_no_base)
+            #     if not list_base_group_ids:  # if no rules in base group, use vector_point_filled_vec
+            #         vector_point_previous = self.assignVegetation(start_rule, vector_point_filled_vec)
+            #
+            #     elif not hasattr(self,
+            #                      'vector_point_previous'):  # if first after base group, use vector_point_base_group
+            #         vector_point_previous = self.assignVegetation(rule, vector_point_base_group)
+            #     else:  # if subsequent rule, use result previous rule
+            #         vector_point_previous = self.assignVegetation(rule, vector_point_previous)
+            #     while list_rule_ids_no_base != []: # while there are rules to compute
+            #
+            #         for rule in list_rule_ids_no_base:
+            #             # add to list_memory_branches if rule has more than 1 branch.
+            #             if len(rule.next_ruleTreeWidgets) >1:
+            #                 for n in range(1, len(rule.next_ruleTreeWidgets)):
+            #                     list_memory_branches.append(rule)
+            #
+            #         for rule in list_rule_ids_no_base:
+            #             pass
 
 
 

@@ -902,9 +902,7 @@ class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
         self.comboBox_category.hide()
         self.label_nOfPoints.hide()
         self.spinBox_nOfPoints.hide()
-        self.comboBox_condTypePrevVeg.hide()
         self.label_condTypePrevVeg.hide()
-        self.comboBox_condTypeEnvVar.hide()
         self.label_condTypeEnvVar.hide()
 
         # Events
@@ -1029,8 +1027,6 @@ class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
     def addConditionalPrevVegCom(self):
         """ A comboBox appears from which the user can choose whether they want to apply OR or AND rules, and an
         extra row where an additional previous vegetation community can be chosen appears """
-        # combobox and/or
-        self.comboBox_condTypePrevVeg.show()
         self.label_condTypePrevVeg.show()
         self.radioButton_all.hide()
         self.radioButton_all.setChecked(False)
@@ -1076,14 +1072,12 @@ class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
         # TODO make it delete from list
 
         if self.n_of_vegcom == 1:
-            self.comboBox_condTypePrevVeg.hide()
             self.label_condTypePrevVeg.hide()
             self.radioButton_all.show()
 
     def addConditionalEnvVar(self):
         """ A comboBox appears from which the user can choose whether the want to apply OR or AND rules, and an
         extra row where an additional environmental variable can be chosen appears"""
-        self.comboBox_condTypeEnvVar.show()
         self.label_condTypeEnvVar.show()
 
         # create new widgets
@@ -1161,7 +1155,6 @@ class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
         #TODO make it delete from dictionary
 
         if self.n_of_envvar == 1:
-            self.comboBox_condTypeEnvVar.hide()
             self.label_condTypeEnvVar.hide()
             pass
 
@@ -1180,9 +1173,7 @@ class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
         self.dict_rules_list.append(self.doubleSpin_chance.value())
         self.dict_rules_list.append(self.spinBox_nOfPoints.value())
         self.dict_rules_list.append(self.n_of_vegcom)
-        self.dict_rules_list.append(self.comboBox_condTypePrevVeg.currentText())
         self.dict_rules_list.append(self.n_of_envvar)
-        self.dict_rules_list.append(self.comboBox_condTypeEnvVar.currentText())
         self.dict_rules_list.append(self.radioButton_all.isChecked())
 
         # insert from dynamically added widgets
@@ -1232,7 +1223,7 @@ class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
                 if index != len(self.list_prevVegCom)-1:
                     prev_veg_com_string += ', ' + self.list_prevVegCom[index].currentText()
                 if index == len(self.list_prevVegCom)-1:
-                    prev_veg_com_string += ' ' + self.comboBox_condTypeEnvVar.currentText() + ' ' + self.list_prevVegCom[index].currentText()
+                    prev_veg_com_string += ' and ' + self.list_prevVegCom[index].currentText()
         #environmental variables
         env_var_string = '[no environmental variable selected]'
         if len(self.dict_envVar) == 0:
@@ -1262,10 +1253,10 @@ class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
 
                 else:
                     if self.dict_envVar[key][2].currentText() != '':
-                        env_var_string += self.comboBox_condTypeEnvVar.currentText() + ' ' + key.currentText() + ' is ' +\
+                        env_var_string += 'and ' + key.currentText() + ' is ' +\
                                           self.dict_envVar[key][2].currentText()
                     else:
-                        env_var_string += self.comboBox_condTypeEnvVar.currentText() + ' ' + key.currentText() + ' is between ' \
+                        env_var_string += 'and ' + key.currentText() + ' is between ' \
                                           + str(self.dict_envVar[key][0].value()) + ' and ' + str(self.dict_envVar[key][1].value())
 
 
