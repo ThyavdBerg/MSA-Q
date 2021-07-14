@@ -24,6 +24,7 @@
 
 import os
 import re
+import csv
 
 from PyQt5.QtCore import pyqtSlot
 from PyQt5.QtWidgets import QTableWidgetItem, QWidget, QLineEdit, QLabel, QVBoxLayout, QComboBox, QGridLayout, \
@@ -113,6 +114,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.pushButton_asBaseGroup.clicked.connect(self.addAndRemoveFromBaseGroup)
         self.pushButton_deleteBranch.clicked.connect(self.removeRuleFromRuleTree)
         self.pushButton_ruleSeries.clicked.connect(self.addRuleToTreeSeries)
+        self.pushButton_save.clicked.connect(self.saveInput)
         #TODO close all assocated windows when main dialog is closed
 
 
@@ -411,7 +413,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             return  # request not valid, exit function
         elif selected_rule == 0:
             rule_id = 1
-            ruleTreeWidget = RuleTreeWidget(self.nest_dict_rules, rule_id, next_layout, duplicate_ruleTreeWidgets=[],
+            ruleTreeWidget = RuleTreeWidget(self.nest_dict_rules, rule_id, next_layout,
                                             main_dialog_x=x_position_for_spoilerplate,
                                             main_dialog_y=y_position_for_spoilerplate) # duplicate_ruletreewidget for mysterious reasons is not always empty despite never getting anything appended unless specified at creation
             self.ruleTreeLayout.insertWidget(0, ruleTreeWidget) # insert itself
@@ -461,8 +463,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                         else:
                             rule_id_duplicate = int(str(self.dict_ruleTreeWidgets[duplicate].order_id) + '0')
                         #create widget
-                        ruleTreeWidget_duplicate = RuleTreeWidget(self.nest_dict_rules, rule_id_duplicate, None, None,
-                                                      duplicate_ruleTreeWidgets= [])
+                        ruleTreeWidget_duplicate = RuleTreeWidget(self.nest_dict_rules, rule_id_duplicate, None, None)
                         #add to dictionary
                         self.dict_ruleTreeWidgets[rule_id_duplicate] = ruleTreeWidget_duplicate
                         #determine previous
@@ -535,16 +536,16 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 print('rule id series two ', rule_id_series_two)
                 print('rule id bottom ', rule_id_bottom)
                 # create widgets
-                ruleTreeWidget_top = RuleTreeWidget(self.nest_dict_rules, rule_id_top, next_layout_top,own_layout_top, 'series start', duplicate_ruleTreeWidgets= [],
+                ruleTreeWidget_top = RuleTreeWidget(self.nest_dict_rules, rule_id_top, next_layout_top,own_layout_top, 'series start',
                                                 main_dialog_x=x_position_for_spoilerplate,
                                                 main_dialog_y=y_position_for_spoilerplate)
-                ruleTreeWidget_series = RuleTreeWidget(self.nest_dict_rules, rule_id_series, next_layout_series,own_layout_series, 'series',duplicate_ruleTreeWidgets= [],
+                ruleTreeWidget_series = RuleTreeWidget(self.nest_dict_rules, rule_id_series, next_layout_series,own_layout_series, 'series',
                                                 main_dialog_x=x_position_for_spoilerplate,
                                                 main_dialog_y=y_position_for_spoilerplate)
-                ruleTreeWidget_series_two = RuleTreeWidget(self.nest_dict_rules, rule_id_series_two, next_layout_series,own_layout_series, 'series',duplicate_ruleTreeWidgets= [],
+                ruleTreeWidget_series_two = RuleTreeWidget(self.nest_dict_rules, rule_id_series_two, next_layout_series,own_layout_series, 'series',
                                                 main_dialog_x=x_position_for_spoilerplate,
                                                 main_dialog_y=y_position_for_spoilerplate)
-                ruleTreeWidget_bottom = RuleTreeWidget(self.nest_dict_rules, rule_id_bottom, next_layout_bottom,own_layout_bottom, 'normal', duplicate_ruleTreeWidgets= [],
+                ruleTreeWidget_bottom = RuleTreeWidget(self.nest_dict_rules, rule_id_bottom, next_layout_bottom,own_layout_bottom, 'normal',
                                                 main_dialog_x=x_position_for_spoilerplate,
                                                 main_dialog_y=y_position_for_spoilerplate)
                 # place widgets
@@ -561,7 +562,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
 
                 # create the duplicate, which is NOT added to the UI
                 rule_id_duplicate = int(str(rule_id_series_two) + str(0))
-                ruleTreeWidget_duplicate = RuleTreeWidget(self.nest_dict_rules, rule_id_duplicate, None, None, 'duplicate', duplicate_ruleTreeWidgets=[])
+                ruleTreeWidget_duplicate = RuleTreeWidget(self.nest_dict_rules, rule_id_duplicate, None, None, 'duplicate')
 
                 # add all relevant id's to relevant dictionaries and lists.
                 # add to rule dictionary
@@ -624,16 +625,11 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                         rule_id_series_two_duplicate = rule_id_bottom_duplicate + 1
                         rule_id_bottom_duplicate_two = int(str(rule_id_series_two_duplicate)+ '0')
                         # create widget
-                        ruleTreeWidget_top_duplicate = RuleTreeWidget(self.nest_dict_rules, rule_id_top_duplicate, None, None,
-                                                                  duplicate_ruleTreeWidgets=[])
-                        ruleTreeWidget_series_duplicate = RuleTreeWidget(self.nest_dict_rules, rule_id_series_duplicate, None, None,
-                                                                  duplicate_ruleTreeWidgets=[])
-                        ruleTreeWidget_series_two_duplicate = RuleTreeWidget(self.nest_dict_rules, rule_id_series_two_duplicate, None, None,
-                                                                  duplicate_ruleTreeWidgets=[])
-                        ruleTreeWidget_bottom_duplicate = RuleTreeWidget(self.nest_dict_rules, rule_id_bottom_duplicate, None, None,
-                                                                  duplicate_ruleTreeWidgets=[])
-                        ruleTreeWidget_bottom_duplicate_two = RuleTreeWidget(self.nest_dict_rules, rule_id_bottom_duplicate_two, None, None,
-                                                                  duplicate_ruleTreeWidgets=[])
+                        ruleTreeWidget_top_duplicate = RuleTreeWidget(self.nest_dict_rules, rule_id_top_duplicate, None, None)
+                        ruleTreeWidget_series_duplicate = RuleTreeWidget(self.nest_dict_rules, rule_id_series_duplicate, None, None)
+                        ruleTreeWidget_series_two_duplicate = RuleTreeWidget(self.nest_dict_rules, rule_id_series_two_duplicate, None, None)
+                        ruleTreeWidget_bottom_duplicate = RuleTreeWidget(self.nest_dict_rules, rule_id_bottom_duplicate, None, None)
+                        ruleTreeWidget_bottom_duplicate_two = RuleTreeWidget(self.nest_dict_rules, rule_id_bottom_duplicate_two, None, None)
                         # add to dictionary
                         self.dict_ruleTreeWidgets[ruleTreeWidget_top_duplicate.order_id] = ruleTreeWidget_top_duplicate
                         self.dict_ruleTreeWidgets[ruleTreeWidget_series_duplicate.order_id] = ruleTreeWidget_series_duplicate
@@ -718,7 +714,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
 
                 #create the widget
                 ruleTreeWidget = RuleTreeWidget(self.nest_dict_rules, rule_id, next_layout= None,
-                                                connection_type='series', duplicate_ruleTreeWidgets= [])
+                                                connection_type='series')
                 #place the widget
                 own_layout_series.addWidget(ruleTreeWidget)
                 own_layout_series.addStretch()
@@ -743,7 +739,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 for id in list_ids_to_check:
                     rule_id_duplicate = str(rule_id) + str(id)[length_first_in_series:]
                     ruleTreeWidget_duplicate = RuleTreeWidget(self.nest_dict_rules, rule_id_duplicate, None, None,
-                                                              'duplicate', duplicate_ruleTreeWidgets=[])
+                                                              'duplicate')
                     #add to dictionary
                     self.dict_ruleTreeWidgets[ruleTreeWidget_duplicate.order_id] = ruleTreeWidget_duplicate
                     #add to previous widgets
@@ -761,15 +757,14 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                     self.dict_ruleTreeWidgets[rule_id_duplicate].duplicate_ruleTreeWidgets.append(id)
                     self.dict_ruleTreeWidgets[id].duplicate_ruleTreeWidgets.append(rule_id_duplicate)
         #test whether created rules and relations are okay
-        # for entries in self.dict_ruleTreeWidgets:
-        #     if self.dict_ruleTreeWidgets[entries].duplicate_ruleTreeWidgets:
-        #         for next in self.dict_ruleTreeWidgets[entries].duplicate_ruleTreeWidgets:
-        #             print(str(entries), ' duplicate', str(next))
-        #     for next in self.dict_ruleTreeWidgets[entries].next_ruleTreeWidgets:
-        #         print(str(entries), ' next rtw ', str(next))
+        for entries in self.dict_ruleTreeWidgets:
+            if self.dict_ruleTreeWidgets[entries].duplicate_ruleTreeWidgets:
+                for next in self.dict_ruleTreeWidgets[entries].duplicate_ruleTreeWidgets:
+                    print(str(entries), ' duplicate', str(next))
+            for next in self.dict_ruleTreeWidgets[entries].next_ruleTreeWidgets:
+                print(str(entries), ' next rtw ', str(next))
 
         self.frame_ruleTree.update()
-
 
     def addRuleToTreeParallel(self):
         """ Adds multiple ruleTreeWidgets to the RuleTreeFrame for the placement of a parallel branch.
@@ -873,6 +868,105 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                     if item in self.dict_ruleTreeWidgets[key].next_ruleTreeWidgets:
                         self.dict_ruleTreeWidgets[key].next_ruleTreeWidgets.remove(item)
             self.frame_ruleTree.update()
+
+    def saveRulesDict(self):
+        """ Pickles/serializes the rules dictionary for later retrieval"""
+        pass
+
+    def saveHumFile(self):
+        """ Saves all of the input data that is backwards compatible with HUMPOL/LandPolFlow into a single text file (.hum)"""
+        pass
+
+    def saveRuleTree(self):
+        """ Pickles/serializes the dictionary containing all entries into the rule tree"""
+        pass
+
+    def saveInput(self):
+        """ Saves all of the input data, including input that is NOT backwards compatible with HUMPOL/LandPolFlow into a single text file (.msa)"""
+        if self.extent:
+            x_min = self.extent.xMinimum()
+            x_max = self.extent.xMaximum()
+            y_min = self.extent.yMinimum()
+            y_max = self.extent.yMaximum()
+        else:
+            x_min = 'No extent set'
+            x_max = 'No extent set'
+            y_min = 'No extent set'
+            y_max = 'No extent set'
+        spacing = self.spinBox_resolution.value()
+        n_of_iter = self.lineEdit_iter.text()
+        dispersal_model = self.comboBox_dispModel.currentText()
+        ### Add all of the input values possible for the different models.
+
+        ### write a .csv file with all the data
+        file_name = self.qgsFileWidget_vectorPoint.filePath()+'\inputstate.csv'
+        if '/' in self.qgsFileWidget_vectorPoint.filePath():
+            project_name_split = re.split(self.qgsFileWidget_vectorPoint.filePath(), '/')
+            project_name = project_name_split[-1]
+        else:
+            project_name = file_name
+        with open(file_name, 'w', newline= '') as csv_file:
+            print('writing file')
+            writer = csv.writer(csv_file)
+            writer.writerow(['Project name', project_name])
+            #saved settings
+            writer.writerow(['Saved settings'])
+            writer.writerow(['x_min', x_min])
+            writer.writerow(['x_max', x_max])
+            writer.writerow(['y_min', y_min])
+            writer.writerow(['y_max', y_max])
+            writer.writerow(['spacing', spacing])
+            writer.writerow(['n of iterations',  n_of_iter])
+            #model parameters
+            writer.writerow(['Model parameters'])
+            writer.writerow(['dispersal model', dispersal_model]) ###TODO rest of model parameters
+            #selected fields and bands
+            writer.writerow(['selected fields'])
+            for row in range(self.tableWidget_selected.rowCount()):
+                writer.writerow([row, self.tableWidget_selected.item(row, 0).text(), self.tableWidget_selected.item(row,1).text()])
+            #selected bands
+            writer.writerow(['selected bands'])
+            for row in range(self.tableWidget_selRaster.rowCount()):
+                writer.writerow([row, self.tableWidget_selRaster.item(row, 0).text(), self.tableWidget_selRaster.item(row,1).text()])
+            #taxa
+            writer.writerow(['Taxa'])
+            writer.writerow(['row', 'short name', 'full name', 'fall speed', 'relative pollen productivity'])
+            for row in range(self.tableWidget_taxa.rowCount()):
+                writer.writerow([row, self.tableWidget_taxa.item(row, 0).text(), self.tableWidget_taxa.item(row, 1).text(),
+                                 self.tableWidget_taxa.item(row, 2).text(), self.tableWidget_taxa.item(row, 3).text()])
+            #communities
+            writer.writerow(['Communities'])
+            list_veg_com_headers = ['row']
+            for column in range (self.tableWidget_vegCom.columnCount()):
+                list_veg_com_headers.append(self.tableWidget_vegCom.horizontalHeaderItem(column).text())
+            writer.writerow(list_veg_com_headers)
+            list_veg_com_species= []
+            for row in range(self.tableWidget_vegCom.rowCount()):
+                list_veg_com_species.append(row)
+                for column in range (self.tableWidget_vegCom.columnCount()):
+                    if self.tableWidget_vegCom.item(row,column):
+                        list_veg_com_species.append(self.tableWidget_vegCom.item(row,column).text())
+                    else:
+                        list_veg_com_species.append('N/A')
+                writer.writerow(list_veg_com_species)
+                list_veg_com_species = []
+            #rules
+            writer.writerow(['Rule list', 'not used in loading file, open pickled file instead'])
+            for key in self.nest_dict_rules:
+                writer.writerow([key, self.nest_dict_rules[key][1]])
+            #order ids rule tree widget
+            writer.writerow(['RuleTreeWidget order id list', 'not used in loading file, open pickled file instead'])
+            for key in self.dict_ruleTreeWidgets:
+                writer.writerow([key,self.dict_ruleTreeWidgets[key].connection_type])
+
+    def loadInput(self):
+        #check if selected layer are also in non-selected table widget. If not skip and give warning.
+        #with open (file_name, 'r') as csv_file:
+
+        pass #TODO continue here tomorrow
+
+
+
 
 
 class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):

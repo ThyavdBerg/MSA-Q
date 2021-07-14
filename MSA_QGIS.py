@@ -214,25 +214,19 @@ class MsaQgis:
             # limit the features to those with the right veg com in previous veg com
             list_of_prev_vegcom = self.dlg.nest_dict_rules[rule][10]
             if self.dlg.nest_dict_rules[rule][8]:
-                print('Copy over features from all veg coms')
                 list_of_features_prev_vegcom = mapFeatures
             elif self.dlg.nest_dict_rules[rule][9][0]== 'Empty':
-                print('copy over features from empty veg coms')
                 for feature in mapFeatures:
-                    print(feature.attribute('veg_com'))
                     if feature.attribute('veg_com') == NULL:
                         list_of_features_prev_vegcom.append(feature)
             else:
-                print('copy over features from listed veg coms')
                 for feature in mapFeatures:
                     if feature.attribute(veg_com) in list_of_prev_vegcom:
                         list_of_features_prev_vegcom.append(feature)
-            print('features prev veg com ',  list_of_features_prev_vegcom)
 
             # create a list of the env var relevant to the rule
             for key in self.dlg.nest_dict_rules[rule][10]:
                 list_of_env_var.append(key)
-            print('env var ', list_of_env_var)
 
             # limit the features to those with the right values of the environmental variables
             if self.dlg.nest_dict_rules[rule][10]['Empty']:
@@ -258,8 +252,6 @@ class MsaQgis:
         # get index of veg_com field
         data_provider = map.dataProvider()
         veg_com_field_index = data_provider.fieldNameIndex('veg_com')
-        print('index is ',veg_com_field_index)
-        print('veg_com is', veg_com)
         map.startEditing()
         if self.dlg.nest_dict_rules[rule][4] == 100:
             for feature in list_of_features_env_var:

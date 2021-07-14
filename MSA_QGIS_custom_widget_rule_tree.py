@@ -8,14 +8,23 @@ class RuleTreeWidget(QFrame):
     parent: QWidget"""
     clicked = pyqtSignal()
 
-    def __init__(self, nest_dict_rule, order_id, next_layout, own_layout = None, connection_type ='normal', prev_ruleTreeWidgets = [], next_ruleTreeWidgets = [], duplicate_ruleTreeWidgets = [], main_dialog_x=1, main_dialog_y=1, parent = None):
+    def __init__(self, nest_dict_rule, order_id, next_layout= None, own_layout = None, connection_type ='normal', prev_ruleTreeWidgets = None, next_ruleTreeWidgets = None, duplicate_ruleTreeWidgets = None, main_dialog_x=1, main_dialog_y=1, parent = None):
         super(RuleTreeWidget, self).__init__(parent)
         ### variables before UI
         self.nest_dict_rule = nest_dict_rule
         self.order_id = order_id
-        self.prev_ruleTreeWidgets = prev_ruleTreeWidgets
-        self.next_ruleTreeWidgets = next_ruleTreeWidgets
-        self.duplicate_ruleTreeWidgets = duplicate_ruleTreeWidgets
+        if prev_ruleTreeWidgets is None:
+            self.prev_ruleTreeWidgets = []
+        else:
+            self.prev_ruleTreeWidgets = prev_ruleTreeWidgets
+        if next_ruleTreeWidgets is None:
+            self.next_ruleTreeWidgets = []
+        else:
+            self.next_ruleTreeWidgets = next_ruleTreeWidgets
+        if duplicate_ruleTreeWidgets is None:
+            self.duplicate_ruleTreeWidgets = []
+        else:
+            self.duplicate_ruleTreeWidgets = duplicate_ruleTreeWidgets
         self.connection_type = connection_type
         self.next_ruleTreeWidgets = []
         self.main_dialog_x = main_dialog_x

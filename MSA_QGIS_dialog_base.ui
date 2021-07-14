@@ -6,17 +6,26 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>610</width>
+    <width>694</width>
     <height>828</height>
    </rect>
+  </property>
+  <property name="contextMenuPolicy">
+   <enum>Qt::ActionsContextMenu</enum>
+  </property>
+  <property name="acceptDrops">
+   <bool>false</bool>
   </property>
   <property name="windowTitle">
    <string>MSA QGIS</string>
   </property>
+  <property name="locale">
+   <locale language="English" country="UnitedKingdom"/>
+  </property>
+  <property name="inputMethodHints">
+   <set>Qt::ImhNone</set>
+  </property>
   <layout class="QVBoxLayout" name="verticalLayout_17">
-   <item>
-    <layout class="QHBoxLayout" name="horizontalLayout_14"/>
-   </item>
    <item>
     <layout class="QVBoxLayout" name="verticalLayout_4">
      <item>
@@ -252,24 +261,6 @@
                <string>Band</string>
               </property>
              </column>
-            </widget>
-           </item>
-          </layout>
-         </item>
-         <item>
-          <layout class="QHBoxLayout" name="horizontalLayout_6">
-           <item>
-            <widget class="QLabel" name="label_saveOutput">
-             <property name="text">
-              <string>Save output file to:</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QgsFileWidget" name="qgsFileWidget_vectorPoint">
-             <property name="storageMode">
-              <enum>QgsFileWidget::SaveFile</enum>
-             </property>
             </widget>
            </item>
           </layout>
@@ -587,8 +578,8 @@
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>402</width>
-                <height>583</height>
+                <width>486</width>
+                <height>563</height>
                </rect>
               </property>
               <layout class="QHBoxLayout" name="horizontalLayout_18">
@@ -771,7 +762,7 @@
           </rect>
          </property>
          <property name="text">
-          <string>Select pollen dispersal model:</string>
+          <string>Select pollen dispersal and deposition model:</string>
          </property>
          <property name="wordWrap">
           <bool>true</bool>
@@ -786,6 +777,26 @@
            <height>22</height>
           </rect>
          </property>
+         <item>
+          <property name="text">
+           <string>Unmixed basin model</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Mixed basin model</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>1/d</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>1/d^2</string>
+          </property>
+         </item>
         </widget>
         <widget class="QTableWidget" name="tableWidget_sites">
          <property name="geometry">
@@ -1077,6 +1088,27 @@
       </layout>
      </item>
      <item>
+      <layout class="QHBoxLayout" name="horizontalLayout_6">
+       <item>
+        <widget class="QLabel" name="label_saveOutput">
+         <property name="text">
+          <string>Set save directory:</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QgsFileWidget" name="qgsFileWidget_vectorPoint">
+         <property name="storageMode">
+          <enum>QgsFileWidget::GetDirectory</enum>
+         </property>
+         <property name="relativeStorage">
+          <enum>QgsFileWidget::RelativeDefaultPath</enum>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </item>
+     <item>
       <layout class="QHBoxLayout" name="horizontalLayout_15">
        <item>
         <widget class="QLabel" name="labels_status">
@@ -1097,6 +1129,30 @@ background-color: rgb(199, 199, 199);</string>
         </widget>
        </item>
        <item>
+        <widget class="QPushButton" name="pushButton_save">
+         <property name="font">
+          <font>
+           <pointsize>10</pointsize>
+          </font>
+         </property>
+         <property name="text">
+          <string>Save</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="pushButton_load">
+         <property name="font">
+          <font>
+           <pointsize>10</pointsize>
+          </font>
+         </property>
+         <property name="text">
+          <string>Load</string>
+         </property>
+        </widget>
+       </item>
+       <item>
         <widget class="QDialogButtonBox" name="button_box">
          <property name="enabled">
           <bool>true</bool>
@@ -1110,7 +1166,10 @@ background-color: rgb(199, 199, 199);</string>
           <enum>Qt::Horizontal</enum>
          </property>
          <property name="standardButtons">
-          <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok|QDialogButtonBox::Save</set>
+          <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+         </property>
+         <property name="centerButtons">
+          <bool>false</bool>
          </property>
         </widget>
        </item>
