@@ -512,7 +512,7 @@ class MsaQgis:
             list_memory_branches = [] # List for storing which ruleTreeWidget needs to be returned to
             list_base_group_ids = [] # Take from UI MAKE SURE THEY ARE IN ORDER LOWEST-> HIGHEST
             list_rule_ids = [] # take from UI
-            number_of_iters = self.dlg.lineEdit_iter.text()
+            number_of_iters = self.dlg.spinBox_iter.value()
             dict_of_rules = self.dlg.dict_ruleTreeWidgets.copy() # copy so original is still available at save
 
             #create a new empty column and rename the base map
@@ -539,7 +539,7 @@ class MsaQgis:
 
             #
             # #pseudocode
-            # for number in range(self.dlg.lineEdit_iter):
+            # for number in range(self.dlg.spinBox_iter):
             #     list_rule_ids_no_base = list_rule_ids # so this is the list after the base group has been removed, it needs to get remade everytime a new iter starts
             #     start_rule = min(list_rule_ids_no_base)
             #     if not list_base_group_ids:  # if no rules in base group, use vector_point_filled_vec

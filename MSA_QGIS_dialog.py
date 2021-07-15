@@ -29,7 +29,7 @@ import csv
 from PyQt5.QtCore import pyqtSlot
 from PyQt5.QtWidgets import QTableWidgetItem, QWidget, QLineEdit, QLabel, QVBoxLayout, QComboBox, QGridLayout, \
     QDoubleSpinBox, QFrame, QRadioButton, QHBoxLayout, QPushButton, QSpacerItem, QScrollArea, QCheckBox, QMessageBox, \
-    QSizePolicy
+    QSizePolicy, QFileDialog
 from qgis.PyQt import uic
 from qgis.PyQt import QtWidgets
 from qgis.utils import iface
@@ -67,8 +67,6 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.setupUi(self)
 
         # class variables
-        self.vegcom_row_count = 0
-        self.vegcom_column_count = 1
         self.extent = None
         self.rule_number = 0
 
@@ -115,6 +113,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.pushButton_deleteBranch.clicked.connect(self.removeRuleFromRuleTree)
         self.pushButton_ruleSeries.clicked.connect(self.addRuleToTreeSeries)
         self.pushButton_save.clicked.connect(self.saveInput)
+        self.pushButton_load.clicked.connect(self.loadInput)
         #TODO close all assocated windows when main dialog is closed
 
 
@@ -221,32 +220,30 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         #add entries to table
         result = self.veg_com_popup.exec_()
         if result:
-            self.vegcom_row_count += 1
-            tableWidget_vegCom.setRowCount(self.vegcom_row_count)
-            tableWidget_vegCom.setItem(self.vegcom_row_count - 1, 0, QTableWidgetItem(
+            tableWidget_vegCom.setRowCount(tableWidget_vegCom.rowCount()+1)
+            tableWidget_vegCom.setItem(tableWidget_vegCom.rowCount() - 1, 0, QTableWidgetItem(
                 self.veg_com_popup.lineEdit_vegComName.text()))
 
             #Check if a taxon already had a column, add new column only for a new taxon
             #Create list of taxa that already have a column
-            header_list = [tableWidget_vegCom.horizontalHeaderItem(column).text() for column in range(1, tableWidget_vegCom.columnCount())]
+            header_list = [tableWidget_vegCom.horizontalHeaderItem(column).text() for column in range(1, tableWidget_vegCom.columnCount()-1)]
             for taxon in range(len(self.veg_com_popup.vegcom_taxon_combo_list)):
                 if self.veg_com_popup.vegcom_taxon_combo_list[taxon].currentText() in header_list:
                     # get column number of named column
-                    for column in range(tableWidget_vegCom.columnCount()):
+                    for column in range(tableWidget_vegCom.columnCount()-1):
                         header_text = tableWidget_vegCom.horizontalHeaderItem(column).text()
                         if header_text == self.veg_com_popup.vegcom_taxon_combo_list[taxon].currentText():
-                            tableWidget_vegCom.setItem(self.vegcom_row_count - 1, column, QTableWidgetItem(
+                            tableWidget_vegCom.setItem(tableWidget_vegCom.rowCount() - 1, column, QTableWidgetItem(
                                 str(self.veg_com_popup.vegcom_taxon_double_list[taxon].value())))
                     # add value at right location to that column
                     pass
                 elif self.veg_com_popup.vegcom_taxon_combo_list[taxon] not in header_list:
-                    self.vegcom_column_count += 1
-                    self.tableWidget_vegCom.setColumnCount(self.vegcom_column_count)
+                    self.tableWidget_vegCom.setColumnCount(self.tableWidget_vegCom.columnCount() +1)
                     # set header of new column
-                    tableWidget_vegCom.setHorizontalHeaderItem(self.vegcom_column_count - 1, QTableWidgetItem(
+                    tableWidget_vegCom.setHorizontalHeaderItem(self.tableWidget_vegCom.columnCount() - 1, QTableWidgetItem(
                                 self.veg_com_popup.vegcom_taxon_combo_list[taxon].currentText()))
                     # add value to new column
-                    tableWidget_vegCom.setItem(self.vegcom_row_count - 1, self.vegcom_column_count - 1, QTableWidgetItem(
+                    tableWidget_vegCom.setItem(tableWidget_vegCom.rowCount() - 1, self.tableWidget_vegCom.columnCount() - 1, QTableWidgetItem(
                         str(self.veg_com_popup.vegcom_taxon_double_list[taxon].value())))
                 else:
                     print('error in creating veg com columns')
@@ -275,7 +272,6 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         if tableWidget_vegCom.selectionModel().selectedRows():
             for row in tableWidget_vegCom.selectionModel().selectedRows():
                 tableWidget_vegCom.removeRow(row.row())
-                self.vegcom_row_count -= 1
         #remove columns that no longer contain data after the row was removed
         for column in range(1,tableWidget_vegCom.columnCount()):
             item_list = []
@@ -288,8 +284,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 continue
         for list_item in columns_to_remove:
             tableWidget_vegCom.removeColumn(list_item)
-            self.vegcom_column_count -= 1
-            tableWidget_vegCom.setColumnCount(self.vegcom_column_count)
+            tableWidget_vegCom.setColumnCount(self.tableWidget_vegCom.columnCount()-1)
 
     def loadHandbagFile(self):
         """
@@ -325,9 +320,8 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                         if 2200 <= int(line[:4]) < 2300:
                             line = line[7:]
                             line = line.replace('\n','')
-                            self.vegcom_row_count += 1
-                            tableWidget_vegCom.setRowCount(self.vegcom_row_count)
-                            tableWidget_vegCom.setItem(self.vegcom_row_count - 1, 0, QTableWidgetItem(
+                            tableWidget_vegCom.setRowCount(self.tableWidget_vegCom.rowCount() +1)
+                            tableWidget_vegCom.setItem(self.tableWidget_vegCom.rowCount() - 1, 0, QTableWidgetItem(
                                 line))
                         elif int(line[:4]) >= 2300:
                             line = line[5:]
@@ -340,18 +334,17 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                                 for column in range(tableWidget_vegCom.columnCount()):
                                     header_text = tableWidget_vegCom.horizontalHeaderItem(column).text()
                                     if header_text == line_list[0]:
-                                        tableWidget_vegCom.setItem(self.vegcom_row_count - 1, column,
+                                        tableWidget_vegCom.setItem(self.tableWidget_vegCom.rowCount() - 1, column,
                                                                    QTableWidgetItem(line_list[1]))
                                 # add value at right location to that column
                                 pass
                             elif line_list[0] not in header_list:
-                                self.vegcom_column_count += 1
-                                self.tableWidget_vegCom.setColumnCount(self.vegcom_column_count)
+                                self.tableWidget_vegCom.setColumnCount(self.tableWidget_vegCom.columnCount()+1)
                                 # set header of new column
-                                tableWidget_vegCom.setHorizontalHeaderItem(self.vegcom_column_count - 1,
+                                tableWidget_vegCom.setHorizontalHeaderItem(self.tableWidget_vegCom.columnCount() - 1,
                                                                            QTableWidgetItem(line_list[0]))
                                 # add value to new column
-                                tableWidget_vegCom.setItem(self.vegcom_row_count - 1, self.vegcom_column_count - 1,
+                                tableWidget_vegCom.setItem(self.tableWidget_vegCom.rowCount() - 1, self.tableWidget_vegCom.columnCount() - 1,
                                                            QTableWidgetItem(
                                                                str(line_list[1])))
                             else:
@@ -883,71 +876,76 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
 
     def saveInput(self):
         """ Saves all of the input data, including input that is NOT backwards compatible with HUMPOL/LandPolFlow into a single text file (.msa)"""
-        if self.extent:
-            x_min = self.extent.xMinimum()
-            x_max = self.extent.xMaximum()
-            y_min = self.extent.yMinimum()
-            y_max = self.extent.yMaximum()
-        else:
-            x_min = 'No extent set'
-            x_max = 'No extent set'
-            y_min = 'No extent set'
-            y_max = 'No extent set'
-        spacing = self.spinBox_resolution.value()
-        n_of_iter = self.lineEdit_iter.text()
-        dispersal_model = self.comboBox_dispModel.currentText()
-        ### Add all of the input values possible for the different models.
+        #open file explorer, get directory
+        file_dialog = QFileDialog()
+        file_directory = file_dialog.getExistingDirectory(self,"Choose a directory to save your files to")
+        project_name = file_dialog.directory().dirName()
+        file_name = file_directory+'/inputstate.csv'
+        print(file_directory, 'prj name   ', project_name,'file_name   ', file_name)
+        if not file_directory: # if user presses cancel or has otherwise not chosen a directory, exit function
+            print('cancel operation')
+            return
 
         ### write a .csv file with all the data
-        file_name = self.qgsFileWidget_vectorPoint.filePath()+'\inputstate.csv'
-        if '/' in self.qgsFileWidget_vectorPoint.filePath():
-            project_name_split = re.split(self.qgsFileWidget_vectorPoint.filePath(), '/')
-            project_name = project_name_split[-1]
-        else:
-            project_name = file_name
         with open(file_name, 'w', newline= '') as csv_file:
             print('writing file')
             writer = csv.writer(csv_file)
             writer.writerow(['Project name', project_name])
             #saved settings
             writer.writerow(['Saved settings'])
+            crs = QgsProject.instance().crs().authid()
+            writer.writerow(['CRS', crs])
+            if self.extent:
+                x_min = self.extent.xMinimum()
+                x_max = self.extent.xMaximum()
+                y_min = self.extent.yMinimum()
+                y_max = self.extent.yMaximum()
+            else:
+                x_min = 'No extent set'
+                x_max = 'No extent set'
+                y_min = 'No extent set'
+                y_max = 'No extent set'
             writer.writerow(['x_min', x_min])
             writer.writerow(['x_max', x_max])
             writer.writerow(['y_min', y_min])
             writer.writerow(['y_max', y_max])
+            spacing = self.spinBox_resolution.value()
             writer.writerow(['spacing', spacing])
+            n_of_iter = self.spinBox_iter.value()
             writer.writerow(['n of iterations',  n_of_iter])
             #model parameters
+            dispersal_model = self.comboBox_dispModel.currentText()
             writer.writerow(['Model parameters'])
             writer.writerow(['dispersal model', dispersal_model]) ###TODO rest of model parameters
             #selected fields and bands
             writer.writerow(['selected fields'])
             for row in range(self.tableWidget_selected.rowCount()):
-                writer.writerow([row, self.tableWidget_selected.item(row, 0).text(), self.tableWidget_selected.item(row,1).text()])
+                writer.writerow(['field',row, self.tableWidget_selected.item(row, 0).text(), self.tableWidget_selected.item(row,1).text()])
             #selected bands
             writer.writerow(['selected bands'])
             for row in range(self.tableWidget_selRaster.rowCount()):
-                writer.writerow([row, self.tableWidget_selRaster.item(row, 0).text(), self.tableWidget_selRaster.item(row,1).text()])
+                writer.writerow(['band',row, self.tableWidget_selRaster.item(row, 0).text(), self.tableWidget_selRaster.item(row,1).text()])
             #taxa
             writer.writerow(['Taxa'])
-            writer.writerow(['row', 'short name', 'full name', 'fall speed', 'relative pollen productivity'])
+            writer.writerow([None, 'row', 'short name', 'full name', 'fall speed', 'relative pollen productivity'])
             for row in range(self.tableWidget_taxa.rowCount()):
-                writer.writerow([row, self.tableWidget_taxa.item(row, 0).text(), self.tableWidget_taxa.item(row, 1).text(),
+                writer.writerow(['taxon',row, self.tableWidget_taxa.item(row, 0).text(), self.tableWidget_taxa.item(row, 1).text(),
                                  self.tableWidget_taxa.item(row, 2).text(), self.tableWidget_taxa.item(row, 3).text()])
             #communities
             writer.writerow(['Communities'])
-            list_veg_com_headers = ['row']
+            list_veg_com_headers = ['community headers','row']
             for column in range (self.tableWidget_vegCom.columnCount()):
                 list_veg_com_headers.append(self.tableWidget_vegCom.horizontalHeaderItem(column).text())
             writer.writerow(list_veg_com_headers)
             list_veg_com_species= []
             for row in range(self.tableWidget_vegCom.rowCount()):
+                list_veg_com_species.append('community')
                 list_veg_com_species.append(row)
                 for column in range (self.tableWidget_vegCom.columnCount()):
                     if self.tableWidget_vegCom.item(row,column):
                         list_veg_com_species.append(self.tableWidget_vegCom.item(row,column).text())
                     else:
-                        list_veg_com_species.append('N/A')
+                        list_veg_com_species.append(None)
                 writer.writerow(list_veg_com_species)
                 list_veg_com_species = []
             #rules
@@ -957,13 +955,71 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             #order ids rule tree widget
             writer.writerow(['RuleTreeWidget order id list', 'not used in loading file, open pickled file instead'])
             for key in self.dict_ruleTreeWidgets:
-                writer.writerow([key,self.dict_ruleTreeWidgets[key].connection_type])
+                writer.writerow([key,self.dict_ruleTreeWidgets[key].connection_type,
+                                 self.dict_ruleTreeWidgets[key].selectedRule])
 
     def loadInput(self):
+        file_dialog = QFileDialog()
+        file_directory = file_dialog.getExistingDirectory(self,"Choose a directory to open your input file from")
+        file_name = file_directory+'/inputstate.csv'
+        if not file_directory: # if user presses cancel or has otherwise not chosen a directory, exit function
+            print('cancel operation')
+            return
+        with open(file_name, 'r', newline= '') as csv_file:
+            reader = csv.reader(csv_file)
+            for row in reader:
+
+                if row[0] == 'x_min':
+                    x_min = float(row[1])
+                elif row[0] == 'x_max':
+                    x_max = float(row[1])
+                elif row[0] == 'y_min':
+                    y_min = float(row[1])
+                elif row[0] == 'y_max':
+                    y_max = float(row[1])
+                elif row[0] == 'CRS':
+                    crs_string = row[1]
+                    crs= QgsCoordinateReferenceSystem(crs_string)
+                elif row[0] == 'spacing':
+                    self.spinBox_resolution.setValue(int(row[1]))
+                elif row[0] == 'n of iterations':
+                    self.spinBox_iter.setValue(int(row[1]))
+                elif row[0] == 'dispersal model':
+                    self.comboBox_dispModel.setCurrentText(row[1])
+                elif row[0] == 'field':
+                    for table_row in range(self.tableWidget_vector.rowCount()):
+                        if row[2] == self.tableWidget_vector.item(table_row,0).text() and \
+                                row[3] == self.tableWidget_vector.item(table_row,1).text():
+                            self.tableWidget_vector.selectRow(table_row)
+                elif row[0] == 'band':
+                    for table_row in range(self.tableWidget_raster.rowCount()):
+                        if row[2] == self.tableWidget_raster.item(table_row, 0).text() and \
+                                row[3] == self.tableWidget_raster.item(table_row, 1).text():
+                            self.tableWidget_raster.selectRow(table_row)
+                elif row[0] == 'taxon':
+                    self.tableWidget_taxa.setRowCount(self.tableWidget_taxa.rowCount()+1)
+                    self.tableWidget_taxa.setItem(self.tableWidget_taxa.rowCount()-1, 0, QTableWidgetItem(row[2]))
+                    self.tableWidget_taxa.setItem(self.tableWidget_taxa.rowCount()-1, 1, QTableWidgetItem(row[3]))
+                    self.tableWidget_taxa.setItem(self.tableWidget_taxa.rowCount()-1, 2, QTableWidgetItem(row[4]))
+                    self.tableWidget_taxa.setItem(self.tableWidget_taxa.rowCount()-1, 3, QTableWidgetItem(row[5]))
+                elif row[0] == 'community headers':
+                    self.tableWidget_vegCom.setColumnCount(len(row)-2)
+                    for item in range(2,len(row)):
+                        self.tableWidget_vegCom.setHorizontalHeaderItem(item-2, QTableWidgetItem(row[item]))
+                elif row[0] == 'community':
+                    self.tableWidget_vegCom.setRowCount(self.tableWidget_vegCom.rowCount()+1)
+                    for item in range(2,len(row)):
+                        self.tableWidget_vegCom.setItem(self.tableWidget_vegCom.rowCount()-1, item-2, QTableWidgetItem(row[item]))
+
+                else:
+                    pass
+
+            rectangle = QgsRectangle(x_min,y_min,x_max,y_max)
+            self.mExtentGroupBox.setOutputExtentFromUser(rectangle, crs)
         #check if selected layer are also in non-selected table widget. If not skip and give warning.
         #with open (file_name, 'r') as csv_file:
 
-        pass #TODO continue here tomorrow
+        pass
 
 
 
