@@ -7,21 +7,20 @@ class RuleTreeWidget(QFrame):
     """ A custom widget that functions as a spoiler widget and can be placed in a rule tree with other ruleTreeWidgets
     parent: QWidget"""
     clicked = pyqtSignal()
-
     def __init__(self, nest_dict_rule, order_id, next_layout= None, own_layout = None, connection_type ='normal', prev_ruleTreeWidgets = None, next_ruleTreeWidgets = None, duplicate_ruleTreeWidgets = None, main_dialog_x=1, main_dialog_y=1, parent = None):
         super(RuleTreeWidget, self).__init__(parent)
         ### variables before UI
         self.nest_dict_rule = nest_dict_rule
         self.order_id = order_id
-        if prev_ruleTreeWidgets is None:
+        if prev_ruleTreeWidgets == None:
             self.prev_ruleTreeWidgets = []
         else:
             self.prev_ruleTreeWidgets = prev_ruleTreeWidgets
-        if next_ruleTreeWidgets is None:
+        if next_ruleTreeWidgets == None:
             self.next_ruleTreeWidgets = []
         else:
             self.next_ruleTreeWidgets = next_ruleTreeWidgets
-        if duplicate_ruleTreeWidgets is None:
+        if duplicate_ruleTreeWidgets == None:
             self.duplicate_ruleTreeWidgets = []
         else:
             self.duplicate_ruleTreeWidgets = duplicate_ruleTreeWidgets
@@ -39,9 +38,9 @@ class RuleTreeWidget(QFrame):
         self.setupUI()
 
         #variables after UI
-        self.selectedRule = self.comboboxname.currentText()
+        self.selectedRule = self.comboBox_name.currentText()
         self.written_rule = self.nest_dict_rule[self.selectedRule][1]
-        self.spoilerplate = RuleTreeSpoilerPlate(self.nest_dict_rule, self.comboboxname.currentText()) #just so that the first if statement in toggling the spoilerplate doesn't flip out
+        self.spoilerplate = RuleTreeSpoilerPlate(self.nest_dict_rule, self.comboBox_name.currentText()) #just so that the first if statement in toggling the spoilerplate doesn't flip out
 
         ### events
         self.toggleButton.clicked.connect(self.toggleShowWrittenRule)
@@ -59,11 +58,11 @@ class RuleTreeWidget(QFrame):
         self.toggleButton = RuleTreeToggleButton()
         self.toggleButton.setStyleSheet("background-color: #c3c3c3;"
                                         "border: 2px outset #5b5b5b;")
-        self.comboboxname = RuleTreeComboBox(self.nest_dict_rule)
+        self.comboBox_name = RuleTreeComboBox(self.nest_dict_rule)
         self.hLayout = QHBoxLayout()
         self.hLayout.setContentsMargins(0,0,0,0)
         self.hLayout.addWidget(self.toggleButton)
-        self.hLayout.addWidget(self.comboboxname)
+        self.hLayout.addWidget(self.comboBox_name)
         self.setLayout(self.hLayout)
 
 
@@ -97,8 +96,8 @@ class RuleTreeWidget(QFrame):
         #if shown then hide, if hidden then show
 
         if self.spoilerplate.isVisible() == False:
-            self.spoilerplate = RuleTreeSpoilerPlate(self.nest_dict_rule, self.comboboxname.currentText(), self.width(),
-                                                     self.x()+self.main_dialog_x, self.y()+self.main_dialog_y) #TODO get spoilerplate to show up in the right place
+            self.spoilerplate = RuleTreeSpoilerPlate(self.nest_dict_rule, self.comboBox_name.currentText(), self.width(),
+                                                     self.x() + self.main_dialog_x, self.y() + self.main_dialog_y) #TODO get spoilerplate to show up in the right place
             self.spoilerplate.show()
         elif self.spoilerplate.isVisible():
             self.spoilerplate.hide()

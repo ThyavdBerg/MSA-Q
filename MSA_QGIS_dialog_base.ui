@@ -31,7 +31,7 @@
      <item>
       <widget class="QTabWidget" name="tab_top">
        <property name="currentIndex">
-        <number>3</number>
+        <number>1</number>
        </property>
        <widget class="QWidget" name="tab_envAndSpatial">
         <attribute name="title">
@@ -578,8 +578,8 @@
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>492</width>
-                <height>563</height>
+                <width>98</width>
+                <height>28</height>
                </rect>
               </property>
               <layout class="QHBoxLayout" name="horizontalLayout_18">
