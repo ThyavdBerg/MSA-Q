@@ -27,7 +27,7 @@ import pickle
 import re
 import csv
 
-from PyQt5.QtCore import pyqtSlot
+from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QTableWidgetItem, QWidget, QLineEdit, QLabel, QVBoxLayout, QComboBox, QGridLayout, \
     QDoubleSpinBox, QFrame, QRadioButton, QHBoxLayout, QPushButton, QSpacerItem, QScrollArea, QCheckBox, QMessageBox, \
     QSizePolicy, QFileDialog, QWidgetItem
@@ -72,7 +72,6 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
 
         # class variables
         self.extent = None
-        self.rule_number = 0
 
         # class lists & dictionaries
         self.list_cb_rule_veg_com = []
@@ -112,6 +111,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.pushButton_removeVegCom.clicked.connect(self.removeVegComEntry)
         self.pushButton_importHandbag.clicked.connect(self.loadHandbagFile)
         self.pushButton_addRule.clicked.connect(self.addNewRule)
+        self.pushButton_removeRule.clicked.connect(self.deleteRule)
         self.pushButton_ruleBelow.clicked.connect(self.addRuleToTree)
         self.pushButton_asBaseGroup.clicked.connect(self.addAndRemoveFromBaseGroup)
         self.pushButton_deleteBranch.clicked.connect(self.removeRuleFromRuleTree)
@@ -363,16 +363,53 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
     def addNewRule(self):
         """ Allows the dynamic adding of new rules under the rules tab in the main dialog UI."""
         ### TODO update rule lists in ruletreewidgets
+        #Determine rule number, takes the next number not yet taken
+        rule_in_list = False
+        if self.nest_dict_rules:
+            for counter in range(0,1000): # this means a max of 1000 rules is possible
+                print(counter)
+                for entry in self.nest_dict_rules:
+                    if counter == self.nest_dict_rules[entry][0]:
+                        print('counter is in list ', counter)
+                        rule_in_list = True
+                        rule_number = len(self.nest_dict_rules)
+                        break
+                if rule_in_list:
+                    rule_in_list = False
+                    continue
+                elif counter == 999:
+                    print('max number of rules reached') #TODO change to messagebox
+                else:
+                    rule_number = counter
+                    break
+        else:
+            rule_number = 0
 
-        self.add_rule_popup = MsaQgisAddRulePopup(self.rule_number, self.tableWidget_vegCom,
+        add_rule_popup = MsaQgisAddRulePopup(rule_number, self.tableWidget_vegCom,
                                                   self.tableWidget_selected, self.tableWidget_selRaster)
-        self.add_rule_popup.show()
+        add_rule_popup.show()
 
-        if self.add_rule_popup.exec_():
-            self.nest_dict_rules['Rule ' + str(self.rule_number)] = self.add_rule_popup.dict_rules_list
-            self.listWidget_rules.addItem(self.nest_dict_rules['Rule ' + str(self.rule_number)][1])
-            self.rule_number += 1
-            # add the rule to the rule list
+        if add_rule_popup.exec_():
+            # add the rule to the dictionary and rule description to the rule listWidget
+            self.nest_dict_rules['Rule ' + str(rule_number)] = add_rule_popup.dict_rules_list
+            self.listWidget_rules.addItem(self.nest_dict_rules['Rule ' + str(rule_number)][1])
+
+
+    def deleteRule(self):
+        """ Deletes a rule from the rule list and dictionary"""
+        #check which rule(s) are selected
+        list_to_remove = []
+        for item in self.listWidget_rules.selectedItems():
+            description = item.text()
+            # description = self.listWidget_rules.findItems(item, 0)[0].text()
+            self.listWidget_rules.takeItem(self.listWidget_rules.row(item))
+            for key in self.nest_dict_rules:
+                if self.nest_dict_rules[key][1] == description:
+                    list_to_remove.append(key)
+        for entry in list_to_remove:
+            self.nest_dict_rules.pop(entry)
+
+
 
     def checkIfSelectedRule(self):
         """ Checks if there are any selected rules.
@@ -522,6 +559,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                     rule_id_top = int(str(self.dict_ruleTreeWidgets[selected_rule].order_id) + '0')
                 rule_id_series = int(str(rule_id_top)+'0')
                 rule_id_bottom = int(str(rule_id_series)+'0')
+                rule_id_series_two = rule_id_bottom+1
                 # create widgets
                 ruleTreeWidget_top = RuleTreeWidget(self.nest_dict_rules, rule_id_top, next_layout_top,own_layout_top, 'series start',
                                                 main_dialog_x=x_position_for_spoilerplate,
@@ -1356,7 +1394,6 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             elif child.layout() is not None:
                 self.clearLayout(child.layout())
                 child.layout().setParent(None)
-
 
 
 class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):

@@ -31,7 +31,7 @@
      <item>
       <widget class="QTabWidget" name="tab_top">
        <property name="currentIndex">
-        <number>1</number>
+        <number>2</number>
        </property>
        <widget class="QWidget" name="tab_envAndSpatial">
         <attribute name="title">
@@ -494,6 +494,9 @@
            <property name="wordWrap">
             <bool>true</bool>
            </property>
+           <property name="sortingEnabled">
+            <bool>true</bool>
+           </property>
           </widget>
          </item>
          <item>
@@ -523,6 +526,9 @@
            </item>
            <item>
             <widget class="QPushButton" name="pushButton_editRule">
+             <property name="enabled">
+              <bool>false</bool>
+             </property>
              <property name="text">
               <string>Edit rule</string>
              </property>
@@ -578,8 +584,8 @@
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>98</width>
-                <height>28</height>
+                <width>461</width>
+                <height>530</height>
                </rect>
               </property>
               <layout class="QHBoxLayout" name="horizontalLayout_18">
