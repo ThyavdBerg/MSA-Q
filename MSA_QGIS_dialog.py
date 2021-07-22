@@ -53,7 +53,8 @@ FORM_CLASS_RULE_TREE, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'MSA_QGIS_dialog_add_to_rule_tree.ui'))
 FORM_CLASS_SAVELOAD, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'MSA_QGIS_load_save_dialog.ui'))
-
+FORM_CLASS_RULELIST, _ = uic.loadUiType(os.path.join(
+    os.path.dirname(__file__), 'MSA-QGIS_dialog_popup_rulelist.ui'))
 
 ### Main dialog window
 
@@ -116,6 +117,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.pushButton_asBaseGroup.clicked.connect(self.addAndRemoveFromBaseGroup)
         self.pushButton_deleteBranch.clicked.connect(self.removeRuleFromRuleTree)
         self.pushButton_ruleSeries.clicked.connect(self.addRuleToTreeSeries)
+        self.pushButton_viewList.clicked.connect(self.viewRuleList)
         self.pushButton_save.clicked.connect(self.saveFiles)
         self.pushButton_load.clicked.connect(self.loadFiles)
         #TODO close all assocated windows when main dialog is closed
@@ -394,7 +396,6 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             self.nest_dict_rules['Rule ' + str(rule_number)] = add_rule_popup.dict_rules_list
             self.listWidget_rules.addItem(self.nest_dict_rules['Rule ' + str(rule_number)][1])
 
-
     def deleteRule(self):
         """ Deletes a rule from the rule list and dictionary"""
         #check which rule(s) are selected
@@ -409,6 +410,10 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         for entry in list_to_remove:
             self.nest_dict_rules.pop(entry)
 
+    def viewRuleList(self):
+        """ Opens the list of rules in a separate window for quick reference when creating the rule tree"""
+        self.popup_rule_list = MsaQgisRuleListPopup(self.nest_dict_rules)
+        self.popup_rule_list.show()
 
 
     def checkIfSelectedRule(self):
@@ -1209,7 +1214,6 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         #           self.dict_ruleTreeWidgets[key].next_ruleTreeWidgets, ', duplicate ',
         #           self.dict_ruleTreeWidgets[key].duplicate_ruleTreeWidgets)
 
-
     def saveInput(self, file_name_input, project_name):
         """ Saves all of the input data, including input that is NOT backwards compatible with HUMPOL/LandPolFlow into a single text file (.msa)"""
         ### write a .csv file with all the data
@@ -1884,3 +1888,12 @@ class MsaQgisSaveLoadDialog(QtWidgets.QDialog,FORM_CLASS_SAVELOAD):
             self.label_title.setText('Which files would you like to load?')
             self.checkBox_humFile.hide()
             self.checkBox_humFile.setChecked(False)
+
+
+class MsaQgisRuleListPopup(QtWidgets.QDialog,FORM_CLASS_RULELIST):
+    def __init__(self, nest_dict_rules, parent=None):
+        """Popup Constructor."""
+        super(MsaQgisRuleListPopup, self).__init__(parent)
+        self.setupUi(self)
+        for key in nest_dict_rules:
+            self.listWidget_rules.addItem(nest_dict_rules[key][1])

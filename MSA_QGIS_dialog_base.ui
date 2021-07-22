@@ -31,7 +31,7 @@
      <item>
       <widget class="QTabWidget" name="tab_top">
        <property name="currentIndex">
-        <number>2</number>
+        <number>3</number>
        </property>
        <widget class="QWidget" name="tab_envAndSpatial">
         <attribute name="title">
@@ -488,8 +488,19 @@
         <layout class="QVBoxLayout" name="verticalLayout_5">
          <item>
           <widget class="QListWidget" name="listWidget_rules">
+           <property name="font">
+            <font>
+             <pointsize>12</pointsize>
+            </font>
+           </property>
            <property name="verticalScrollBarPolicy">
             <enum>Qt::ScrollBarAlwaysOn</enum>
+           </property>
+           <property name="alternatingRowColors">
+            <bool>true</bool>
+           </property>
+           <property name="selectionMode">
+            <enum>QAbstractItemView::MultiSelection</enum>
            </property>
            <property name="wordWrap">
             <bool>true</bool>
@@ -584,8 +595,8 @@
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>461</width>
-                <height>530</height>
+                <width>492</width>
+                <height>563</height>
                </rect>
               </property>
               <layout class="QHBoxLayout" name="horizontalLayout_18">
@@ -620,16 +631,6 @@
                 <widget class="QPushButton" name="pushButton_ruleSeries">
                  <property name="text">
                   <string>Insert rule in series</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QPushButton" name="pushButton_ruleParallel">
-                 <property name="enabled">
-                  <bool>false</bool>
-                 </property>
-                 <property name="text">
-                  <string>(Insert rule in parallel)</string>
                  </property>
                 </widget>
                </item>
@@ -673,6 +674,9 @@
                </item>
                <item>
                 <widget class="QSpinBox" name="spinBox_iter">
+                 <property name="minimum">
+                  <number>1</number>
+                 </property>
                  <property name="maximum">
                   <number>1000</number>
                  </property>
@@ -691,9 +695,9 @@
               </layout>
              </item>
              <item>
-              <widget class="QPushButton" name="pushButton_ruleList">
+              <widget class="QPushButton" name="pushButton_viewList">
                <property name="enabled">
-                <bool>false</bool>
+                <bool>true</bool>
                </property>
                <property name="text">
                 <string>View rule list</string>
