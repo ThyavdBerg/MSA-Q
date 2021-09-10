@@ -21,6 +21,13 @@
  *                                                                         *
  ***************************************************************************/
 """
+import csv
+import random
+import re
+import time
+import sqlite3
+import traceback
+
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, QVariant
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
@@ -181,7 +188,6 @@ class MsaQgis:
         # will be set False in run()
         self.first_start = True
 
-
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""
         for action in self.actions:
@@ -190,20 +196,542 @@ class MsaQgis:
                 action)
             self.iface.removeToolBarIcon(action)
 
-    def assignVegetation(self, order_id, map): # TODO
-        """ This assigns the vegetation to a map based on the environmental rules defined by the user in the UI"""
+    def createPointLayer(self, crs, spacing):
+        """Returns a vector point layer based on the specifications given by the user in the UI"""
+        # with help from https://howtoinqgis.wordpress.com/2016/10/30/how-to-generate-regularly-spaced-points-in-qgis-using-python/
+
+        inset = spacing * 0.5  # set inset
+
+        # Create new vector point layer
+        vector_point_base = QgsVectorLayer('Point', 'Name', 'memory', crs=crs)
+        data_provider = vector_point_base.dataProvider()
+
+        # Set extent of the new layer
+        if self.dlg.extent is None:
+            self.iface.messageBar().pushMessage('Extent not chosen!', level=1)
+        else:
+            self.iface.messageBar().pushMessage('Extent set!', level=0)
+            x_min = self.dlg.extent.xMinimum() + inset
+            x_max = self.dlg.extent.xMaximum()
+            y_min = self.dlg.extent.yMinimum()
+            y_max = self.dlg.extent.yMaximum() - inset
+            # If I get the QgsExtentComboBox working, code below will be removed # TODO
+            # if self.dlg.comboBox_area_of_interest.currentText() == "Use active layer":
+            #     # Method 1 uses active layer
+            #      x_min = ext.xMinimum() + inset
+            #      x_max = ext.xMaximum()
+            #      y_min = ext.yMinimum()
+            #      y_max = ext.yMaximum() - inset
+            # else:
+            #     #Method 2 uses user input
+            #     x_min = self.dlg.spinBox_west.value() + inset
+            #     x_max = self.dlg.spinBox_east.value()
+            #     y_min = self.dlg.spinBox_south.value()
+            #     y_max = self.dlg.spinBox_north.value() - inset
+
+            # Create the coordinates of the points in the grid
+            points = []
+            y = y_max
+            while y >= y_min:
+                x = x_min
+                while x <= x_max:
+                    geom = QgsGeometry.fromPointXY(QgsPointXY(x, y))
+                    feat = QgsFeature()
+                    feat.setGeometry(geom)
+                    points.append(feat)
+                    x += spacing
+                y = y - spacing
+            data_provider.addFeatures(points)
+            vector_point_base.updateExtents()
+
+        ### Add fields with x and y geometry and the feature id
+        data_provider.addAttributes([QgsField('geom_X', QVariant.Double, 'double', 20, 5),
+                                     QgsField('geom_Y', QVariant.Double, 'double', 20, 5),
+                                     QgsField('msa_id', QVariant.Int),
+                                     QgsField('veg_com', QVariant.String),
+                                     QgsField('chance_to_happen', QVariant.Double, 'double', 3, 2)])
+        vector_point_base.updateFields()
+        vector_point_base.startEditing()
+        for feat in vector_point_base.getFeatures():
+            geom = feat.geometry()
+            feat['geom_X'] = geom.asPoint().x()
+            feat['geom_Y'] = geom.asPoint().y()
+            feat['msa_id'] = feat.id()
+            feat['veg_com'] = 'Empty'
+            feat['chance_to_happen'] = 100
+            vector_point_base.updateFeature(feat)
+        vector_point_base.commitChanges()
+
+        return vector_point_base
+
+    def pointSampleNative(self, point_layer):
+        """ Uses native QGIS methods and processing algorithms to point sample user-selected raster and polygon layers
+         Slow, but does not require the user manually installs spatialite"""
+        #TODO remove seperate creation of veg_com
+        #create destination layers for vector and raster layer
+        point_layer.selectAll()
+        vector_point_polygon = processing.run("native:saveselectedfeatures", {'INPUT': point_layer, 'OUTPUT': 'memory:'})['OUTPUT']
+        vector_point_raster = processing.run("native:saveselectedfeatures", {'INPUT': point_layer, 'OUTPUT': 'memory:'})['OUTPUT']
+
+        selection_table = self.dlg.tableWidget_selected
+        for rows_column1 in range(selection_table.rowCount()):
+            layer_name = selection_table.item(rows_column1, 0).text()
+            previous_row = selection_table.item(rows_column1 - 1, 0)
+            fields = []
+
+            # find the next layer name in the list, if it exists
+            for rows_column3 in range((selection_table.rowCount()) + 1):
+                next_name = selection_table.item(rows_column3, 0)
+                if rows_column3 <= rows_column1:  # ignore layers under current row
+                    pass
+                elif next_name == None:  # There is no next layer in the list
+                    next_row = selection_table.item(rows_column3, 0)
+                    break
+                elif layer_name == next_name.text():  # Next row in the list is for the same layer, ignore
+                    pass
+                elif layer_name != next_name.text():  # There is a next layer in the list
+                    next_row = selection_table.item(rows_column3, 0)
+                    break
+                else:
+                    print('something went wrong in finding the next layer name')
+                    return
+
+            # Check if a new layer name in the table was reached and that that is NOT the last layer in the list
+            # Skip if that layer was already processed due to being in previous row
+            if (previous_row == None or previous_row.text() != layer_name) \
+                    and next_row != None:
+                layer = QgsProject.instance().mapLayersByName(layer_name)[0]
+                for rows_column2 in range(selection_table.rowCount()):
+                    if selection_table.item(rows_column2, 0).text() == layer_name:
+                        field = selection_table.item(rows_column2, 1).text()
+                        fields.append(field)
+                vector_point_polygon = processing.run('qgis:joinattributesbylocation',
+                                                  {'INPUT': vector_point_polygon,
+                                                   'JOIN': layer,
+                                                   'METHOD': 0,
+                                                   'PREDICATE': 0,
+                                                   'JOIN_FIELDS': fields,
+                                                   'OUTPUT': 'memory:'})['OUTPUT']
+
+            # Make sure that the last layer in the list has been reached
+            elif next_row == None:
+                # Then print the last added layer to an actual output file
+                layer = QgsProject.instance().mapLayersByName(layer_name)[0]
+                for rows_column2 in range(selection_table.rowCount()):
+                    if selection_table.item(rows_column2, 0).text() == layer_name:
+                        field = selection_table.item(rows_column2, 1).text()
+                        fields.append(field)
+                self.vector_point_filled_vec= processing.run('qgis:joinattributesbylocation',
+                               {'INPUT': vector_point_polygon,
+                                'JOIN': layer,
+                                'METHOD': 0,
+                                'PREDICATE': 0,
+                                'JOIN_FIELDS': fields,
+                                'OUTPUT': 'memory:'})['OUTPUT']
+                break
+
+            elif previous_row.text() == layer_name:
+                pass
+            else:
+                print('something went wrong around the point sampling processing algorithm')
+                break
+
+        # Point sample the raster layers using sample raster values processing algorithm
+        # (id: qgis:rastersampling)
+        # TODO Once the plugin is functional with this option, point sample needs to be replaced with a buffer + average
+
+        selection_table = self.dlg.tableWidget_selRaster
+        for rows_column1 in range(selection_table.rowCount()):
+            layer_name = selection_table.item(rows_column1, 0).text()
+            previous_row = selection_table.item(rows_column1 - 1, 0)
+            fields = []
+
+            # find the next layer name in the list, if it exists
+            for rows_column3 in range((selection_table.rowCount()) + 1):
+                next_name = selection_table.item(rows_column3, 0)
+                if rows_column3 <= rows_column1:  # ignore layers under current row
+                    pass
+                elif next_name == None:  # There is no next layer in the list
+                    next_row = selection_table.item(rows_column3, 0)
+                    break
+                elif layer_name == next_name.text():  # Next row in the list is for the same layer, ignore
+                    pass
+                elif layer_name != next_name.text():  # There is a next layer in the list
+                    next_row = selection_table.item(rows_column3, 0)
+                    break
+                else:
+                    print('something went wrong in finding the next layer name - raster')
+                    break
+
+            # Check if a new layer name in the table was reached and that that is NOT the last layer in the list
+            # Skip if that layer was already processed due to being in previous row
+            if (previous_row == None or previous_row.text() != layer_name) \
+                    and next_row != None:
+                layer = QgsProject.instance().mapLayersByName(layer_name)[0]
+                for rows_column2 in range(selection_table.rowCount()):
+                    if selection_table.item(rows_column2, 0).text() == layer_name:
+                        field = selection_table.item(rows_column2, 1).text()
+                        fields.append(field)
+                vector_point_raster = processing.run('qgis:rastersampling',
+                                                  {'INPUT': vector_point_raster,
+                                                   'RASTERCOPY': layer,
+                                                   'COLUMN_PREFIX': layer_name[:8],
+                                                   'OUTPUT': 'memory:'})['OUTPUT']
+
+            # Make sure that the last layer in the list has been reached
+            elif next_row == None:
+                layer = QgsProject.instance().mapLayersByName(layer_name)[0]
+                for rows_column2 in range(selection_table.rowCount()):
+                    if selection_table.item(rows_column2, 0).text() == layer_name:
+                        field = selection_table.item(rows_column2, 1).text()
+                        fields.append(field)
+                self.vector_point_filled_ras = processing.run('qgis:rastersampling',
+                               {'INPUT': vector_point_raster,
+                                'RASTERCOPY': layer,
+                                'COLUMN_PREFIX': layer_name[:8],
+                                'OUTPUT': 'memory:'})['OUTPUT']
+                break
+
+            elif previous_row.text() == layer_name:
+                pass
+            else:
+                print('something went wrong around the processing algorithm')
+                break
+
+
+        # Join tables - add if statement to skip for no vector layers or no raster layers
+        self.vector_point_filled_ras.startEditing()
+        join_info = QgsVectorLayerJoinInfo()
+        join_info.setJoinLayer(self.vector_point_filled_vec)
+        join_info.setJoinFieldName('msa_id')
+        join_info.setTargetFieldName('msa_id')
+        join_info.setUsingMemoryCache(True)
+        join_info.setJoinFieldNamesBlockList(['geom_X', 'geom_Y', 'veg_com', 'chance_to_happen'])
+        join_info.setPrefix('')
+        self.vector_point_filled_ras.addJoin(join_info)
+        self.vector_point_filled_ras.updateFields()
+        self.vector_point_filled_ras.commitChanges()
+
+        # Save the map to csv (not necessary except for testing)
+        QgsVectorFileWriter.writeAsVectorFormat(self.vector_point_filled_ras,
+                                                self.dlg.qgsFileWidget_vectorPoint.filePath() + '\_basemap_empty.csv',
+                                                'utf-8', driverName='CSV')
+
+
+    def convertToSQL(self):
+        """ If the native algorithm was used, this method converts the outcome to SQLite so it can be used further"""
+        conn = sqlite3.connect(self.dlg.qgsFileWidget_vectorPoint.filePath()+'//empty_basemap.sqlite')
+        cursor = conn.cursor()
+        # generate create table string (add " so the query can deal with column names and values that contain spaces
+        start_string = 'CREATE TABLE empty_basemap ('
+        map_fields = self.vector_point_filled_ras.fields()
+        columns_string = ''
+        for field in map_fields:
+            if field.name() == 'msa_id':
+                primary_key_string = 'msa_id INT PRIMARY KEY '
+            elif field.type() == QVariant.String or field.type() == QVariant.Char:
+                length = str(field.length())
+                current_column_string = ', "' + field.name() + '" VARCHAR(' + length + ') '
+                columns_string = columns_string + current_column_string
+                pass
+            elif field.type() == QVariant.Int or field.type() == QVariant.LongLong:
+                current_column_string = ', "' + field.name() + '" INT '
+                columns_string = columns_string + current_column_string
+                pass
+            elif field.type() == QVariant.Double:
+                current_column_string = ', "' + field.name() + '" FLOAT '
+                columns_string = columns_string + current_column_string
+                pass
+            else:  # I doubt anyone will be using blobs or anything... and geometry is already stored in a double
+                print('variable is wrong datatype for sql, look up Qvariant: ', field.type())
+
+        # create the table columns
+        create_table_string = start_string + primary_key_string + columns_string + ');'
+        cursor.execute(create_table_string)
+        conn.commit()
+
+        # fill in columns with the actual data
+        map_features = self.vector_point_filled_ras.getFeatures()
+        n_of_fields = len(map_fields)
+        for feature in map_features:
+            columns_string = ''
+            values_string = ''
+            start_string = 'INSERT INTO empty_basemap ('
+            middle_string = ') VALUES ('
+            end_string = ');'
+            for field in map_fields:
+                if map_fields.indexFromName(field.name()) != n_of_fields - 1:
+                    columns_string = columns_string + '"' + field.name() + '", '
+                    if feature.attribute(field.name()) == None: # None becomes empty space so it is the same as in the spatialite version. Otherwise it fills with None strings
+                        values_string = values_string + '"", '
+                    else:
+                        values_string = values_string + '"' + str(feature.attribute(field.name())) + '", '
+                else:
+                    columns_string = columns_string + '"' + field.name() + '"'
+                    if feature.attribute(field.name()) == None:
+                        values_string = values_string + '""'
+                    else:
+                        values_string = values_string + '"' + str(feature.attribute(field.name())) + '"'
+
+            insert_string = start_string + columns_string + middle_string + values_string + end_string
+            cursor.execute(insert_string)
+            conn.commit()
+        conn.close()
+
+    def pointSampleSQLDEPRECIATED(self, vector_point_base, conn,cursor):
+        """ Uses SQlite to point sample user-selected raster and polygon layers.
+        Requires the user to install spatialite manually through the OSGeo4W Shell"""
+        #TODO remove seperate creation of veg com
+        #create a list of fields for the sql columns (make sure the column names are the same as when the native algorithms are used)
+        dict_of_fields_vec = {}
+        dict_of_bands_ras = {}
+        tableWidget_selVec = self.dlg.tableWidget_selected
+        tableWidget_selRas = self.dlg.tableWidget_selRaster
+        start_string = 'CREATE TABLE basemap ("msa_id" INT PRIMARY KEY, "geom_X" FLOAT, "geom_Y" FLOAT, '
+        create_veg_com_column_string = '"veg_com" VARCHAR(40));'
+        columns_string = ''
+
+        # create table with empty columns, and add the relevant layers, fields and bands to their respective dicts
+        for index in range(tableWidget_selVec.rowCount()):
+            layer = QgsProject.instance().mapLayersByName(tableWidget_selVec.item(index, 0).text())[0]
+            data_provider = layer.dataProvider()
+            #create spatial index for layer, to use later
+            field_name = tableWidget_selVec.item(index, 1).text()
+            if layer in dict_of_fields_vec:
+                pass
+            else:
+                dict_of_fields_vec[layer] = []
+            for field in data_provider.fields():
+                if field.name() == field_name:
+                    dict_of_fields_vec[layer].append(field)
+                    if field.type() == QVariant.String or field.type() == QVariant.Char:
+                        length = str(field.length())
+                        current_column_string = '"' + field.name()[0:10] + '" VARCHAR(' + length + '), '
+                        columns_string = columns_string + current_column_string
+                        pass
+                    elif field.type() == QVariant.Int or field.type() == QVariant.LongLong:
+                        current_column_string = '"' + field.name()[0:10] + '" INT, '
+                        columns_string = columns_string + current_column_string
+                        pass
+                    elif field.type() == QVariant.Double:
+                        current_column_string = '"' + field.name()[0:10] + '" FLOAT, '
+                        columns_string = columns_string + current_column_string
+                        pass
+                    else:  # I doubt anyone will be using blobs or anything... and geometry is already stored in a double
+                        print('variable is wrong datatype for sql, look up Qvariant: ', field.type())
+
+        for index in range(tableWidget_selRas.rowCount()):
+            layer = QgsProject.instance().mapLayersByName(tableWidget_selRas.item(index, 0).text())[0]
+            band_nr = tableWidget_selRas.item(index, 1).text()[5]
+            column_name = layer.name()[0:8]+band_nr
+            if layer in dict_of_bands_ras:
+                dict_of_bands_ras[layer].append(band_nr)
+            else:
+                dict_of_bands_ras[layer] = [int(band_nr)]
+            current_column_string = '"' + column_name + '" FLOAT, '
+            columns_string = columns_string+current_column_string
+
+
+        create_table_string = start_string + columns_string + create_veg_com_column_string
+        cursor.execute(create_table_string)
+        conn.commit()
+        #temporarily create csv to check if correct
+        cursor.execute('select * from basemap')
+        with open (self.dlg.qgsFileWidget_vectorPoint.filePath()+ '//sql_basemap.csv', 'w', newline = '') as csv_file:
+            csv_writer = csv.writer(csv_file)
+            csv_writer.writerow([i[0] for i in cursor.description])
+            csv_writer.writerows(cursor)
+
+
+        #create the basemap table
+
+        # per feature, per field, get value for field at the x,y of that feature and write sql insert statement
+        for feature in vector_point_base.getFeatures():
+            feat_x = feature.geometry().asPoint().x()
+            feat_y = feature.geometry().asPoint().y()
+            rectangle = QgsRectangle(feat_x, feat_y, feat_x+0.00000000000001, feat_y+0.000000000000001)
+            point = QgsPointXY(feat_x, feat_y)
+            msa_id = feature.id()
+            start_string = 'INSERT INTO basemap ('
+            middle_string = ') VALUES ('
+            end_string = ');'
+            columns_string = '"msa_id", "geom_X", "geom_Y", "veg_com", '
+            values_string = str(msa_id) + ', ' + str(feat_x) + ', ' + str(feat_y) + ', "Empty", '
+            # enter all values derived from vector layers
+            for layer in dict_of_fields_vec:
+                # refer to index
+                index = QgsSpatialIndex(layer.getFeatures())
+                if index.intersects(rectangle):
+                    intersect = index.intersects(rectangle)[0]
+                    feat_to_insert = layer.getFeature(intersect)
+
+                    for field in dict_of_fields_vec[layer]:
+                        value = feat_to_insert.attribute(field.name())
+                        columns_string = columns_string + '"' + field.name()[0:10] + '", '
+                        values_string = values_string + '"' + str(value) + '", '
+                else:
+                    #passing nothing into the string for that column means it will remain empty (?)
+                    pass
+
+            # enter all values derived from raster layers
+            for layer in dict_of_bands_ras:
+                ident = layer.dataProvider().identify(point, QgsRaster.IdentifyFormatValue).results()
+                for band in dict_of_bands_ras[layer]:
+                    value = ident[band]
+                    columns_string = columns_string + '"' + layer.name()[0:9]+str(band) + '", '
+                    if value:
+                        values_string = values_string + str(value) + ', '
+                    else:
+                        values_string = values_string + '"' + str(value) + '", '
+            insert_string = start_string + columns_string[:-2] + middle_string + values_string[:-2] + end_string
+            cursor.execute(insert_string)
+            conn.commit()
+
+    def pointSampleSQL(self, vector_point_base, crs):
+        """ Uses Spatialite to point sample user-selected raster and polygon layers.
+        Requires the user to install spatialite manually through the OSGeo4W Shell"""
+
+        dict_of_fields_vec = {}
+        tableWidget_selVec = self.dlg.tableWidget_selected
+        tableWidget_selRas = self.dlg.tableWidget_selRaster
+        #add selected vector layers to dictionary
+        for index in range(tableWidget_selVec.rowCount()):
+            layer = QgsProject.instance().mapLayersByName(tableWidget_selVec.item(index, 0).text())[0]
+            data_provider = layer.dataProvider()
+            field_name = tableWidget_selVec.item(index, 1).text()
+            if layer in dict_of_fields_vec:
+                pass
+            else:
+                dict_of_fields_vec[layer] = []
+            for field in data_provider.fields():
+                if field.name() == field_name:
+                    dict_of_fields_vec[layer].append(field)
+
+        #point sample raster create dict and add new column. This is still in native QGIS as spatialite doesn't deal with rasters and this is much faster than converting to vector first
+        dict_of_bands_ras = {}
+        for index in range(tableWidget_selRas.rowCount()):
+            layer = QgsProject.instance().mapLayersByName(tableWidget_selRas.item(index, 0).text())[0]
+            band_nr = tableWidget_selRas.item(index, 1).text()[5]
+            column_name = layer.name()[0:8]+band_nr
+            if layer in dict_of_bands_ras:
+                dict_of_bands_ras[layer].append(int(band_nr))
+            else:
+                dict_of_bands_ras[layer] = [int(band_nr)]
+            data_provider = vector_point_base.dataProvider()
+            data_provider.addAttributes([QgsField(column_name, QVariant.Double, 'double', 20, 5)])
+            vector_point_base.updateFields()
+            vector_point_base.commitChanges()
+
+            vector_point_base.startEditing()
+            for feature in vector_point_base.getFeatures():
+                feat_x = feature.geometry().asPoint().x()
+                feat_y = feature.geometry().asPoint().y()
+                point = QgsPointXY(feat_x, feat_y)
+                for layer in dict_of_bands_ras:
+                    ident = layer.dataProvider().identify(point, QgsRaster.IdentifyFormatValue).results()
+                    for band in dict_of_bands_ras[layer]:
+                        if ident:
+                            value = ident[band]
+                            feature[column_name] = value
+                            vector_point_base.updateFeature(feature)
+                        else:
+                            pass
+            vector_point_base.commitChanges()
+
+
+        #turn vector_point_base (now with raster layers attached) into a spatialite db
+        import spatialite #this is imported here so that if the user only wants to use the native packages,
+        # they can without running into an error because they have not installed spatialite
+        file_name_basemap = self.dlg.qgsFileWidget_vectorPoint.filePath() + '//empty_basemap.sqlite'
+        QgsVectorFileWriter.writeAsVectorFormat(vector_point_base, file_name_basemap, 'utf-8', crs, driverName='SQLite',
+                                                onlySelected=False, datasourceOptions=['SPATIALITE=YES'])
+        conn = spatialite.connect(file_name_basemap)
+        cursor = conn.cursor()
+
+        #create spatial index
+        cursor.execute( 'SELECT CreateSpatialIndex("empty_basemap", "GEOMETRY");')
+        #convert selected vector layers to spatialite layer
+        for layer in dict_of_fields_vec:
+            #save layer as db
+            file_name = self.dlg.qgsFileWidget_vectorPoint.filePath()+'//' + layer.name()+ '.sqlite'
+            QgsVectorFileWriter.writeAsVectorFormat(layer,file_name,'utf-8', crs, driverName='SQLite',
+                                                    onlySelected=False, datasourceOptions=['SPATIALITE=YES'])
+            #attach the new db to the basemap db with ATTACH
+            combine_string = 'ATTACH "'+ file_name + '" AS "'+ layer.name() + '"'
+            cursor.execute(combine_string)
+            #Create a spatial index for the new table
+            create_si = 'SELECT CreateSpatialIndex("' + layer.name() + '", "GEOMETRY")'
+            cursor.execute(create_si)
+
+            for field in dict_of_fields_vec[layer]:
+                start_time = time.time()
+                #Add a new empty column to empty_basemap
+                alter_table_string = 'ALTER TABLE "empty_basemap" ADD COLUMN '
+                if field.type() == QVariant.String or field.type() == QVariant.Char:
+                    length = str(field.length())
+                    column_string = '"' + field.name() + '" VARCHAR(' + length + ')'
+                    pass
+                elif field.type() == QVariant.Int or field.type() == QVariant.LongLong:
+                    column_string = '"' + field.name() + '" INT'
+                    pass
+                elif field.type() == QVariant.Double:
+                    column_string = '"' + field.name() + '" FLOAT'
+                    pass
+                else:  # I doubt anyone will be using blobs or anything... and geometry is already stored in a double
+                    print('variable is wrong datatype for sql, look up Qvariant: ', field.type())
+
+                alter_table_string = alter_table_string + column_string
+                cursor.execute(alter_table_string)
+                conn.commit()
+                #TODO identify layers unsuitable for spatial index beforehand and choose simple method (if it is faster)
+                #This is bc layers that have polygons spanning the entire layer run slower with the spatial index instead of faster.
+                #Other option is to warn users in the manual and have them prepare their data by splitting polygon into smaller bits
+                #(although the splitting also takes a ridiculous amount of time, so if they're running the MSA only once it is moot.
+                #simple version w/o spatial index:
+                # update_string = 'UPDATE "empty_basemap" SET "' + field.name() + '" = '  +\
+                #     '(SELECT "' + field.name() + '" FROM "' + layer.name() + '" ' +\
+                #     'WHERE INTERSECTS("' + layer.name() + '".GEOMETRY, "empty_basemap".GEOMETRY));'
+
+                #new version that uses spatial index:
+                lyrn = layer.name()
+                fieldn = field.name()
+
+                update_string = 'UPDATE empty_basemap SET "' + fieldn + '" = ' +\
+                    '(SELECT lyr."' + fieldn + '" FROM "' + lyrn + '" AS lyr '+\
+                     'WHERE (lyr.ROWID IN ' +\
+                    '(SELECT ROWID FROM SpatialIndex ' \
+                    'WHERE (f_table_name = "DB='+ lyrn +'.' + lyrn + '" AND search_frame = "empty_basemap".GEOMETRY))) '+ \
+                    'AND (CONTAINS(lyr.GEOMETRY, "empty_basemap".GEOMETRY) = 1) )'
+
+                cursor.execute(update_string)
+                conn.commit()
+                end_time = time.time() - start_time
+                print(fieldn, ' took ', end_time, ' to compute.')
+
+        #write csv file to check if everything went okay
+        cursor.execute('select * from empty_basemap')
+        with open (self.dlg.qgsFileWidget_vectorPoint.filePath()+ '//sql_basemap.csv', 'w', newline = '') as csv_file:
+            csv_writer = csv.writer(csv_file)
+            csv_writer.writerow([i[0] for i in cursor.description])
+            csv_writer.writerows(cursor)
+        conn.close()
+
+
+
+    def assignVegetationDEPRECIATED(self, order_id, map): # DEPRECIATED
+        """ This assigns the vegetation to a map based on the environmental rules defined by the user in the UI
+        DEPRECIATED!!! Use sql version instead."""
         #variables
         list_of_features_env_var = []
-        list_of_env_var = []
+        dict_of_env_var = {}
         list_of_features_prev_vegcom = []
         #from nested dict get rule
         if self.dlg.dict_ruleTreeWidgets[order_id].duplicate_ruleTreeWidgets:
             visible_duplicate = min(self.dlg.dict_ruleTreeWidgets[order_id].duplicate_ruleTreeWidgets)
-            rule = self.dlg.dict_ruleTreeWidgets[visible_duplicate].selectedRule
+            rule = self.dlg.dict_ruleTreeWidgets[visible_duplicate].comboBox_name.currentText()
         else:
-            rule = self.dlg.dict_ruleTreeWidgets[order_id].selectedRule
-        print(rule)
-        print(self.dlg.nest_dict_rules)
+            rule = self.dlg.dict_ruleTreeWidgets[order_id].comboBox_name.currentText()
+
 
         #from nested dict get vegcom
         veg_com = self.dlg.nest_dict_rules[rule][2]
@@ -212,37 +740,56 @@ class MsaQgis:
         mapFields = map.fields()
         if self.dlg.nest_dict_rules[rule][3] == '(Re)place':
             # limit the features to those with the right veg com in previous veg com
-            list_of_prev_vegcom = self.dlg.nest_dict_rules[rule][10]
-            if self.dlg.nest_dict_rules[rule][8]:
-                list_of_features_prev_vegcom = mapFeatures
+            list_of_prev_vegcom = self.dlg.nest_dict_rules[rule][9]
+            if self.dlg.nest_dict_rules[rule][8]: # if all veg coms was checked
+                for feature in mapFeatures:
+                    list_of_features_prev_vegcom.append(feature)
             elif self.dlg.nest_dict_rules[rule][9][0]== 'Empty':
                 for feature in mapFeatures:
                     if feature.attribute('veg_com') == NULL:
                         list_of_features_prev_vegcom.append(feature)
             else:
                 for feature in mapFeatures:
-                    if feature.attribute(veg_com) in list_of_prev_vegcom:
+                    if feature.attribute('veg_com') in list_of_prev_vegcom:
                         list_of_features_prev_vegcom.append(feature)
 
-            # create a list of the env var relevant to the rule
-            for key in self.dlg.nest_dict_rules[rule][10]:
-                list_of_env_var.append(key)
 
             # limit the features to those with the right values of the environmental variables
-            if self.dlg.nest_dict_rules[rule][10]['Empty']:
-                list_of_features_env_var = list_of_features_prev_vegcom
+            list_of_keys = []
+            list_of_features_env_var = list_of_features_prev_vegcom.copy()
+            for key in self.dlg.nest_dict_rules[rule][10]:
+                list_of_keys.append(key)
+            if list_of_keys[0]== 'Empty':
+                pass
             else:
+                # create a list of the env var names relevant to the rule
+                for key in self.dlg.nest_dict_rules[rule][10]:
+                    env_var = re.split(' - ', key)[1]
+                    env_var_layer = re.split(' - ', key)[0]
+                    # recreate the field name from the raster band name, which takes the format layer name[0:9] + band number
+                    # see rastersampling for why. limitaition: This means the word 'band' may never be used as a layer name
+                    if env_var[:5] == 'Band ':
+                        dict_of_env_var[env_var_layer[0:8] + env_var[5]] = key
+                    else:  # recreate field name from vector field. limitation: This means the fields used may not have the same name!
+                        dict_of_env_var[env_var[0:10]] = key
+
                 for feature in list_of_features_prev_vegcom:
-                    for attribute in mapFields:
-                        if attribute in list_of_env_var:
-                            if isinstance(self.dlg.nest_dict_rules[rule][10][attribute][0], str):
-                                if feature.attribute() == self.dlg.nest_dict_rules[rule][10][attribute][0]:
-                                    list_of_features_env_var.append(feature)
+                    for field in mapFields:
+                        field_name = field.name()[:10]
+                        #check if the field is part of the environmental variables in the rule.
+                        if field_name in dict_of_env_var:
+                            #Check if field is categorical or numerical
+                            if isinstance(self.dlg.nest_dict_rules[rule][10][dict_of_env_var[field_name]], str):
+                                #if the attribute of the feature in the relevant field is NOT the desired value, remove from list
+                                if feature.attribute(field.name()) != self.dlg.nest_dict_rules[rule][10][dict_of_env_var[field_name]]:
+                                    if feature in list_of_features_env_var:
+                                        list_of_features_env_var.remove(feature)
                             else:
-                                if feature.attribute() == self.dlg.nest_dict_rules[rule][10][attribute][0] \
-                                        <= feature.attribute() <= feature.attribute() == self.dlg.nest_dict_rules[rule][10][attribute][1]:
-                                    list_of_features_env_var.append()
-            print(list_of_features_env_var)
+                                if feature.attribute(field.name()) <= self.dlg.nest_dict_rules[rule][10][dict_of_env_var[field_name]][0] or \
+                                    feature.attribute(field.name()) >= self.dlg.nest_dict_rules[rule][10][dict_of_env_var[field_name]][1]:
+
+                                    if feature in list_of_features_env_var:
+                                        list_of_features_env_var.remove(feature)
         elif self.dlg.nest_dict_rules[rule][3] == 'Enchroach':
             pass
         elif self.dlg.nest_dict_rules[rule][3] == 'Adjacent':
@@ -253,14 +800,196 @@ class MsaQgis:
         data_provider = map.dataProvider()
         veg_com_field_index = data_provider.fieldNameIndex('veg_com')
         map.startEditing()
+        #Apply chance and place vegetation community
+
         if self.dlg.nest_dict_rules[rule][4] == 100:
             for feature in list_of_features_env_var:
                 feature.setAttribute(veg_com_field_index,veg_com)
+
                 map.updateFeature(feature)
+        else:
+            pass
+            #create random generator
         map.commitChanges()
 
         return(map)
         pass
+
+    def assignVegetationSQL(self, order_id, input_table, output_table, conn, cursor, iteration, table_length):
+        """ Edits items in the SQLite database version of the map based on the given rule."""
+        #determine whether the place where the rule is applied requires the creation of a new table
+        if input_table == output_table:
+            sql_map_name = str(input_table)
+        else:
+            sql_map_name = str(output_table)+'run'+str(iteration)
+            create_table_string = 'CREATE TABLE "' + sql_map_name + '" AS SELECT * FROM "' + input_table + '";'
+            cursor.execute(create_table_string)
+            #create new table by copying the input table, with the new table having the order_id of the ruleTreeWidget that is being computed as the name TODO
+            pass
+
+        #from nested dict get rule
+        if self.dlg.dict_ruleTreeWidgets[order_id].duplicate_ruleTreeWidgets:
+            visible_duplicate = min(self.dlg.dict_ruleTreeWidgets[order_id].duplicate_ruleTreeWidgets)
+            rule = self.dlg.dict_ruleTreeWidgets[visible_duplicate].comboBox_name.currentText()
+        else:
+            rule = self.dlg.dict_ruleTreeWidgets[order_id].comboBox_name.currentText()
+        print('rule: ', rule, ', for order_id: ',  order_id)
+
+        #from nested dict get vegcom
+        veg_com = self.dlg.nest_dict_rules[rule][2]
+        rule_type = self.dlg.nest_dict_rules[rule][3]
+        list_of_prev_vegcom = self.dlg.nest_dict_rules[rule][9]
+        string_condition_prev_veg_com = ''
+
+
+        #randomize the chance column if necessary
+        chance = self.dlg.nest_dict_rules[rule][4]
+        if chance == 100:
+            print('not randomized')
+        else:
+            for msa_id in range(1,table_length+1):
+                #generate random number 0-100.00
+                random_number = round(random.uniform(0.01, 100.00),2)
+                #insert random number into chance_to_happen column
+                insert_random_string = 'UPDATE "' + sql_map_name + '" SET "chance_to_happen" =' + str(random_number) +\
+                                       ' WHERE (msa_id =' + str(msa_id) + ');'
+                cursor.execute(insert_random_string)
+                conn.commit()
+
+        start_string = 'UPDATE "' + sql_map_name + '" SET "veg_com" = "' + veg_com + '" WHERE ('
+        #create the conditional update string
+        if rule_type == '(Re)place':
+
+            # implement limitation previous veg_com
+            if self.dlg.nest_dict_rules[rule][8]: # if all veg coms was checked
+                string_condition_prev_veg_com = ''
+            elif self.dlg.nest_dict_rules[rule][9][0]== 'Empty':
+                string_condition_prev_veg_com = '"veg_com" = "Empty" AND '
+            else:
+                for prev_veg_com in list_of_prev_vegcom:
+                    string_condition_prev_veg_com = string_condition_prev_veg_com + '"veg_com" = "' + prev_veg_com \
+                                                    + '" AND '
+        elif rule_type == 'Encroach':
+            #get n_of_points and calculate the distance within which the encroachable points must be. (Don't forget to include diagonals)
+            n_of_points = self.dlg.nest_dict_rules[rule][5]
+            spacing = self.dlg.spinBox_resolution.value()
+            encroachable_distance = n_of_points * spacing + 2500 #TEMP TODO
+            #Select the points that are next to the chosen veg com
+            # string_condition_prev_veg_com = '(geom_x BETWEEN '+\
+            #                                 '((SELECT geom_x FROM "' + sql_map_name + '" WHERE "veg_com" = "' + veg_com +\
+            #                                 '((SELECT geom_x FROM "' + sql_map_name + '" WHERE "veg_com" = "' + veg_com +\
+            #                                 '") - "'+ str(encroachable_distance) + \
+            #                                 '") AND ' + \
+            #                                 '((SELECT geom_x FROM "'+ sql_map_name + '" WHERE "veg_com" = "' + veg_com +\
+            #                                 '") + "' + str(encroachable_distance) +\
+            #                                 '")) AND ' +\
+            #                                 '(geom_y BETWEEN '+\
+            #                                 '((SELECT geom_y FROM "' + sql_map_name + '" WHERE "veg_com" = "' + veg_com +\
+            #                                 '") - "' + str(encroachable_distance) +\
+            #                                 '") AND ' +\
+            #                                 '((SELECT geom_y FROM "' + sql_map_name + '" WHERE "veg_com" = "' + veg_com +\
+            #                                 '") + "' + str(encroachable_distance) +\
+            #                                 '")) AND '
+            string_condition_prev_veg_com = '"veg_com" != "' + veg_com + '" AND EXISTS ' +\
+                                            '(SELECT * FROM "' + sql_map_name + '" map ' +\
+                                            'WHERE map.veg_com = "' + veg_com + '" '+\
+                                            'AND ("' + sql_map_name + '".geom_x BETWEEN map.geom_x - ' + str(encroachable_distance) +\
+                                            ' AND map.geom_x +' + str(encroachable_distance) + ') ' +\
+                                            'AND ("' + sql_map_name + '".geom_y BETWEEN map.geom_y -' + str(encroachable_distance) +\
+                                            ' AND map.geom_y +' + str(encroachable_distance) + ')) AND '
+
+            ## TODO version that deals with previous veg com
+            print(string_condition_prev_veg_com)
+        elif rule_type == 'Adjacent':
+            return
+        elif rule_type == 'Extent':
+            return
+        #implement limitation chance
+        string_chance = '("chance_to_happen" >= "' + str(chance) + '") AND '
+
+        #find the conditions that apply to the same column, add them to a dict by column name
+        dict_env_var = {}
+        for key in self.dlg.nest_dict_rules[rule][10]:
+            if key == 'Empty':
+                dict_env_var['Empty'] = [NULL]
+
+            elif isinstance(self.dlg.nest_dict_rules[rule][10][key][0], str): # categorical constraint
+                #get the column name
+                list_split_name_ui_env_var = re.split(' - ', key)
+                env_var = list_split_name_ui_env_var[1]
+                env_var_layer = list_split_name_ui_env_var[0]
+                if env_var[:5]== 'Band ':
+                    associated_column_name = env_var_layer[0:8] + env_var[5]
+                else:
+                    associated_column_name = env_var[0:10]
+                #check if dict entry for column name exists
+                if associated_column_name in dict_env_var:
+                    dict_env_var[associated_column_name].append(self.dlg.nest_dict_rules[rule][10][key])
+                else:
+                    dict_env_var[associated_column_name] = [self.dlg.nest_dict_rules[rule][10][key]]
+
+            else: # range constraint
+                #get the column name
+                list_split_name_ui_env_var = re.split(' - ',key)
+                env_var = list_split_name_ui_env_var[1]
+                env_var_layer = list_split_name_ui_env_var[0]
+                if env_var[:5]== 'Band ':
+                    associated_column_name = env_var_layer[0:8] + env_var[5]
+                else:
+                    associated_column_name = env_var[0:10]
+                #check if dict entry for column name exists
+                if associated_column_name in dict_env_var:
+                    dict_env_var[associated_column_name].append(self.dlg.nest_dict_rules[rule][10][key][0])
+                    dict_env_var[associated_column_name].append(self.dlg.nest_dict_rules[rule][10][key][1])
+                else:
+                    dict_env_var[associated_column_name] = [self.dlg.nest_dict_rules[rule][10][key][0], self.dlg.nest_dict_rules[rule][10][key][1]]
+
+
+        #create the conditional update string(take into account that having multiple of the same env_var need to be treated as OR not AND
+        string_condition_env_var = ''
+        for key in dict_env_var:
+            if len(dict_env_var[key]) == 1:
+                if key == 'Empty':
+                    break #leaves string_condition_env_var empty
+                else: #column with 1 category to select for
+                    string_condition_env_var = string_condition_env_var + '("' + key + '" = "' + dict_env_var[key][0] + '") AND '
+            else:
+                if isinstance(dict_env_var[key][0], str): #column with multiple categories to select for
+                    string_to_insert = '("' + key + '" = "'
+                    for entry in dict_env_var[key]:
+                        string_to_insert = string_to_insert + entry + '" OR "'
+                    string_to_insert = string_to_insert + '") AND '
+                    string_condition_env_var = string_condition_env_var + string_to_insert
+                elif len(dict_env_var[key]) == 2: # column with a single range to select between
+                    string_condition_env_var = string_condition_env_var + '("' + key + '" BETWEEN ' + \
+                                               str(dict_env_var[key][0]) + ' AND ' + str(dict_env_var[key][1]) + ') AND '
+                else: #column with multiple ranges to select between
+                    string_to_insert = '("'
+                    for index in range(len(dict_env_var[key]),2):
+                        string_to_insert = string_to_insert + key + '" BETWEEN ' + str(dict_env_var[key][index]) + ' AND ' + \
+                            str(dict_env_var[key][index+1]) + ' OR "'
+                    string_to_insert = string_to_insert[:-4] + ') AND'
+                    string_condition_env_var = string_condition_env_var + string_to_insert
+
+        string_condition_env_var = string_condition_env_var
+        string_condition_rule = start_string + string_condition_prev_veg_com + string_chance + string_condition_env_var
+        string_condition_rule = string_condition_rule[:-4] + ');'
+        print('string condition rule: ', string_condition_rule )
+        cursor.execute(string_condition_rule)
+        conn.commit()
+
+        #temporarily create csv to check if correct
+        cursor.execute('select * from "' + sql_map_name + '"')
+        with open (self.dlg.qgsFileWidget_vectorPoint.filePath()+ '//' + sql_map_name + '.csv', 'w', newline = '') as csv_file:
+            csv_writer = csv.writer(csv_file)
+            csv_writer.writerow([i[0] for i in cursor.description])
+            csv_writer.writerows(cursor)
+        #temporarily print the first in GeologyNam to see if it has disappeared... hashtagmysteriousbugs
+        cursor.execute('SELECT "GeologyNam" FROM "' + sql_map_name + '" WHERE "msa_id" =1')
+        print(cursor.fetchone())
+        return sql_map_name
+
+
 
     def run(self):
         """Run method that performs all the real work"""
@@ -279,297 +1008,151 @@ class MsaQgis:
         # See if OK was pressed
         if result:
 
+            startTime = time.time()
+
 ### Create the base point layer with resolution and extent given by user
-            # with help from https://howtoinqgis.wordpress.com/2016/10/30/how-to-generate-regularly-spaced-points-in-qgis-using-python/
-            layer = iface.activeLayer() #active layer currently has to be in a projection that uses meters, like pseudomercator
-            spacing = self.dlg.spinBox_resolution.value() #Takes input from user in "resolution" to set spacing
-            inset = spacing * 0.5 #set inset
+            crs = iface.activeLayer().crs()
+            spacing = self.dlg.spinBox_resolution.value()  # Takes input from user in "resolution" to set spacing
+            vector_point_base = self.createPointLayer(crs, spacing)
 
-            #get Coordinate Reference System and extent (for method 1)
-            crs = layer.crs()
-            # ext = layer.extent()
 
-            #Create new vector point layer
-            vector_point_base = QgsVectorLayer('Point', 'Name', 'memory', crs=crs,)
-            data_provider = vector_point_base.dataProvider()
+            #timer
+            create_points_time = (time.time() - startTime)
+            create_points_time_end = time.time()
+            print('Vector point creation, Execution time in seconds: ' + str(create_points_time))
 
-            #Set extent of the new layer
-            if self.dlg.extent is None:
-                self.iface.messageBar().pushMessage('Extent not chosen!', level=1)
+#### Point sample natively and convert to sql, or create sql directly
+
+            if self.dlg.radioButton_qgis_native.isChecked():
+                self.pointSampleNative(vector_point_base)
+                self.convertToSQL()
+                # timer
+                point_sample_time = (time.time() - create_points_time_end)
+                point_sample_time_end = time.time()
+                print('point sampling native, Execution time in seconds: ' + str(point_sample_time))
             else:
-                self.iface.messageBar().pushMessage('Extent set!', level=0)
-                x_min = self.dlg.extent.xMinimum() + inset
-                x_max = self.dlg.extent.xMaximum()
-                y_min = self.dlg.extent.yMinimum()
-                y_max = self.dlg.extent.yMaximum() - inset
-            # If I get the QgsExtentComboBox working, code below will be removed
-            # if self.dlg.comboBox_area_of_interest.currentText() == "Use active layer":
-            #     # Method 1 uses active layer
-            #      x_min = ext.xMinimum() + inset
-            #      x_max = ext.xMaximum()
-            #      y_min = ext.yMinimum()
-            #      y_max = ext.yMaximum() - inset
-            # else:
-            #     #Method 2 uses user input
-            #     x_min = self.dlg.spinBox_west.value() + inset
-            #     x_max = self.dlg.spinBox_east.value()
-            #     y_min = self.dlg.spinBox_south.value()
-            #     y_max = self.dlg.spinBox_north.value() - inset
+                self.pointSampleSQL(vector_point_base,crs)
+                # timer
+                point_sample_time = (time.time() - create_points_time_end)
+                point_sample_time_end = time.time()
+                print('point sampling, Execution time in seconds: ' + str(point_sample_time))
 
 
-            #Create the coordinates of the points in the grid
-                points = []
-                y = y_max
-                while y >= y_min:
-                    x = x_min
-                    while x <= x_max:
-                        geom = QgsGeometry.fromPointXY(QgsPointXY(x,y))
-                        feat = QgsFeature()
-                        feat.setGeometry(geom)
-                        points.append(feat)
-                        x += spacing
-                    y = y-spacing
-                data_provider.addFeatures(points)
-                vector_point_base.updateExtents()
+            # return #WHILE THIS RETURN IS HERE EVERYTHING AFTERWARDS ISN'T RUNNING!
+            basemap_time = (time.time() - point_sample_time_end)
+            basemap_time_end = time.time()
+            print('empty basemap to sql, Execution time in seconds: ' + str(basemap_time))
+### Processing the rules (this is in sql, but not necessarily in spatialite. Since the maps has both the csv version
+    # of the coordinates and the spatialite coordinates if spatialite was used, this difference should not matter.
 
 
-### Add fields with x and y geometry
-            data_provider.addAttributes([QgsField('geom_X', QVariant.Double, 'double', 20,5),
-                                         QgsField('geom_Y', QVariant.Double, 'double', 20,5),
-                                         QgsField('MSA-ID', QVariant.Int)])
-            vector_point_base.updateFields()
-            vector_point_base.startEditing()
-            for feat in vector_point_base.getFeatures():
-                geom = feat.geometry()
-                feat['geom_X'] = geom.asPoint().x()
-                feat['geom_Y'] = geom.asPoint().y()
-                feat['MSA-ID'] = feat.id()
-                vector_point_base.updateFeature(feat)
-            vector_point_base.commitChanges()
-
-
-### Use processing tools to fill vector_point_base with fields/bands from selected in UI
-# Point sample the vector layers using join attributes by location processing algorithm
-# (id: qgis:joinattributebylocation)
-            vector_point_polygon = vector_point_base
-            selection_table = self.dlg.tableWidget_selected
-            for rows_column1 in range(selection_table.rowCount()):
-                layer_name = selection_table.item(rows_column1, 0).text()
-                previous_row = selection_table.item(rows_column1-1, 0)
-                fields = []
-
-                #find the next layer name in the list, if it exists
-                for rows_column3 in range((selection_table.rowCount())+1):
-                    next_name = selection_table.item(rows_column3, 0)
-                    if rows_column3 <= rows_column1: #ignore layers under current row
-                        pass
-                    elif next_name == None: #There is no next layer in the list
-                        next_row = selection_table.item(rows_column3, 0)
-                        break
-                    elif layer_name == next_name.text(): #Next row in the list is for the same layer, ignore
-                        pass
-                    elif layer_name != next_name.text(): #There is a next layer in the list
-                        next_row = selection_table.item(rows_column3, 0)
-                        break
-                    else:
-                        print('something went wrong in finding the next layer name')
-                        break
-
-                # Check if a new layer name in the table was reached and that that is NOT the last layer in the list
-                # Skip if that layer was already processed due to being in previous row
-                if (previous_row == None or previous_row.text() != layer_name)\
-                        and next_row != None:
-                    layer = QgsProject.instance().mapLayersByName(layer_name)[0]
-                    for rows_column2 in range(selection_table.rowCount()):
-                        if selection_table.item(rows_column2, 0).text() == layer_name:
-                            field = selection_table.item(rows_column2, 1).text()
-                            fields.append(field)
-                    processing_saved=processing.run('qgis:joinattributesbylocation',
-                                    {'INPUT': vector_point_polygon,
-                                     'JOIN': layer,
-                                     'METHOD': 0,
-                                     'PREDICATE': 0,
-                                     'JOIN_FIELDS': fields,
-                                     'OUTPUT': 'memory:'})
-                    vector_point_polygon = processing_saved['OUTPUT']
-
-                # Make sure that the last layer in the list has been reached
-                elif next_row == None:
-                    # Then print the last added layer to an actual output file
-                    layer = QgsProject.instance().mapLayersByName(layer_name)[0]
-                    for rows_column2 in range(selection_table.rowCount()):
-                        if selection_table.item(rows_column2, 0).text() == layer_name:
-                            field = selection_table.item(rows_column2, 1).text()
-                            fields.append(field)
-                    output_file = self.dlg.qgsFileWidget_vectorPoint.filePath()+'vector.shp'
-                    processing.run('qgis:joinattributesbylocation',
-                                    {'INPUT': vector_point_polygon,
-                                     'JOIN': layer,
-                                     'METHOD': 0,
-                                     'PREDICATE': 0,
-                                     'JOIN_FIELDS': fields,
-                                     'OUTPUT': output_file})
-                    break
-
-                elif previous_row.text() == layer_name:
-                    pass
-                else:
-                    print('something went wrong around the processing algorithm')
-                    break
-
-# Point sample the raster layers using sample raster values processing algorithm
-# (id: qgis:rastersampling)
-# TODO Once the plugin is functional with this option, point sample needs to be replaced with a buffer + average
-            vector_point_raster = vector_point_base
-            selection_table = self.dlg.tableWidget_selRaster
-            for rows_column1 in range(selection_table.rowCount()):
-                layer_name = selection_table.item(rows_column1, 0).text()
-                previous_row = selection_table.item(rows_column1-1, 0)
-                fields = []
-
-                #find the next layer name in the list, if it exists
-                for rows_column3 in range((selection_table.rowCount())+1):
-                    next_name = selection_table.item(rows_column3, 0)
-                    if rows_column3 <= rows_column1: #ignore layers under current row
-                        pass
-                    elif next_name == None: #There is no next layer in the list
-                        next_row = selection_table.item(rows_column3, 0)
-                        break
-                    elif layer_name == next_name.text(): #Next row in the list is for the same layer, ignore
-                        pass
-                    elif layer_name != next_name.text(): #There is a next layer in the list
-                        next_row = selection_table.item(rows_column3, 0)
-                        break
-                    else:
-                        print('something went wrong in finding the next layer name - raster')
-                        break
-
-                # Check if a new layer name in the table was reached and that that is NOT the last layer in the list
-                # Skip if that layer was already processed due to being in previous row
-                if (previous_row == None or previous_row.text() != layer_name)\
-                        and next_row != None:
-                    layer = QgsProject.instance().mapLayersByName(layer_name)[0]
-                    for rows_column2 in range(selection_table.rowCount()):
-                        if selection_table.item(rows_column2, 0).text() == layer_name:
-                            field = selection_table.item(rows_column2, 1).text()
-                            fields.append(field)
-                    processing_saved=processing.run('qgis:rastersampling',
-                                    {'INPUT': vector_point_raster,
-                                     'RASTERCOPY': layer,
-                                     'COLUMN_PREFIX': layer_name[:5],
-                                     'OUTPUT': 'TEMPORARY_OUTPUT:'})
-                    vector_point_raster = processing_saved['OUTPUT']
-
-                # Make sure that the last layer in the list has been reached
-                elif next_row == None:
-                    # Then print the last added layer to an actual output file
-                    layer = QgsProject.instance().mapLayersByName(layer_name)[0]
-                    for rows_column2 in range(selection_table.rowCount()):
-                        if selection_table.item(rows_column2, 0).text() == layer_name:
-                            field = selection_table.item(rows_column2, 1).text()
-                            fields.append(field)
-                    output_file_ras = self.dlg.qgsFileWidget_vectorPoint.filePath()+'raster.shp'
-                    processing.run('qgis:rastersampling',
-                                    {'INPUT': vector_point_raster,
-                                     'RASTERCOPY': layer,
-                                     'COLUMN_PREFIX': layer_name[:5],
-                                     'OUTPUT': output_file_ras})
-                    break
-
-                elif previous_row.text() == layer_name:
-                    pass
-                else:
-                    print('something went wrong around the processing algorithm')
-                    break
-
-# Create layers for output files (may replace with direct reference to files instead)
-            # TODO output file can be referenced before assignment, needs failsafe
-            vector_point_filled_vec = QgsVectorLayer(output_file, '', 'ogr')
-            vector_point_filled_ras = QgsVectorLayer(output_file_ras, 'final', 'ogr')
-
-# Join tables - add if statement to skip for no vector layers or no raster layers
-            vector_point_filled_ras.startEditing()
-            join_info = QgsVectorLayerJoinInfo()
-            join_info.setJoinLayer(vector_point_filled_vec)
-            join_info.setJoinFieldName('MSA-ID')
-            join_info.setTargetFieldName('MSA-ID')
-            join_info.setUsingMemoryCache(True)
-            join_info.setJoinFieldNamesBlockList(['geom_X', 'geom_Y'])
-            vector_point_filled_ras.addJoin(join_info)
-            vector_point_filled_ras.updateFields()
-            vector_point_filled_ras.commitChanges()
-
-# add to map canvas
-#             QgsProject.instance().addMapLayer(vector_point_filled_vec)
-#             QgsProject.instance().addMapLayer(vector_point_filled_ras)
-# vector_point_filled_ras not loading correctly when vector_point_filled_vec is not loaded as well, edit: but vector_point_basemap does work.
-
-
-
-### Processing the rules
-
-            ### TODO if rule is duplicate, copy current text from the rule of which it is a copy
-            list_memory_branches = [] # List for storing which ruleTreeWidget needs to be returned to
-            list_base_group_ids = [] # Take from UI MAKE SURE THEY ARE IN ORDER LOWEST-> HIGHEST
-            list_rule_ids = [] # take from UI
+            list_memory_branches = [] # Dict for storing which ruleTreeWidget needs to be returned to
+            list_base_group_ids = []
+            list_final_rule_ids = []
             number_of_iters = self.dlg.spinBox_iter.value()
-            dict_of_rules = self.dlg.dict_ruleTreeWidgets.copy() # copy so original is still available at save
-
-            #create a new empty column and rename the base map
-            data_provider = vector_point_filled_ras.dataProvider()
-            data_provider.addAttributes([QgsField('veg_com', QVariant.String)])
-            output_file_basemap = self.dlg.qgsFileWidget_vectorPoint.filePath() + 'basemap.shp'
-            vector_point_filled_ras.updateFields()
-            QgsVectorFileWriter.writeAsVectorFormat(vector_point_filled_ras, output_file_basemap, 'utf-8', driverName= 'ESRI Shapefile')
-
-            vector_point_basemap = QgsVectorLayer(output_file_basemap, 'basemap', 'ogr')
-            QgsProject.instance().addMapLayer(vector_point_basemap)
-
+            dict_of_rules_widgets = self.dlg.dict_ruleTreeWidgets.copy() # copy so original is still available at save
+            #process rulestreewidgets that are in the basegroup
             #create the list of basegroups
-            for key in dict_of_rules:
-                if dict_of_rules[key].isBaseGroup:
+            for key in dict_of_rules_widgets:
+                if dict_of_rules_widgets[key].isBaseGroup:
                     list_base_group_ids.append(key)
+            list_base_group_ids.sort()
             #create the map with basegroup
+            list_to_remove = []
+            #receate conn and cursor
+            conn = sqlite3.connect(self.dlg.qgsFileWidget_vectorPoint.filePath()+'//empty_basemap.sqlite')
+            cursor = conn.cursor()
+            #get number of entries (necessary for processing chance)
+            cursor.execute('SELECT * FROM "empty_basemap"')
+            number_of_entries = len(cursor.fetchall())
+            print('number of entries is: ',  number_of_entries)
+
+            #process the base rules and save it, if there is no base group, set basemap_table to 0
+            basemap_table = 0
             for widget in list_base_group_ids:
-                vector_point_basemap = self.assignVegetation(widget, vector_point_basemap)
-                print('basemap', vector_point_basemap)
-                list_base_group_ids.remove(widget)
-                vector_point_basemap.updateFields()
-                QgsProject.instance().addMapLayer(vector_point_basemap)
+                basemap_table = self.assignVegetationSQL(widget, 'empty_basemap', 'empty_basemap', conn, cursor, 0, number_of_entries) # what is returned is actually the name of the table
+                list_to_remove.append(widget)
+                cursor.execute('SELECT "GeologyNam" FROM "' + basemap_table + '" WHERE "msa_id" =1')
+                print('after assignvegetationSQL, ', basemap_table,': ', cursor.fetchone())
 
-            #
-            # #pseudocode
-            # for number in range(self.dlg.spinBox_iter):
-            #     list_rule_ids_no_base = list_rule_ids # so this is the list after the base group has been removed, it needs to get remade everytime a new iter starts
-            #     start_rule = min(list_rule_ids_no_base)
-            #     if not list_base_group_ids:  # if no rules in base group, use vector_point_filled_vec
-            #         vector_point_previous = self.assignVegetation(start_rule, vector_point_filled_vec)
-            #
-            #     elif not hasattr(self,
-            #                      'vector_point_previous'):  # if first after base group, use vector_point_base_group
-            #         vector_point_previous = self.assignVegetation(rule, vector_point_base_group)
-            #     else:  # if subsequent rule, use result previous rule
-            #         vector_point_previous = self.assignVegetation(rule, vector_point_previous)
-            #     while list_rule_ids_no_base != []: # while there are rules to compute
-            #
-            #         for rule in list_rule_ids_no_base:
-            #             # add to list_memory_branches if rule has more than 1 branch.
-            #             if len(rule.next_ruleTreeWidgets) >1:
-            #                 for n in range(1, len(rule.next_ruleTreeWidgets)):
-            #                     list_memory_branches.append(rule)
-            #
-            #         for rule in list_rule_ids_no_base:
-            #             pass
+            #remove rules in basegroup from rule list so they are not computed again in the main loop.
+            for widget in list_to_remove:
+                dict_of_rules_widgets.pop(widget)
+
+            #process the main rules
+            #make a list of all the end-points in the rule tree
+            for key in dict_of_rules_widgets:
+                if dict_of_rules_widgets[key].next_ruleTreeWidgets == []:
+                    list_final_rule_ids.append(key)
+
+            #iteration for loop
+            for iteration in range(number_of_iters):
+                #final points in rule tree loop
+                save_point = 1
+                for final_id in list_final_rule_ids:
+                    prev_ruleTreeWidgets = dict_of_rules_widgets[final_id].prev_ruleTreeWidgets
+                    #check if any of the id's previous are in list_memory_branches
+                    for previous_id in prev_ruleTreeWidgets:
+                        if previous_id in list_memory_branches:
+                            if previous_id > save_point:
+                                save_point = previous_id
+                    print('save point: ', save_point)
+                    # if yes choose the highest number out of this and delete the rest from prev_ruleTreeWidgets (list comprehension style)
+                    prev_ruleTreeWidgets[:] = [prev_id for prev_id in prev_ruleTreeWidgets if prev_id >= save_point] # should delete nothing if no save_point was made
+                    # remove all the basemap id's from the list
+                    prev_ruleTreeWidgets[:] = [prev_id for prev_id in prev_ruleTreeWidgets if prev_id not in list_base_group_ids]
+
+                    print('prev_ruleTreeWidgets: ', prev_ruleTreeWidgets)
+                    # if yes, set the input map to the saved map in dict_of_memory_branches, if not set the input map to the basemap
+                    if save_point > 1:
+                        input_map = list_memory_branches.append(save_point) + 'run'+str(iteration-1)
+                    elif basemap_table != 0:
+                        input_map = basemap_table
+                    else:
+                        input_map = self.assignVegetationSQL(final_id, 1, 1, conn, cursor, iteration, number_of_entries)
+                    # loop over all previous (should automatically be ordered in smallest ->> largest, but CHECK IF TRUE otherwise sort).
+                    for running_id in prev_ruleTreeWidgets:
+                        # assign vegetation
+                        input_map_name = str(input_map) + 'iter'+str(iteration)
+                        output_map = self.assignVegetationSQL(running_id, input_map, running_id, conn, cursor, iteration,number_of_entries)
+                        # if is in dict_of_memory_branches remove.
+                        if input_map in list_memory_branches:
+                            list_memory_branches.remove(running_id)
+                        # remove current id from next_ruleTreeWidgets of previous_id, if the previous was not in the base group
+                        if input_map == basemap_table:
+                            pass
+                        else:
+                            previous_id = dict_of_rules_widgets[max(dict_of_rules_widgets[running_id].prev_ruleTreeWidgets)]
+                            previous_id.next_ruleTreeWidgets.remove(running_id)
+                        # if dict_of_rules_widgets[previous_id].next_ruleTreeWidgets >=1 add to dict_of_memory_branches
+                            if len(previous_id.next_ruleTreeWidgets) >=1:
+                                list_memory_branches.append(previous_id+'run'+str(iteration))
+                        # set input map to present map
+                        input_map = output_map
+                    #run the final rule itself
+                    self.assignVegetationSQL(final_id, input_map, final_id, conn, cursor, iteration, number_of_entries)
+
+                    #TODO simulate pollen for the output map of the final rule
+                    #TODO compare the simulated pollen with the actual pollen
+                    #TODO if simulated pollen match well enough with the actual pollen then:
+                    #print or otherwise save the final map/table
+
+                    #delete all the tables that are not in list_memory_branches
+
+                    #optionally (only recommended for low number of iters) load the map into QGIS
 
 
 
 
 
 
-
-
-
+            conn.close()
+            final_time = (time.time() - basemap_time_end)
+            final_time_end = time.time()
+            print('basemap made, Execution time in seconds: ' + str(final_time))
 
             #...
+            executionTime = (time.time() - startTime)
+            print('Total execution time in seconds: ' + str(executionTime))
             pass
 

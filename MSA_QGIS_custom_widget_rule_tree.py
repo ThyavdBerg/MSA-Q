@@ -38,8 +38,7 @@ class RuleTreeWidget(QFrame):
         self.setupUI()
 
         #variables after UI
-        self.selectedRule = self.comboBox_name.currentText()
-        self.written_rule = self.nest_dict_rule[self.selectedRule][1]
+        self.written_rule = self.nest_dict_rule[self.comboBox_name.currentText()][1]
         self.spoilerplate = RuleTreeSpoilerPlate(self.nest_dict_rule, self.comboBox_name.currentText()) #just so that the first if statement in toggling the spoilerplate doesn't flip out
 
         ### events
@@ -69,7 +68,7 @@ class RuleTreeWidget(QFrame):
     def toggleBaseGroup(self):
         """ Toggles whether the rule is part of a base group. Function is only available for rules with 100% chance to
         happen, that have no prev_ruleTreeWidgets or 1 prev_ruleTreeWidget that also has base_group = True"""
-        if self.nest_dict_rule[self.selectedRule][4] == 100.0:
+        if self.nest_dict_rule[self.comboBox_name.currentText()][4] == 100.0:
             if len(self.next_ruleTreeWidgets) <= 1:
                 if self.isSelected == True and self.isBaseGroup == False:
                     self.isBaseGroup = True

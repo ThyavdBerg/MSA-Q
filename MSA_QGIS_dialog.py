@@ -123,7 +123,6 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         #TODO close all assocated windows when main dialog is closed
 
 
-
     def setExtent(self):
         """Attaches the extent given by the user to a variable, and updates the 'current extent'
         so that the input can be used in further analysis"""
@@ -968,7 +967,11 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 #add to dictionary
                 self.dict_ruleTreeWidgets[key] = ruleTreeWidget_base
                 #set basegroup and selected rule
-                self.dict_ruleTreeWidgets[key].isBaseGroup = pickleable_dict_ruleTreeWidgets[key][2]
+                print(pickleable_dict_ruleTreeWidgets[key][2])
+                if pickleable_dict_ruleTreeWidgets[key][2]:
+                    ruleTreeWidget_base.isSelected = True
+                    ruleTreeWidget_base.toggleBaseGroup()
+                    ruleTreeWidget_base.isSelected = False
                 self.dict_ruleTreeWidgets[key].comboBox_name.setCurrentText(pickleable_dict_ruleTreeWidgets[key][0])
                 #make selectable
                 ruleTreeWidget_base.clicked.connect(
@@ -1007,7 +1010,11 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                             # add to dictionary
                             self.dict_ruleTreeWidgets[key] = ruleTreeWidget_normal
                             # set basegroup and selected rule
-                            self.dict_ruleTreeWidgets[key].isBaseGroup = pickleable_dict_ruleTreeWidgets[key][2]
+                            print(pickleable_dict_ruleTreeWidgets[key][2])
+                            if pickleable_dict_ruleTreeWidgets[key][2]:
+                                ruleTreeWidget_normal.isSelected = True
+                                ruleTreeWidget_normal.toggleBaseGroup()
+                                ruleTreeWidget_normal.isSelected = False
                             self.dict_ruleTreeWidgets[key].comboBox_name.setCurrentText(
                                 pickleable_dict_ruleTreeWidgets[key][0])
                             ruleTreeWidget_normal.clicked.connect(
@@ -1126,7 +1133,11 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                         # add to dictionary
                         self.dict_ruleTreeWidgets[key] = ruleTreeWidget_normal
                         # set basegroup and selected rule
-                        self.dict_ruleTreeWidgets[key].isBaseGroup = pickleable_dict_ruleTreeWidgets[key][2]
+                        print(pickleable_dict_ruleTreeWidgets[key][2])
+                        if pickleable_dict_ruleTreeWidgets[key][2]:
+                            ruleTreeWidget_normal.isSelected = True
+                            ruleTreeWidget_normal.toggleBaseGroup()
+                            ruleTreeWidget_normal.isSelected = False
                         self.dict_ruleTreeWidgets[key].comboBox_name.setCurrentText(
                             pickleable_dict_ruleTreeWidgets[key][0])
                         ruleTreeWidget_normal.clicked.connect(
@@ -1286,7 +1297,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             writer.writerow(['RuleTreeWidget order id list', 'not used in loading file, open pickled file instead'])
             for key in self.dict_ruleTreeWidgets:
                 writer.writerow([key,self.dict_ruleTreeWidgets[key].connection_type,
-                                 self.dict_ruleTreeWidgets[key].selectedRule])
+                                 self.dict_ruleTreeWidgets[key].comboBox_name.currentText()])
 
     def loadInput(self, file_name_input):
         file_name = file_name_input
@@ -1674,10 +1685,16 @@ class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
     def removeConditionalEnvVar(self, widget):
         """ Removes selected conditionals that were added to the UI. If all but the start env var are gone,
         the choose conditional type comboBox disappears"""
+        for child in widget.children():
+            if isinstance(child, QComboBox):
+                self.dict_envVar.pop(child)
+                break
+
+        for key in self.dict_envVar:
+            print('keys of dict env_var after deleting', key)
 
         widget.deleteLater()
         self.n_of_envvar -= 1
-        #TODO make it delete from dictionary
 
         if self.n_of_envvar == 1:
             self.label_condTypeEnvVar.hide()
@@ -1708,16 +1725,24 @@ class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
             list_prevVegCom.append(vegcoms.currentText())
         self.dict_rules_list.append(list_prevVegCom)
         # environmental variables
+        # add the static env var to the dict
         if self.comboBox_category.currentText() == '':
             dict_envVar[self.comboBox_envVar.currentText()] = [self.doubleSpin_rangeMin.value(), self.doubleSpin_rangeMax.value()]
         else:
             dict_envVar[self.comboBox_envVar.currentText()] = self.comboBox_category.currentText()
-
+        #add the non-static env var to the dict
+        #generate dictionary based on input, add the value or category to the key to make a unique key in case the key is already in use
         for key in self.dict_envVar:
             if self.dict_envVar[key][2].currentText() == '':
-                dict_envVar[key.currentText()] = [self.dict_envVar[key][0].value(), self.dict_envVar[key][1].value()]
+                if key.currentText() in dict_envVar:
+                    dict_envVar[key.currentText() + ' - ' + str(self.dict_envVar[key][0].value()) + str(self.dict_envVar[key][1].value())] = [self.dict_envVar[key][0].value(), self.dict_envVar[key][1].value()]
+                else:
+                    dict_envVar[key.currentText()] = [self.dict_envVar[key][0].value(), self.dict_envVar[key][1].value()]
             else:
-                dict_envVar[key.currentText()] = self.dict_envVar[key][2].currentText()
+                if key.currentText() in dict_envVar:
+                    dict_envVar[key.currentText() + ' - '+self.dict_envVar[key][2].currentText()] = self.dict_envVar[key][2].currentText()
+                else:
+                    dict_envVar[key.currentText()] = self.dict_envVar[key][2].currentText()
         self.dict_rules_list.append(dict_envVar)
 
 
@@ -1897,3 +1922,4 @@ class MsaQgisRuleListPopup(QtWidgets.QDialog,FORM_CLASS_RULELIST):
         self.setupUi(self)
         for key in nest_dict_rules:
             self.listWidget_rules.addItem(nest_dict_rules[key][1])
+

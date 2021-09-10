@@ -35,6 +35,9 @@
        <property name="text">
         <string>Input state and environmental data (.csv)</string>
        </property>
+       <property name="checked">
+        <bool>true</bool>
+       </property>
       </widget>
      </item>
      <item>
@@ -42,12 +45,18 @@
        <property name="text">
         <string>Rule list (.pkl)</string>
        </property>
+       <property name="checked">
+        <bool>true</bool>
+       </property>
       </widget>
      </item>
      <item>
       <widget class="QCheckBox" name="checkBox_ruleTree">
        <property name="text">
         <string>Rule tree (.pkl)</string>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
        </property>
       </widget>
      </item>

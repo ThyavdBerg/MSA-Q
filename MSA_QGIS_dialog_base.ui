@@ -30,8 +30,11 @@
     <layout class="QVBoxLayout" name="verticalLayout_4">
      <item>
       <widget class="QTabWidget" name="tab_top">
+       <property name="enabled">
+        <bool>true</bool>
+       </property>
        <property name="currentIndex">
-        <number>3</number>
+        <number>0</number>
        </property>
        <widget class="QWidget" name="tab_envAndSpatial">
         <attribute name="title">
@@ -596,7 +599,7 @@
                 <x>0</x>
                 <y>0</y>
                 <width>492</width>
-                <height>563</height>
+                <height>538</height>
                </rect>
               </property>
               <layout class="QHBoxLayout" name="horizontalLayout_18">
@@ -711,6 +714,9 @@
         </layout>
        </widget>
        <widget class="QWidget" name="tab_pollenInput">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
         <attribute name="title">
          <string>Pollen input</string>
         </attribute>
@@ -983,11 +989,17 @@
         </widget>
        </widget>
        <widget class="QWidget" name="tab_modelParameters">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
         <attribute name="title">
          <string>Model Parameters</string>
         </attribute>
        </widget>
        <widget class="QWidget" name="tab_metadata">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
         <attribute name="title">
          <string>Metadata</string>
         </attribute>
@@ -1098,6 +1110,30 @@
           </widget>
          </item>
         </layout>
+       </item>
+      </layout>
+     </item>
+     <item>
+      <layout class="QHBoxLayout" name="horizontalLayout_14">
+       <item>
+        <widget class="QRadioButton" name="radioButton_qgis_native">
+         <property name="text">
+          <string>Use native QGIS algorithms</string>
+         </property>
+         <property name="checked">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QRadioButton" name="radioButton_sql">
+         <property name="text">
+          <string>Use SQL</string>
+         </property>
+         <property name="checked">
+          <bool>false</bool>
+         </property>
+        </widget>
        </item>
       </layout>
      </item>
