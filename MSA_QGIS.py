@@ -21,12 +21,14 @@
  *                                                                         *
  ***************************************************************************/
 """
+import copy
 import csv
 import random
 import re
 import time
 import sqlite3
 import traceback
+
 
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, QVariant
 from qgis.PyQt.QtGui import QIcon
@@ -413,9 +415,9 @@ class MsaQgis:
         self.vector_point_filled_ras.commitChanges()
 
         # Save the map to csv (not necessary except for testing)
-        QgsVectorFileWriter.writeAsVectorFormat(self.vector_point_filled_ras,
-                                                self.dlg.qgsFileWidget_vectorPoint.filePath() + '\_basemap_empty.csv',
-                                                'utf-8', driverName='CSV')
+        # QgsVectorFileWriter.writeAsVectorFormat(self.vector_point_filled_ras,
+        #                                         self.dlg.qgsFileWidget_vectorPoint.filePath() + '\_basemap_empty.csv',
+        #                                         'utf-8', driverName='CSV')
 
 
     def convertToSQL(self):
@@ -536,11 +538,11 @@ class MsaQgis:
         cursor.execute(create_table_string)
         conn.commit()
         #temporarily create csv to check if correct
-        cursor.execute('select * from basemap')
-        with open (self.dlg.qgsFileWidget_vectorPoint.filePath()+ '//sql_basemap.csv', 'w', newline = '') as csv_file:
-            csv_writer = csv.writer(csv_file)
-            csv_writer.writerow([i[0] for i in cursor.description])
-            csv_writer.writerows(cursor)
+        # cursor.execute('select * from basemap')
+        # with open (self.dlg.qgsFileWidget_vectorPoint.filePath()+ '//sql_basemap.csv', 'w', newline = '') as csv_file:
+        #     csv_writer = csv.writer(csv_file)
+        #     csv_writer.writerow([i[0] for i in cursor.description])
+        #     csv_writer.writerows(cursor)
 
 
         #create the basemap table
@@ -709,11 +711,11 @@ class MsaQgis:
                 print(fieldn, ' took ', end_time, ' to compute.')
 
         #write csv file to check if everything went okay
-        cursor.execute('select * from empty_basemap')
-        with open (self.dlg.qgsFileWidget_vectorPoint.filePath()+ '//sql_basemap.csv', 'w', newline = '') as csv_file:
-            csv_writer = csv.writer(csv_file)
-            csv_writer.writerow([i[0] for i in cursor.description])
-            csv_writer.writerows(cursor)
+        # cursor.execute('select * from empty_basemap')
+        # with open (self.dlg.qgsFileWidget_vectorPoint.filePath()+ '//sql_basemap.csv', 'w', newline = '') as csv_file:
+        #     csv_writer = csv.writer(csv_file)
+        #     csv_writer.writerow([i[0] for i in cursor.description])
+        #     csv_writer.writerows(cursor)
         conn.close()
 
 
@@ -817,6 +819,7 @@ class MsaQgis:
 
     def assignVegetationSQL(self, order_id, input_table, output_table, conn, cursor, iteration, table_length):
         """ Edits items in the SQLite database version of the map based on the given rule."""
+        start_time = time.time()
         #determine whether the place where the rule is applied requires the creation of a new table
         if input_table == output_table:
             sql_map_name = str(input_table)
@@ -833,7 +836,6 @@ class MsaQgis:
             rule = self.dlg.dict_ruleTreeWidgets[visible_duplicate].comboBox_name.currentText()
         else:
             rule = self.dlg.dict_ruleTreeWidgets[order_id].comboBox_name.currentText()
-        print('rule: ', rule, ', for order_id: ',  order_id)
 
         #from nested dict get vegcom
         veg_com = self.dlg.nest_dict_rules[rule][2]
@@ -856,7 +858,8 @@ class MsaQgis:
                 cursor.execute(insert_random_string)
                 conn.commit()
 
-        start_string = 'UPDATE "' + sql_map_name + '" SET "veg_com" = "' + veg_com + '" WHERE ('
+        start_string = 'UPDATE "' + sql_map_name + '" SET "veg_com"= "' + veg_com + '" WHERE '
+        #start_string = 'UPDATE "' + sql_map_name + '" SET "veg_com" = "banana" WHERE ('
         #create the conditional update string
         if rule_type == '(Re)place':
 
@@ -870,39 +873,35 @@ class MsaQgis:
                     string_condition_prev_veg_com = string_condition_prev_veg_com + '"veg_com" = "' + prev_veg_com \
                                                     + '" AND '
         elif rule_type == 'Encroach':
-            #get n_of_points and calculate the distance within which the encroachable points must be. (Don't forget to include diagonals)
+            #get n_of_points and calculate the distance within which the encroachable points must be. Should be very clear in the manual what is included per encroach!
             n_of_points = self.dlg.nest_dict_rules[rule][5]
             spacing = self.dlg.spinBox_resolution.value()
-            encroachable_distance = n_of_points * spacing + 2500 #TEMP TODO
-            #Select the points that are next to the chosen veg com
-            # string_condition_prev_veg_com = '(geom_x BETWEEN '+\
-            #                                 '((SELECT geom_x FROM "' + sql_map_name + '" WHERE "veg_com" = "' + veg_com +\
-            #                                 '((SELECT geom_x FROM "' + sql_map_name + '" WHERE "veg_com" = "' + veg_com +\
-            #                                 '") - "'+ str(encroachable_distance) + \
-            #                                 '") AND ' + \
-            #                                 '((SELECT geom_x FROM "'+ sql_map_name + '" WHERE "veg_com" = "' + veg_com +\
-            #                                 '") + "' + str(encroachable_distance) +\
-            #                                 '")) AND ' +\
-            #                                 '(geom_y BETWEEN '+\
-            #                                 '((SELECT geom_y FROM "' + sql_map_name + '" WHERE "veg_com" = "' + veg_com +\
-            #                                 '") - "' + str(encroachable_distance) +\
-            #                                 '") AND ' +\
-            #                                 '((SELECT geom_y FROM "' + sql_map_name + '" WHERE "veg_com" = "' + veg_com +\
-            #                                 '") + "' + str(encroachable_distance) +\
-            #                                 '")) AND '
+            encroachable_distance = n_of_points * spacing
+            #Select the points that are next to the chosen veg com. Requires creating a temporary table that has all the entries from the veg_com to encroach,
+            #as otherwise the table will update while running and increase the number of points while running, which changes the entire map to the encroaching veg_com.
+            string_create_temp_table = 'CREATE TEMPORARY TABLE temp AS SELECT * FROM "' + sql_map_name + '" WHERE veg_com = "' + veg_com + '"'
+            cursor.execute(string_create_temp_table)
+            string_condition_prev_veg_com = '"veg_com" <> "' + veg_com + '" AND EXISTS ' +\
+                                            '(SELECT 1 FROM "temp" WHERE "' +\
+                                            sql_map_name + '".geom_x BETWEEN temp.geom_x - ' + str(encroachable_distance) +\
+                                            ' AND temp.geom_x + ' + str(encroachable_distance) + ' ' +\
+                                            'AND "'+\
+                                            sql_map_name + '".geom_y BETWEEN temp.geom_y - ' + str(encroachable_distance) +\
+                                            ' AND temp.geom_y + ' + str(encroachable_distance) + ') AND '
+        elif rule_type == 'Adjacent': # TODO needs significant changes to the UI. Postpone as a workaround by creating buffer maps in QGIS is possible.
+            n_of_points = self.dlg.nest_dict_rules[rule][5]
+            spacing = self.dlg.spinBox_resolution.value()
+            encroachable_distance = n_of_points * spacing
+            adjacent_veg_com = 'Mystery'
             string_condition_prev_veg_com = '"veg_com" != "' + veg_com + '" AND EXISTS ' +\
                                             '(SELECT * FROM "' + sql_map_name + '" map ' +\
-                                            'WHERE map.veg_com = "' + veg_com + '" '+\
-                                            'AND ("' + sql_map_name + '".geom_x BETWEEN map.geom_x - ' + str(encroachable_distance) +\
-                                            ' AND map.geom_x +' + str(encroachable_distance) + ') ' +\
-                                            'AND ("' + sql_map_name + '".geom_y BETWEEN map.geom_y -' + str(encroachable_distance) +\
-                                            ' AND map.geom_y +' + str(encroachable_distance) + ')) AND '
-
-            ## TODO version that deals with previous veg com
-            print(string_condition_prev_veg_com)
-        elif rule_type == 'Adjacent':
+                                            'WHERE map.veg_com = "' + adjacent_veg_com + '" '+\
+                                            'AND "' + sql_map_name + '".geom_x BETWEEN map.geom_x - ' + str(encroachable_distance) +\
+                                            ' AND map.geom_x + ' + str(encroachable_distance) + ' ' +\
+                                            'AND "' + sql_map_name + '".geom_y BETWEEN map.geom_y - ' + str(encroachable_distance) +\
+                                            ' AND map.geom_y + ' + str(encroachable_distance) + ') AND '
             return
-        elif rule_type == 'Extent':
+        elif rule_type == 'Extent': # TODO needs significant changes to the UI. Postpone as a workaround by drawing the extent in QGIS is possible.
             return
         #implement limitation chance
         string_chance = '("chance_to_happen" >= "' + str(chance) + '") AND '
@@ -973,10 +972,14 @@ class MsaQgis:
 
         string_condition_env_var = string_condition_env_var
         string_condition_rule = start_string + string_condition_prev_veg_com + string_chance + string_condition_env_var
-        string_condition_rule = string_condition_rule[:-4] + ');'
-        print('string condition rule: ', string_condition_rule )
+        string_condition_rule = string_condition_rule[:-4] + ';'
         cursor.execute(string_condition_rule)
         conn.commit()
+        #if the enroach rule was run, the temp table needs to be dropped
+        if rule_type == 'Encroach':
+            string_drop_table = 'DROP TABLE "temp";'
+            cursor.execute(string_drop_table)
+            conn.commit()
 
         #temporarily create csv to check if correct
         cursor.execute('select * from "' + sql_map_name + '"')
@@ -984,9 +987,9 @@ class MsaQgis:
             csv_writer = csv.writer(csv_file)
             csv_writer.writerow([i[0] for i in cursor.description])
             csv_writer.writerows(cursor)
-        #temporarily print the first in GeologyNam to see if it has disappeared... hashtagmysteriousbugs
-        cursor.execute('SELECT "GeologyNam" FROM "' + sql_map_name + '" WHERE "msa_id" =1')
-        print(cursor.fetchone())
+        end_time_assign_veg = time.time() - start_time
+        print('rule ', rule, ' of type ',  rule_type,  ' took ', end_time_assign_veg, ' to run')
+
         return sql_map_name
 
 
@@ -1038,15 +1041,10 @@ class MsaQgis:
                 print('point sampling, Execution time in seconds: ' + str(point_sample_time))
 
 
-            # return #WHILE THIS RETURN IS HERE EVERYTHING AFTERWARDS ISN'T RUNNING!
-            basemap_time = (time.time() - point_sample_time_end)
-            basemap_time_end = time.time()
-            print('empty basemap to sql, Execution time in seconds: ' + str(basemap_time))
 ### Processing the rules (this is in sql, but not necessarily in spatialite. Since the maps has both the csv version
     # of the coordinates and the spatialite coordinates if spatialite was used, this difference should not matter.
 
 
-            list_memory_branches = [] # Dict for storing which ruleTreeWidget needs to be returned to
             list_base_group_ids = []
             list_final_rule_ids = []
             number_of_iters = self.dlg.spinBox_iter.value()
@@ -1059,25 +1057,42 @@ class MsaQgis:
             list_base_group_ids.sort()
             #create the map with basegroup
             list_to_remove = []
-            #receate conn and cursor
-            conn = sqlite3.connect(self.dlg.qgsFileWidget_vectorPoint.filePath()+'//empty_basemap.sqlite')
+            # #receate conn and cursor
+            # conn = sqlite3.connect(self.dlg.qgsFileWidget_vectorPoint.filePath()+'//empty_basemap.sqlite')
+            # cursor = conn.cursor()
+
+            #create conn and cursor for memory
+            conn = sqlite3.connect(":memory:")
             cursor = conn.cursor()
+            #create first map ( = copy of empty basemap)
+            string_attach_empty_basemap = 'ATTACH DATABASE "' + self.dlg.qgsFileWidget_vectorPoint.filePath()+\
+                                          '\empty_basemap.sqlite" AS "empty_basemap";'
+            string_copy_empty_basemap = 'CREATE TABLE basemap AS SELECT * FROM "empty_basemap";'
+            string_drop_empty_basemap = 'DROP TABLE IF EXISTS "empty_basemap";'
+            cursor.execute(string_attach_empty_basemap)
+            cursor.execute(string_copy_empty_basemap)
+            cursor.execute(string_drop_empty_basemap)
+            conn.commit()
+
             #get number of entries (necessary for processing chance)
-            cursor.execute('SELECT * FROM "empty_basemap"')
+            cursor.execute('SELECT * FROM "basemap"')
             number_of_entries = len(cursor.fetchall())
             print('number of entries is: ',  number_of_entries)
 
             #process the base rules and save it, if there is no base group, set basemap_table to 0
             basemap_table = 0
             for widget in list_base_group_ids:
-                basemap_table = self.assignVegetationSQL(widget, 'empty_basemap', 'empty_basemap', conn, cursor, 0, number_of_entries) # what is returned is actually the name of the table
+                basemap_table = self.assignVegetationSQL(widget, 'basemap', 'basemap', conn, cursor, 0, number_of_entries) # what is returned is actually the name of the table
                 list_to_remove.append(widget)
-                cursor.execute('SELECT "GeologyNam" FROM "' + basemap_table + '" WHERE "msa_id" =1')
-                print('after assignvegetationSQL, ', basemap_table,': ', cursor.fetchone())
 
             #remove rules in basegroup from rule list so they are not computed again in the main loop.
             for widget in list_to_remove:
                 dict_of_rules_widgets.pop(widget)
+
+            #timer
+            basemap_time = (time.time() - point_sample_time_end)
+            basemap_time_end = time.time()
+            print('empty basemap to filled basemap in sql, Execution time in seconds: ' + str(basemap_time))
 
             #process the main rules
             #make a list of all the end-points in the rule tree
@@ -1085,71 +1100,85 @@ class MsaQgis:
                 if dict_of_rules_widgets[key].next_ruleTreeWidgets == []:
                     list_final_rule_ids.append(key)
 
-            #iteration for loop
+            ##iteration for loop
             for iteration in range(number_of_iters):
-                #final points in rule tree loop
-                save_point = 1
+                start_time = (time.time())
+                #create list of branch points
+                list_branchpoints = []
+                for key in dict_of_rules_widgets:
+                    if len(dict_of_rules_widgets[key].next_ruleTreeWidgets) > 1:
+                        list_branchpoints.append(str(dict_of_rules_widgets[key]))
+                ##final points in rule tree for loop
                 for final_id in list_final_rule_ids:
-                    prev_ruleTreeWidgets = dict_of_rules_widgets[final_id].prev_ruleTreeWidgets
-                    #check if any of the id's previous are in list_memory_branches
-                    for previous_id in prev_ruleTreeWidgets:
-                        if previous_id in list_memory_branches:
-                            if previous_id > save_point:
-                                save_point = previous_id
-                    print('save point: ', save_point)
-                    # if yes choose the highest number out of this and delete the rest from prev_ruleTreeWidgets (list comprehension style)
+                    prev_ruleTreeWidgets = dict_of_rules_widgets[final_id].prev_ruleTreeWidgets.copy()
+                    #check if prev-ruleTreeWidget is in list_branchpoints AND the map in question exists. If yes, set the map as a starting point and take all > than that map out of the list of previous ruleTreeWidgets
+                    save_point = 1
+                    for prev_id in prev_ruleTreeWidgets:
+                        if prev_id in list_branchpoints:
+                            string_check_map_existence = ''
+                            print(cursor.execute(string_check_map_existence))
+                            if cursor.execute(string_check_map_existence) == True: #or whatever the actual outcome is
+                                if prev_id > save_point:
+                                    save_point = prev_id # ensures that the highest/most recent out of the branchpoint order ids is chosen
+                    print('save point for ',  final_id, ' is ', save_point)
+                    # if there is a branch point, remove all prev_id < branch point
                     prev_ruleTreeWidgets[:] = [prev_id for prev_id in prev_ruleTreeWidgets if prev_id >= save_point] # should delete nothing if no save_point was made
-                    # remove all the basemap id's from the list
+                    # remove all the basemap prev_id from the list
                     prev_ruleTreeWidgets[:] = [prev_id for prev_id in prev_ruleTreeWidgets if prev_id not in list_base_group_ids]
 
-                    print('prev_ruleTreeWidgets: ', prev_ruleTreeWidgets)
-                    # if yes, set the input map to the saved map in dict_of_memory_branches, if not set the input map to the basemap
+                    #determine start input map
                     if save_point > 1:
-                        input_map = list_memory_branches.append(save_point) + 'run'+str(iteration-1)
+                        input_map = str(save_point) + 'run'+str(iteration-1)
+                        print('input map is branch point ' + save_point)
                     elif basemap_table != 0:
                         input_map = basemap_table
+                        print('input map is basemap')
                     else:
                         input_map = self.assignVegetationSQL(final_id, 1, 1, conn, cursor, iteration, number_of_entries)
-                    # loop over all previous (should automatically be ordered in smallest ->> largest, but CHECK IF TRUE otherwise sort).
+                        print('input map is first in tree')
+                    ## previous rule tree widgets of final_id for loop
                     for running_id in prev_ruleTreeWidgets:
-                        # assign vegetation
-                        input_map_name = str(input_map) + 'iter'+str(iteration)
-                        output_map = self.assignVegetationSQL(running_id, input_map, running_id, conn, cursor, iteration,number_of_entries)
-                        # if is in dict_of_memory_branches remove.
-                        if input_map in list_memory_branches:
-                            list_memory_branches.remove(running_id)
-                        # remove current id from next_ruleTreeWidgets of previous_id, if the previous was not in the base group
-                        if input_map == basemap_table:
-                            pass
-                        else:
-                            previous_id = dict_of_rules_widgets[max(dict_of_rules_widgets[running_id].prev_ruleTreeWidgets)]
-                            previous_id.next_ruleTreeWidgets.remove(running_id)
-                        # if dict_of_rules_widgets[previous_id].next_ruleTreeWidgets >=1 add to dict_of_memory_branches
-                            if len(previous_id.next_ruleTreeWidgets) >=1:
-                                list_memory_branches.append(previous_id+'run'+str(iteration))
-                        # set input map to present map
+                        #assign vegetation
+                        output_map = self.assignVegetationSQL(running_id, input_map, running_id, conn, cursor,
+                                                              iteration, number_of_entries)
                         input_map = output_map
-                    #run the final rule itself
+                    # assign vegetation final rule
                     self.assignVegetationSQL(final_id, input_map, final_id, conn, cursor, iteration, number_of_entries)
+                    # drop all maps that are not the final rule or a saved rule
+                    for prev_id in prev_ruleTreeWidgets:
+                        if prev_id not in list_branchpoints and prev_id not in list_final_rule_ids:
+                            string_drop_table = 'DROP TABLE "' + str(prev_id) + 'run' + str(iteration) + '";'
+                            cursor.execute(string_drop_table)
+                            conn.commit()
+                    # TODO simulate pollen for the output map of the final rule
+                    # TODO compare the simulated pollen with the actual pollen
+                    # TODO if simulated pollen match well enough with the actual pollen then:
+                    # print or otherwise save the final map/table
+                    # delete all the tables that are not in list_memory_branches
+                    # optionally (only recommended for low number of iters) load the map into QGIS
 
-                    #TODO simulate pollen for the output map of the final rule
-                    #TODO compare the simulated pollen with the actual pollen
-                    #TODO if simulated pollen match well enough with the actual pollen then:
-                    #print or otherwise save the final map/table
-
-                    #delete all the tables that are not in list_memory_branches
-
-                    #optionally (only recommended for low number of iters) load the map into QGIS
 
 
+                #drop all maps made as branchpoints
+                for key in dict_of_rules_widgets:
+                    if key not in list_final_rule_ids:
+                        string_drop_table = 'DROP TABLE IF EXISTS "' + str(key) + 'run' + str(iteration) + '";'
+                        cursor.execute(string_drop_table)
+                        conn.commit()
 
+                iteration_time = (time.time() - start_time)
+                print('iteration ', str(iteration), ' took ', iteration_time, ' to run')
+            #save all the maps that are left in the memory database to file (should only contain final tables)
 
-
-
+            #vacuum memory database to disk database
+            string_vacuum_into = 'VACUUM INTO "'+ self.dlg.qgsFileWidget_vectorPoint.filePath()+ '//outcome.sqlite";'
+            cursor.execute(string_vacuum_into)
+            conn.commit()
             conn.close()
+
             final_time = (time.time() - basemap_time_end)
             final_time_end = time.time()
-            print('basemap made, Execution time in seconds: ' + str(final_time))
+            print('all iterations completed, Execution time in seconds: ' + str(final_time))
 
             #...
             executionTime = (time.time() - startTime)
