@@ -272,7 +272,11 @@
                 </widget>
                </item>
                <item>
-                <widget class="QComboBox" name="comboBox_category"/>
+                <widget class="QComboBox" name="comboBox_category">
+                 <property name="duplicatesEnabled">
+                  <bool>true</bool>
+                 </property>
+                </widget>
                </item>
               </layout>
              </item>

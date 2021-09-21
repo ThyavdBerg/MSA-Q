@@ -803,13 +803,9 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             if ruleTreeWidget.isBaseGroup == True:
                 ruleTreeWidget.setStyleSheet("background-color: #c37676;"
                                    "border: 3px outset #5b3737;")
-                ruleTreeWidget.toggleButton.setStyleSheet("background-color: #c37676;"
-                                                "border: 2px outset #5b3737;")
             else:
                 ruleTreeWidget.setStyleSheet("background-color: #c3c3c3;"
                                    "border: 3px outset #5b5b5b;")
-                ruleTreeWidget.toggleButton.setStyleSheet("background-color: #c3c3c3;"
-                                                "border: 2px outset #5b5b5b;")
         elif ruleTreeWidget.isSelected == False:
             for key in dict_for_remove_selection:
                 if dict_for_remove_selection[key].isSelected == True:
@@ -817,18 +813,12 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                     if dict_for_remove_selection[key].isBaseGroup == True:
                         dict_for_remove_selection[key].setStyleSheet("background-color: #c37676;"
                                                                      "border: 3px outset #5b3737;")
-                        dict_for_remove_selection[key].toggleButton.setStyleSheet("background-color: #c37676;"
-                                                                                  "border: 2px outset #5b3737;")
                     else:
                         dict_for_remove_selection[key].setStyleSheet("background-color: #c3c3c3;"
                                                                      "border: 3px outset #5b5b5b;")
-                        dict_for_remove_selection[key].toggleButton.setStyleSheet("background-color: #c3c3c3;"
-                                                                                  "border: 2px outset #5b5b5b;")
             ruleTreeWidget.isSelected = True
             ruleTreeWidget.setStyleSheet("background-color: #7dc376;"
                                          "border: 3px inset #3a5b37;")
-            ruleTreeWidget.toggleButton.setStyleSheet("background-color: #7dc376;"
-                                                      "border: 2px outset #3a5b37;")
 
     def addAndRemoveFromBaseGroup(self):
         for ruleTreeWidget in self.dict_ruleTreeWidgets:
@@ -1498,15 +1488,13 @@ class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
                     label_category.show()
                     category.show()
                     #get categories from fields
-                    feat_field = 0
+                    list_items_combobox = []
                     for feat in data_provider.getFeatures():
-                        if feat_field == 0:
-                            feat_field = feat.attribute(field.name())
-                            category.addItem(str(feat_field))
-                        elif feat_field == feat.attribute(field.name()):
+                        feat_field = feat.attribute(field.name())
+                        if str(feat_field) in list_items_combobox:
                             pass
                         else:
-                            feat_field = feat.attribute(field.name())
+                            list_items_combobox.append(str(feat_field))
                             category.addItem(str(feat_field))
 
                 else:

@@ -1,5 +1,6 @@
 from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import QLabel, QSizePolicy, QPushButton, QHBoxLayout, QFrame, QComboBox
+from qgis.PyQt import QtGui, QtCore
 from qgis.utils import iface
 
 
@@ -42,27 +43,23 @@ class RuleTreeWidget(QFrame):
         self.spoilerplate = RuleTreeSpoilerPlate(self.nest_dict_rule, self.comboBox_name.currentText()) #just so that the first if statement in toggling the spoilerplate doesn't flip out
 
         ### events
-        self.toggleButton.clicked.connect(self.toggleShowWrittenRule)
+        self.comboBox_name.currentTextChanged.connect(self.changeToolTip)
 
     def setupUI(self):
         """ Creates the UI component"""
         ### Construct the thing
-        self.setSizePolicy(QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed))
-        self.setMaximumSize(100, 30)
-        self.setMinimumSize(100, 30)
+        self.setSizePolicy(QSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum))
+        # self.setMaximumSize(100, 30)
+        # self.setMinimumSize(100, 30)
         self.setStyleSheet("background-color: #c3c3c3;"
                            "border: 2px outset #5b5b5b;")
 
-
-        self.toggleButton = RuleTreeToggleButton()
-        self.toggleButton.setStyleSheet("background-color: #c3c3c3;"
-                                        "border: 2px outset #5b5b5b;")
         self.comboBox_name = RuleTreeComboBox(self.nest_dict_rule)
         self.hLayout = QHBoxLayout()
         self.hLayout.setContentsMargins(0,0,0,0)
-        self.hLayout.addWidget(self.toggleButton)
         self.hLayout.addWidget(self.comboBox_name)
         self.setLayout(self.hLayout)
+        self.setToolTip(self.nest_dict_rule[self.comboBox_name.currentText()][1])
 
 
     def toggleBaseGroup(self):
@@ -74,8 +71,6 @@ class RuleTreeWidget(QFrame):
                     self.isBaseGroup = True
                     self.setStyleSheet("background-color: #c37676;"
                                        "border: 3px outset #5b3737;")
-                    self.toggleButton.setStyleSheet("background-color: #c37676;"
-                                                    "border: 2px outset #5b3737;")
                     self.isSelected = False
                 elif self.isSelected == True and self.isBaseGroup == True:
                     self.isBaseGroup = False
@@ -89,6 +84,9 @@ class RuleTreeWidget(QFrame):
                                            level=1)  # TODO replace with popup once I have the energy
 
 
+
+    def changeToolTip(self):
+        self.setToolTip(self.nest_dict_rule[self.comboBox_name.currentText()][1])
 
     def toggleShowWrittenRule(self):
         """Opens or closes a spoilerplate with the fully written out version of the rule taken from the rule data"""
@@ -107,7 +105,7 @@ class RuleTreeWidget(QFrame):
         self.clicked.emit()
 
 
-class RuleTreeSpoilerPlate(QLabel): # TODO this one needs to be placed in the scrollarea rather than on the screen
+class RuleTreeSpoilerPlate(QLabel): # TODO replace with tooltip
     """ Creates the spoiler plate associated with the rule number in ruleTreeWidget"""
     def __init__(self, nest_dict_rules, current_rule, width=200, x_pos=1, y_pos=1, parent = None):
         super(RuleTreeSpoilerPlate, self).__init__(parent)
@@ -133,26 +131,28 @@ class RuleTreeComboBox(QComboBox):
     """ Creates the label with the rule number in it"""
     def __init__(self, nest_dict_rule, parent = None):
         super(RuleTreeComboBox, self).__init__(parent)
-
+        self.nest_dict_rule = nest_dict_rule
         #setup UI
-        self.setupUI(nest_dict_rule)
+        self.setupUI()
 
-    def setupUI(self, nest_dict_rule):
-        self.setSizePolicy(QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed))
-        self.setMaximumSize(60, 13)
-        self.setMinimumSize(60, 13)
+    def setupUI(self):
+        self.setSizePolicy(QSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.MinimumExpanding))
+        # self.setMaximumSize(60, 13)
+        # self.setMinimumSize(60, 13)
         self.setStyleSheet('border: 1px;')
-        for item in nest_dict_rule:
+        for item in self.nest_dict_rule:
             self.addItem(item)
+    def changeItemList(self):
+        list_current_items = []
+        for index in range(self.count()):
+            list_current_items.append(self.itemText(index))
+        for item in self.nest_dict_rule:
+            if item not in list_current_items:
+                self.addItem(item)
+
+    def mousePressEvent(self, e):
+        super().mousePressEvent(e)
+        self.changeItemList()
 
 
-class RuleTreeToggleButton(QPushButton):
-    """ Creates a small pushbutton"""
-    def __init__(self, parent = None):
-        super(RuleTreeToggleButton, self).__init__(parent)
-        self.setSizePolicy(QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed))
-        self.setMaximumSize(20, 20)
-        self.setMinimumSize(20, 20)
-        self.setText('V')
-        # TODO make button look like a button again...
 
