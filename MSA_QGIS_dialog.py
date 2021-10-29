@@ -30,7 +30,7 @@ import csv
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QTableWidgetItem, QWidget, QLineEdit, QLabel, QVBoxLayout, QComboBox, QGridLayout, \
     QDoubleSpinBox, QFrame, QRadioButton, QHBoxLayout, QPushButton, QSpacerItem, QScrollArea, QCheckBox, QMessageBox, \
-    QSizePolicy, QFileDialog, QWidgetItem
+    QSizePolicy, QFileDialog, QWidgetItem, QTableWidget
 from qgis.PyQt import uic
 from qgis.PyQt import QtWidgets
 from qgis.utils import iface
@@ -55,6 +55,10 @@ FORM_CLASS_SAVELOAD, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'MSA_QGIS_load_save_dialog.ui'))
 FORM_CLASS_RULELIST, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'MSA-QGIS_dialog_popup_rulelist.ui'))
+FORM_CLASS_SAMPLESITE, _ = uic.loadUiType(os.path.join(
+    os.path.dirname(__file__), 'MSA_QGIS_popup_add_sampling_site.ui'))
+FORM_CLASS_PERCENT, _ = uic.loadUiType(os.path.join(
+    os.path.dirname(__file__), 'MSA_QGIS_popup_add_pollen_percentages.ui'))
 
 ### Main dialog window
 
@@ -83,6 +87,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                                 # prevvegcom (QTableItem), AND(bool), OR(bool), nextprevvegcom...etc,
                                 # envvar (QtableItem), AND(bool), OR(bool), next envvar...etc}
         self.dict_ruleTreeWidgets = {}
+        self.dict_pollen_percent_files = {}
 
         # UI setup
         self.qgsFileWidget_importHandbag.setFilter('*.hum')
@@ -120,6 +125,10 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.pushButton_viewList.clicked.connect(self.viewRuleList)
         self.pushButton_save.clicked.connect(self.saveFiles)
         self.pushButton_load.clicked.connect(self.loadFiles)
+        self.pushButton_addSite.clicked.connect(self.addSamplingSite)
+        self.pushButton_removeSite.clicked.connect(self.removeSamplingSite)
+        self.pushButton_importPollen.clicked.connect(self.addPollenCountsFilePath)
+        self.pushButton_removePollenFile.clicked.connect(self.removePollenCountsFilePath)
         #TODO close all assocated windows when main dialog is closed
 
 
@@ -267,7 +276,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
     def removeVegComEntry(self):
         """ Removes selected entries from a table with a pop-up warning"""
         #Popup
-        pass #TODO create pop-up warning
+         #TODO create pop-up warning
 
 
         #remove row
@@ -413,7 +422,6 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         """ Opens the list of rules in a separate window for quick reference when creating the rule tree"""
         self.popup_rule_list = MsaQgisRuleListPopup(self.nest_dict_rules)
         self.popup_rule_list.show()
-
 
     def checkIfSelectedRule(self):
         """ Checks if there are any selected rules.
@@ -821,6 +829,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                                          "border: 3px inset #3a5b37;")
 
     def addAndRemoveFromBaseGroup(self):
+        """Adds or removes a ruleTreeWidget from the basegroup"""
         for ruleTreeWidget in self.dict_ruleTreeWidgets:
                 if self.dict_ruleTreeWidgets[ruleTreeWidget].isSelected == True:
                     if len(self.dict_ruleTreeWidgets[ruleTreeWidget].prev_ruleTreeWidgets) >0:
@@ -910,6 +919,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
 
     def saveHandbagFile(self):
         """ Saves all of the input data that is backwards compatible with HUMPOL/LandPolFlow into a single text file (.hum)"""
+        #TODO
         pass
 
     def saveRuleTree(self,  file_name_rule_tree):
@@ -1400,6 +1410,136 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 self.clearLayout(child.layout())
                 child.layout().setParent(None)
 
+    def addSamplingSite(self):
+        """ Opens a popup in which the user can give the location, name and type of a sampling site"""
+        add_sampling_site_popup = MsaQgisAddSite()
+        add_sampling_site_popup.show()
+        if add_sampling_site_popup.exec_():
+            row_count = self.tableWidget_sites.rowCount()
+            self.tableWidget_sites.setRowCount(row_count+1)
+
+            self.tableWidget_sites.setItem(row_count, 0, QTableWidgetItem(add_sampling_site_popup.lineEdit_siteName.text()))
+            self.tableWidget_sites.setItem(row_count, 1, QTableWidgetItem(str(add_sampling_site_popup.doubleSpin_x.value())))
+            self.tableWidget_sites.setItem(row_count, 2, QTableWidgetItem(str(add_sampling_site_popup.doubleSpin_y.value())))
+            if add_sampling_site_popup.radioButton_lake.isChecked():
+                self.tableWidget_sites.setItem(row_count, 3, QTableWidgetItem("yes"))
+            else:
+                self.tableWidget_sites.setItem(row_count, 3, QTableWidgetItem("no"))
+
+    def removeSamplingSite(self):
+        """ Removes a sampling site from the table of sites"""
+        #TODO cannot remove sampling site if it has associated pollen counts OR also remove associated pollen counts
+        if self.tableWidget_sites.selectionModel().selectedRows():
+            for row in self.tableWidget_sites.selectionModel().selectedRows():
+                selected_sample = self.tableWidget_sites.itemAt(row.row(), 0).text()
+
+                #get name of selected row
+                #check if sample site name is also in pollen file paths table. If yes, also delete.
+                #set selection to associated row in pollen file table, then run removal
+                for row_file in range(self.tableWidget_pollenFile.rowCount()):
+                    if self.tableWidget_pollenFile.itemAt(row_file, 0).text() == selected_sample:
+                        self.tableWidget_pollenFile.setCurrentCell(row_file, 0)
+                        self.removePollenCountsFilePath()
+                self.tableWidget_sites.removeRow(row.row())
+
+
+
+    def addPollenCountsFilePath(self):
+        """ Opens a popup in which the user can a link to a .csv file containing pollen counts. The path is added to a list and can be consulted by
+        other parts of the UI from a dictionary. A pollen dataset can only be added to a sampling site that already exists in the sampling
+        site table, and no duplicates are allowed"""
+        if self.tableWidget_sites.rowCount() == 0:
+            iface.messageBar().pushMessage('There are no sampling points to connect to.', level=1)
+            return
+        add_pollen_percentage_popup = MsaQgisAddPercentPopup(self.tableWidget_sites)
+        add_pollen_percentage_popup.show()
+        if add_pollen_percentage_popup.exec_():
+            selected_sample = add_pollen_percentage_popup.comboBox_samplingPoint.currentText()
+            sample_file_path = add_pollen_percentage_popup.mQgsFileWidget_PollenPercent.filePath()
+            #make sure entry is not a duplicate
+            for entry in range(self.tableWidget_pollenFile.rowCount()):
+                if self.tableWidget_pollenFile.itemAt(entry, 0).text() == selected_sample:
+                    iface.messageBar().pushMessage('Sampling site already has an associated file.', level=1)
+                    return
+            #add file path to UI, dictionary and show excerpt of pollen in the pollen table/tabs
+            if add_pollen_percentage_popup.mQgsFileWidget_PollenPercent.filePath():
+                #add file path to tablewidget
+                row_count = self.tableWidget_pollenFile.rowCount()
+                self.tableWidget_pollenFile.setRowCount(row_count+1)
+                self.dict_pollen_percent_files[selected_sample] = sample_file_path
+                self.tableWidget_pollenFile.setItem(row_count, 0, QTableWidgetItem(selected_sample))
+                self.tableWidget_pollenFile.setItem(row_count, 1, QTableWidgetItem(sample_file_path))
+                #add tab with pollen counts table to excerpts
+                #create QtableWidget
+                tableWidget_percentages = QTableWidget()
+                #TODO set tablewidget settings
+                self.tabWidget_countSheets.addTab(tableWidget_percentages, selected_sample)
+                #remove the dummy tab, if it is not already removed
+                dummy_page = self.tabWidget_countSheets.findChild(QWidget, 'tab_dummySample')
+                if dummy_page:
+                    index = self.tabWidget_countSheets.indexOf(dummy_page)
+                    self.tabWidget_countSheets.removeTab(index)
+                #fill tablewidget percentages with file entry
+                ##TODO create option for no file found (for if the file moved and the path changed)
+                if add_pollen_percentage_popup.mQgsFileWidget_PollenPercent.filePath()[-4:] == '.csv':
+                    table_row_count = tableWidget_percentages.rowCount()
+                    tableWidget_percentages.setColumnCount(3)
+                    tableWidget_percentages.setHorizontalHeaderItem(0, QTableWidgetItem('Code'))
+                    tableWidget_percentages.setHorizontalHeaderItem(1, QTableWidgetItem('Full Name'))
+                    tableWidget_percentages.setHorizontalHeaderItem(2, QTableWidgetItem(selected_sample + '%'))
+
+                    with open(add_pollen_percentage_popup.mQgsFileWidget_PollenPercent.filePath(), mode = 'r') as file:
+                        pollen_counts_csv = csv.reader(file)
+                        for line in pollen_counts_csv:
+                            if line[0] == 'Code' and line[1] == 'Name': # find the line with sample names
+                                for column in line:
+                                    if column == selected_sample:
+                                        sample_column = line.index(column)
+                    with open(add_pollen_percentage_popup.mQgsFileWidget_PollenPercent.filePath(),
+                                  mode='r') as file:
+                        pollen_counts_csv = csv.reader(file)
+                        for line in pollen_counts_csv:
+                            if (line[0] == 'Code' and line[1] == 'Name') or (line[1] == ''):
+                                pass
+                            else:
+                                table_row_count = table_row_count + 1
+                                tableWidget_percentages.setRowCount(table_row_count)
+                                tableWidget_percentages.setItem(table_row_count-1, 0, QTableWidgetItem(line[0]))
+                                tableWidget_percentages.setItem(table_row_count-1, 1, QTableWidgetItem(line[1]))
+                                tableWidget_percentages.setItem(table_row_count-1, 2, QTableWidgetItem(line[sample_column]))
+                    pass
+                elif add_pollen_percentage_popup.mQgsFileWidget_PollenPercent.filePath()[:4] == '.til' \
+                        or add_pollen_percentage_popup.mQgsFileWidget_PollenPercent.filePath()[:4] == '.txl':
+                    #TODO read the tilia files
+                    pass
+                else:
+                    tableWidget_percentages.setRowCount(1)
+                    tableWidget_percentages.setColumnCount(1)
+                    tableWidget_percentages.horizontalHeader().setStretchLastSection(True)
+                    tableWidget_percentages.setItem(0,0, QTableWidgetItem('Cannot read file type'))
+            else:
+                iface.messageBar().pushMessage('No file was chosen.', level=1)
+                return
+
+                #create signals to delete later- not sure yet if necessary as tabs should be deletable by name
+
+    def removePollenCountsFilePath(self):
+        """ Removes the file path of a sample site from table, as well as the entry into the table with pollen counts"""
+        if self.tableWidget_pollenFile.selectionModel().selectedRows():
+            for row in self.tableWidget_pollenFile.selectionModel().selectedRows():
+                #get index row
+                row_index = row.row()
+                selected_sample = self.tableWidget_pollenFile.itemAt(row_index, 0).text()
+                print('selected sample ', selected_sample)
+                #find related and delete tab
+                for index in range(self.tabWidget_countSheets.count()):
+                    if self.tabWidget_countSheets.tabText(index) == selected_sample:
+                        selected_tab_index = index
+                self.tabWidget_countSheets.removeTab(selected_tab_index)
+                #find related and delete dictionary entry
+                self.dict_pollen_percent_files.pop(selected_sample)
+                #find and delete table entry
+                self.tableWidget_pollenFile.removeRow(row_index)
 
 class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
     def __init__(self, rule_number, tableWidget_vegCom, tableWidget_selected, tableWidget_selRaster, parent = None):
@@ -1911,3 +2051,17 @@ class MsaQgisRuleListPopup(QtWidgets.QDialog,FORM_CLASS_RULELIST):
         for key in nest_dict_rules:
             self.listWidget_rules.addItem(nest_dict_rules[key][1])
 
+class MsaQgisAddSite(QtWidgets.QDialog,FORM_CLASS_SAMPLESITE):
+    def __init__(self, parent=None):
+        """Popup Constructor."""
+        super(MsaQgisAddSite, self).__init__(parent)
+        self.setupUi(self)
+
+class MsaQgisAddPercentPopup(QtWidgets.QDialog,FORM_CLASS_PERCENT):
+    def __init__(self,tableWidget_sampleSites, parent=None):
+        """Popup Constructor."""
+        super(MsaQgisAddPercentPopup, self).__init__(parent)
+        self.setupUi(self)
+        for row in range(tableWidget_sampleSites.rowCount()):
+            sampling_site = tableWidget_sampleSites.item(row, 0).text()
+            self.comboBox_samplingPoint.addItem(sampling_site)

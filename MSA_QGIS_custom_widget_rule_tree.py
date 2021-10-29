@@ -1,6 +1,6 @@
 from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import QLabel, QSizePolicy, QPushButton, QHBoxLayout, QFrame, QComboBox
-from qgis.PyQt import QtGui, QtCore
+from qgis.PyQt import QtGui, QtCore, QtWidgets
 from qgis.utils import iface
 
 
@@ -40,7 +40,6 @@ class RuleTreeWidget(QFrame):
 
         #variables after UI
         self.written_rule = self.nest_dict_rule[self.comboBox_name.currentText()][1]
-        self.spoilerplate = RuleTreeSpoilerPlate(self.nest_dict_rule, self.comboBox_name.currentText()) #just so that the first if statement in toggling the spoilerplate doesn't flip out
 
         ### events
         self.comboBox_name.currentTextChanged.connect(self.changeToolTip)
@@ -48,15 +47,14 @@ class RuleTreeWidget(QFrame):
     def setupUI(self):
         """ Creates the UI component"""
         ### Construct the thing
-        self.setSizePolicy(QSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum))
-        # self.setMaximumSize(100, 30)
-        # self.setMinimumSize(100, 30)
+        self.setSizePolicy(QSizePolicy(QSizePolicy.Maximum, QSizePolicy.Minimum))
+
         self.setStyleSheet("background-color: #c3c3c3;"
                            "border: 2px outset #5b5b5b;")
 
         self.comboBox_name = RuleTreeComboBox(self.nest_dict_rule)
         self.hLayout = QHBoxLayout()
-        self.hLayout.setContentsMargins(0,0,0,0)
+        self.hLayout.setContentsMargins(3,3,3,3)
         self.hLayout.addWidget(self.comboBox_name)
         self.setLayout(self.hLayout)
         self.setToolTip(self.nest_dict_rule[self.comboBox_name.currentText()][1])
@@ -88,43 +86,10 @@ class RuleTreeWidget(QFrame):
     def changeToolTip(self):
         self.setToolTip(self.nest_dict_rule[self.comboBox_name.currentText()][1])
 
-    def toggleShowWrittenRule(self):
-        """Opens or closes a spoilerplate with the fully written out version of the rule taken from the rule data"""
-        #if shown then hide, if hidden then show
-
-        if self.spoilerplate.isVisible() == False:
-            self.spoilerplate = RuleTreeSpoilerPlate(self.nest_dict_rule, self.comboBox_name.currentText(), self.width(),
-                                                     self.x() + self.main_dialog_x, self.y() + self.main_dialog_y) #TODO get spoilerplate to show up in the right place
-            self.spoilerplate.show()
-        elif self.spoilerplate.isVisible():
-            self.spoilerplate.hide()
-        pass
 
     def mouseReleaseEvent(self, event):
         """ connect the clicked signal to a mouseReleaseEvent, so that it emits when the widget is clicked"""
         self.clicked.emit()
-
-
-class RuleTreeSpoilerPlate(QLabel): # TODO replace with tooltip
-    """ Creates the spoiler plate associated with the rule number in ruleTreeWidget"""
-    def __init__(self, nest_dict_rules, current_rule, width=200, x_pos=1, y_pos=1, parent = None):
-        super(RuleTreeSpoilerPlate, self).__init__(parent)
-        #variables
-        self.width = width
-        self.nest_dict_rules = nest_dict_rules
-        self.x_pos = x_pos
-        self.y_pos = y_pos
-        self.current_rule = current_rule
-        #events
-        self.setupUI()
-
-    def setupUI(self):
-        self.setText(self.nest_dict_rules[self.current_rule][1])
-        self.setSizePolicy(QSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Fixed))
-        self.setMaximumWidth(self.width)
-        self.setGeometry(self.x_pos, self.y_pos, 0, 0)
-        self.setStyleSheet("border: 2px solid black")
-        self.setWordWrap(True)
 
 
 class RuleTreeComboBox(QComboBox):
@@ -136,12 +101,15 @@ class RuleTreeComboBox(QComboBox):
         self.setupUI()
 
     def setupUI(self):
-        self.setSizePolicy(QSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.MinimumExpanding))
-        # self.setMaximumSize(60, 13)
-        # self.setMinimumSize(60, 13)
+        # this scaling works so long as you don't change text size or resolution halfway
+        width = self.minimumSizeHint().width()
+        height = self.minimumSizeHint().height()
+        self.setMinimumWidth(width)
+        self.setMinimumHeight(height)
         self.setStyleSheet('border: 1px;')
         for item in self.nest_dict_rule:
             self.addItem(item)
+
     def changeItemList(self):
         list_current_items = []
         for index in range(self.count()):

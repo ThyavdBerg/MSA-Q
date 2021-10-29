@@ -249,18 +249,22 @@ class MsaQgis:
         ### Add fields with x and y geometry and the feature id
         data_provider.addAttributes([QgsField('geom_X', QVariant.Double, 'double', 20, 5),
                                      QgsField('geom_Y', QVariant.Double, 'double', 20, 5),
-                                     QgsField('msa_id', QVariant.Int),
                                      QgsField('veg_com', QVariant.String),
                                      QgsField('chance_to_happen', QVariant.Double, 'double', 3, 2)])
+        if self.dlg.radioButton_qgis_native.isChecked():# only necessary for the native algorithm as non-native method
+                                                        # will assign row id as msa_id instead
+            data_provider.addAttributes([QgsField('msa_id', QVariant.Int)])
+
         vector_point_base.updateFields()
         vector_point_base.startEditing()
         for feat in vector_point_base.getFeatures():
             geom = feat.geometry()
             feat['geom_X'] = geom.asPoint().x()
             feat['geom_Y'] = geom.asPoint().y()
-            feat['msa_id'] = feat.id()
             feat['veg_com'] = 'Empty'
             feat['chance_to_happen'] = 100
+            if self.dlg.radioButton_qgis_native.isChecked():
+                feat['msa_id'] = feat.id()
             vector_point_base.updateFeature(feat)
         vector_point_base.commitChanges()
 
@@ -480,115 +484,6 @@ class MsaQgis:
             conn.commit()
         conn.close()
 
-    def pointSampleSQLDEPRECIATED(self, vector_point_base, conn,cursor):
-        """ Uses SQlite to point sample user-selected raster and polygon layers.
-        Requires the user to install spatialite manually through the OSGeo4W Shell"""
-        #TODO remove seperate creation of veg com
-        #create a list of fields for the sql columns (make sure the column names are the same as when the native algorithms are used)
-        dict_of_fields_vec = {}
-        dict_of_bands_ras = {}
-        tableWidget_selVec = self.dlg.tableWidget_selected
-        tableWidget_selRas = self.dlg.tableWidget_selRaster
-        start_string = 'CREATE TABLE basemap ("msa_id" INT PRIMARY KEY, "geom_X" FLOAT, "geom_Y" FLOAT, '
-        create_veg_com_column_string = '"veg_com" VARCHAR(40));'
-        columns_string = ''
-
-        # create table with empty columns, and add the relevant layers, fields and bands to their respective dicts
-        for index in range(tableWidget_selVec.rowCount()):
-            layer = QgsProject.instance().mapLayersByName(tableWidget_selVec.item(index, 0).text())[0]
-            data_provider = layer.dataProvider()
-            #create spatial index for layer, to use later
-            field_name = tableWidget_selVec.item(index, 1).text()
-            if layer in dict_of_fields_vec:
-                pass
-            else:
-                dict_of_fields_vec[layer] = []
-            for field in data_provider.fields():
-                if field.name() == field_name:
-                    dict_of_fields_vec[layer].append(field)
-                    if field.type() == QVariant.String or field.type() == QVariant.Char:
-                        length = str(field.length())
-                        current_column_string = '"' + field.name()[0:10] + '" VARCHAR(' + length + '), '
-                        columns_string = columns_string + current_column_string
-                        pass
-                    elif field.type() == QVariant.Int or field.type() == QVariant.LongLong:
-                        current_column_string = '"' + field.name()[0:10] + '" INT, '
-                        columns_string = columns_string + current_column_string
-                        pass
-                    elif field.type() == QVariant.Double:
-                        current_column_string = '"' + field.name()[0:10] + '" FLOAT, '
-                        columns_string = columns_string + current_column_string
-                        pass
-                    else:  # I doubt anyone will be using blobs or anything... and geometry is already stored in a double
-                        print('variable is wrong datatype for sql, look up Qvariant: ', field.type())
-
-        for index in range(tableWidget_selRas.rowCount()):
-            layer = QgsProject.instance().mapLayersByName(tableWidget_selRas.item(index, 0).text())[0]
-            band_nr = tableWidget_selRas.item(index, 1).text()[5]
-            column_name = layer.name()[0:8]+band_nr
-            if layer in dict_of_bands_ras:
-                dict_of_bands_ras[layer].append(band_nr)
-            else:
-                dict_of_bands_ras[layer] = [int(band_nr)]
-            current_column_string = '"' + column_name + '" FLOAT, '
-            columns_string = columns_string+current_column_string
-
-
-        create_table_string = start_string + columns_string + create_veg_com_column_string
-        cursor.execute(create_table_string)
-        conn.commit()
-        #temporarily create csv to check if correct
-        # cursor.execute('select * from basemap')
-        # with open (self.dlg.qgsFileWidget_vectorPoint.filePath()+ '//sql_basemap.csv', 'w', newline = '') as csv_file:
-        #     csv_writer = csv.writer(csv_file)
-        #     csv_writer.writerow([i[0] for i in cursor.description])
-        #     csv_writer.writerows(cursor)
-
-
-        #create the basemap table
-
-        # per feature, per field, get value for field at the x,y of that feature and write sql insert statement
-        for feature in vector_point_base.getFeatures():
-            feat_x = feature.geometry().asPoint().x()
-            feat_y = feature.geometry().asPoint().y()
-            rectangle = QgsRectangle(feat_x, feat_y, feat_x+0.00000000000001, feat_y+0.000000000000001)
-            point = QgsPointXY(feat_x, feat_y)
-            msa_id = feature.id()
-            start_string = 'INSERT INTO basemap ('
-            middle_string = ') VALUES ('
-            end_string = ');'
-            columns_string = '"msa_id", "geom_X", "geom_Y", "veg_com", '
-            values_string = str(msa_id) + ', ' + str(feat_x) + ', ' + str(feat_y) + ', "Empty", '
-            # enter all values derived from vector layers
-            for layer in dict_of_fields_vec:
-                # refer to index
-                index = QgsSpatialIndex(layer.getFeatures())
-                if index.intersects(rectangle):
-                    intersect = index.intersects(rectangle)[0]
-                    feat_to_insert = layer.getFeature(intersect)
-
-                    for field in dict_of_fields_vec[layer]:
-                        value = feat_to_insert.attribute(field.name())
-                        columns_string = columns_string + '"' + field.name()[0:10] + '", '
-                        values_string = values_string + '"' + str(value) + '", '
-                else:
-                    #passing nothing into the string for that column means it will remain empty (?)
-                    pass
-
-            # enter all values derived from raster layers
-            for layer in dict_of_bands_ras:
-                ident = layer.dataProvider().identify(point, QgsRaster.IdentifyFormatValue).results()
-                for band in dict_of_bands_ras[layer]:
-                    value = ident[band]
-                    columns_string = columns_string + '"' + layer.name()[0:9]+str(band) + '", '
-                    if value:
-                        values_string = values_string + str(value) + ', '
-                    else:
-                        values_string = values_string + '"' + str(value) + '", '
-            insert_string = start_string + columns_string[:-2] + middle_string + values_string[:-2] + end_string
-            cursor.execute(insert_string)
-            conn.commit()
-
     def pointSampleSQL(self, vector_point_base, crs):
         """ Uses Spatialite to point sample user-selected raster and polygon layers.
         Requires the user to install spatialite manually through the OSGeo4W Shell"""
@@ -647,20 +542,43 @@ class MsaQgis:
         file_name_basemap = self.dlg.qgsFileWidget_vectorPoint.filePath() + '//empty_basemap.sqlite'
         QgsVectorFileWriter.writeAsVectorFormat(vector_point_base, file_name_basemap, 'utf-8', crs, driverName='SQLite',
                                                 onlySelected=False, datasourceOptions=['SPATIALITE=YES'])
-        conn = spatialite.connect(file_name_basemap)
+
+        # conn = spatialite.connect(file_name_basemap)
+        # cursor = conn.cursor()
+        conn = spatialite.connect(":memory:")
         cursor = conn.cursor()
 
+        #attach empty basemap database
+        cursor.execute('ATTACH "'+ file_name_basemap + '" AS "empty_basemap_copy"')
+        conn.commit()
+        cursor.execute('CREATE TABLE "empty_basemap" AS SELECT * FROM "empty_basemap_copy"')
+        conn.commit()
+        cursor.execute('DROP TABLE IF EXISTS "empty_basemap_copy"')
+        conn.commit()
+
         #create spatial index
-        cursor.execute( 'SELECT CreateSpatialIndex("empty_basemap", "GEOMETRY");')
+        cursor.execute('SELECT CreateSpatialIndex("empty_basemap", "GEOMETRY");')
+        #find out primary key
+        p_key = cursor.execute('SELECT l.name FROM pragma_table_info("empty_basemap") as l WHERE l.pk = 1;')
+        print('primary key is ',cursor.fetchall())
+        #convert name primary key to msa_id
+        cursor.execute('ALTER TABLE "empty_basemap" RENAME COLUMN "ogc_fid" TO "msa_id"')
+
+
         #convert selected vector layers to spatialite layer
         for layer in dict_of_fields_vec:
             #save layer as db
             file_name = self.dlg.qgsFileWidget_vectorPoint.filePath()+'//' + layer.name()+ '.sqlite'
             QgsVectorFileWriter.writeAsVectorFormat(layer,file_name,'utf-8', crs, driverName='SQLite',
                                                     onlySelected=False, datasourceOptions=['SPATIALITE=YES'])
-            #attach the new db to the basemap db with ATTACH
-            combine_string = 'ATTACH "'+ file_name + '" AS "'+ layer.name() + '"'
-            cursor.execute(combine_string)
+            #attach the new db to the basemap db with ATTACH and copy it to the in-memory database
+            cursor.execute('ATTACH "'+ file_name + '" AS "copy"')
+            conn.commit()
+            cursor.execute('CREATE TABLE "'+ layer.name() + '" AS SELECT * FROM "copy"')
+            conn.commit()
+            cursor.execute('DROP TABLE IF EXISTS "copy"')
+            conn.commit()
+
             #Create a spatial index for the new table
             create_si = 'SELECT CreateSpatialIndex("' + layer.name() + '", "GEOMETRY")'
             cursor.execute(create_si)
@@ -717,8 +635,6 @@ class MsaQgis:
         #     csv_writer.writerow([i[0] for i in cursor.description])
         #     csv_writer.writerows(cursor)
         conn.close()
-
-
 
     def assignVegetationDEPRECIATED(self, order_id, map): # DEPRECIATED
         """ This assigns the vegetation to a map based on the environmental rules defined by the user in the UI
@@ -1079,6 +995,10 @@ class MsaQgis:
             number_of_entries = len(cursor.fetchall())
             print('number of entries is: ',  number_of_entries)
 
+            # TODO create table with sites
+            # TODO create table with distance and direction to the sites
+
+
             #process the base rules and save it, if there is no base group, set basemap_table to 0
             basemap_table = 0
             for widget in list_base_group_ids:
@@ -1151,6 +1071,7 @@ class MsaQgis:
                             cursor.execute(string_drop_table)
                             conn.commit()
                     # TODO simulate pollen for the output map of the final rule
+
                     # TODO compare the simulated pollen with the actual pollen
                     # TODO if simulated pollen match well enough with the actual pollen then:
                     # print or otherwise save the final map/table

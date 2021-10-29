@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>AddNewSamplingSite</class>
+ <widget class="QDialog" name="AddNewSamplingSite">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>405</width>
+    <height>241</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Add New Sampling Site</string>
+  </property>
+  <layout class="QGridLayout" name="gridLayout">
+   <item row="6" column="2">
+    <widget class="QRadioButton" name="radioButton_lake">
+     <property name="text">
+      <string>Lake</string>
+     </property>
+    </widget>
+   </item>
+   <item row="2" column="2" colspan="2">
+    <widget class="QLineEdit" name="lineEdit_siteName"/>
+   </item>
+   <item row="2" column="0">
+    <widget class="QLabel" name="label_siteName">
+     <property name="text">
+      <string>Site name</string>
+     </property>
+    </widget>
+   </item>
+   <item row="6" column="0">
+    <widget class="QLabel" name="label_lakeOrPoint">
+     <property name="toolTip">
+      <string>Designates the sampling point to be a lake or point. This is currently only relevant for Sugita's mixed basin model.</string>
+     </property>
+     <property name="text">
+      <string>Lake or Point</string>
+     </property>
+    </widget>
+   </item>
+   <item row="5" column="0">
+    <widget class="QLabel" name="label_y">
+     <property name="text">
+      <string>y-Coordinate</string>
+     </property>
+    </widget>
+   </item>
+   <item row="7" column="3">
+    <widget class="QDialogButtonBox" name="buttonBox">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+     </property>
+    </widget>
+   </item>
+   <item row="4" column="0">
+    <widget class="QLabel" name="label_x">
+     <property name="text">
+      <string>X-coordinate</string>
+     </property>
+    </widget>
+   </item>
+   <item row="6" column="3">
+    <widget class="QRadioButton" name="radioButton_point">
+     <property name="text">
+      <string>Point</string>
+     </property>
+     <property name="checked">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item row="4" column="2" colspan="2">
+    <widget class="QDoubleSpinBox" name="doubleSpin_x">
+     <property name="decimals">
+      <number>20</number>
+     </property>
+    </widget>
+   </item>
+   <item row="5" column="2" colspan="2">
+    <widget class="QDoubleSpinBox" name="doubleSpin_y">
+     <property name="decimals">
+      <number>20</number>
+     </property>
+    </widget>
+   </item>
+   <item row="0" column="0" colspan="4">
+    <widget class="QLabel" name="label_5">
+     <property name="font">
+      <font>
+       <pointsize>10</pointsize>
+       <weight>75</weight>
+       <bold>true</bold>
+      </font>
+     </property>
+     <property name="text">
+      <string>Add a new sampling site to your project</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="0" colspan="4">
+    <widget class="QLabel" name="label_6">
+     <property name="text">
+      <string>Note that the X and Y coordinates should be in the same projection as your project. The location of the sampling site will be snapped to the nearest grid point. In case a lake is selected, all adjacent points to the site with a designation of &quot;water&quot;, &quot;lake&quot;, and &quot;fresh water&quot; will be assumed to be part of the sampled lake.</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignJustify|Qt::AlignVCenter</set>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections>
+  <connection>
+   <sender>buttonBox</sender>
+   <signal>accepted()</signal>
+   <receiver>AddNewSamplingSite</receiver>
+   <slot>accept()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>248</x>
+     <y>254</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>157</x>
+     <y>274</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>buttonBox</sender>
+   <signal>rejected()</signal>
+   <receiver>AddNewSamplingSite</receiver>
+   <slot>reject()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>316</x>
+     <y>260</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>286</x>
+     <y>274</y>
+    </hint>
+   </hints>
+  </connection>
+ </connections>
+</ui>
