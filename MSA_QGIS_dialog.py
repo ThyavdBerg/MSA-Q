@@ -1442,8 +1442,6 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                         self.removePollenCountsFilePath()
                 self.tableWidget_sites.removeRow(row.row())
 
-
-
     def addPollenCountsFilePath(self):
         """ Opens a popup in which the user can a link to a .csv file containing pollen counts. The path is added to a list and can be consulted by
         other parts of the UI from a dictionary. A pollen dataset can only be added to a sampling site that already exists in the sampling

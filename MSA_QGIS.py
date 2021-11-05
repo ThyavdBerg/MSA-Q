@@ -205,7 +205,7 @@ class MsaQgis:
         inset = spacing * 0.5  # set inset
 
         # Create new vector point layer
-        vector_point_base = QgsVectorLayer('Point', 'Name', 'memory', crs=crs)
+        vector_point_base = QgsVectorLayer('Point', 'Name', 'memory', crs=self.crs)
         data_provider = vector_point_base.dataProvider()
 
         # Set extent of the new layer
@@ -423,7 +423,6 @@ class MsaQgis:
         #                                         self.dlg.qgsFileWidget_vectorPoint.filePath() + '\_basemap_empty.csv',
         #                                         'utf-8', driverName='CSV')
 
-
     def convertToSQL(self):
         """ If the native algorithm was used, this method converts the outcome to SQLite so it can be used further"""
         conn = sqlite3.connect(self.dlg.qgsFileWidget_vectorPoint.filePath()+'//empty_basemap.sqlite')
@@ -543,45 +542,28 @@ class MsaQgis:
         QgsVectorFileWriter.writeAsVectorFormat(vector_point_base, file_name_basemap, 'utf-8', crs, driverName='SQLite',
                                                 onlySelected=False, datasourceOptions=['SPATIALITE=YES'])
 
-        # conn = spatialite.connect(file_name_basemap)
-        # cursor = conn.cursor()
         conn = spatialite.connect(":memory:")
         cursor = conn.cursor()
+        self.copySpatialiteToMem(conn, cursor, file_name_basemap, 'empty_basemap')
 
-        #attach empty basemap database
-        cursor.execute('ATTACH "'+ file_name_basemap + '" AS "empty_basemap_copy"')
-        conn.commit()
-        cursor.execute('CREATE TABLE "empty_basemap" AS SELECT * FROM "empty_basemap_copy"')
-        conn.commit()
-        cursor.execute('DROP TABLE IF EXISTS "empty_basemap_copy"')
-        conn.commit()
 
-        #create spatial index
-        cursor.execute('SELECT CreateSpatialIndex("empty_basemap", "GEOMETRY");')
         #find out primary key
-        p_key = cursor.execute('SELECT l.name FROM pragma_table_info("empty_basemap") as l WHERE l.pk = 1;')
+        cursor.execute('SELECT l.name FROM pragma_table_info("empty_basemap") as l WHERE l.pk = 1;')
         print('primary key is ',cursor.fetchall())
         #convert name primary key to msa_id
         cursor.execute('ALTER TABLE "empty_basemap" RENAME COLUMN "ogc_fid" TO "msa_id"')
+        conn.commit()
 
 
         #convert selected vector layers to spatialite layer
         for layer in dict_of_fields_vec:
+            lyrn = layer.name()
             #save layer as db
-            file_name = self.dlg.qgsFileWidget_vectorPoint.filePath()+'//' + layer.name()+ '.sqlite'
+            file_name = self.dlg.qgsFileWidget_vectorPoint.filePath()+'//' + lyrn+ '.sqlite'
             QgsVectorFileWriter.writeAsVectorFormat(layer,file_name,'utf-8', crs, driverName='SQLite',
                                                     onlySelected=False, datasourceOptions=['SPATIALITE=YES'])
             #attach the new db to the basemap db with ATTACH and copy it to the in-memory database
-            cursor.execute('ATTACH "'+ file_name + '" AS "copy"')
-            conn.commit()
-            cursor.execute('CREATE TABLE "'+ layer.name() + '" AS SELECT * FROM "copy"')
-            conn.commit()
-            cursor.execute('DROP TABLE IF EXISTS "copy"')
-            conn.commit()
-
-            #Create a spatial index for the new table
-            create_si = 'SELECT CreateSpatialIndex("' + layer.name() + '", "GEOMETRY")'
-            cursor.execute(create_si)
+            self.copySpatialiteToMem(conn, cursor, file_name, lyrn, layer)
 
             for field in dict_of_fields_vec[layer]:
                 start_time = time.time()
@@ -603,38 +585,132 @@ class MsaQgis:
                 alter_table_string = alter_table_string + column_string
                 cursor.execute(alter_table_string)
                 conn.commit()
+
+
+
+
                 #TODO identify layers unsuitable for spatial index beforehand and choose simple method (if it is faster)
                 #This is bc layers that have polygons spanning the entire layer run slower with the spatial index instead of faster.
                 #Other option is to warn users in the manual and have them prepare their data by splitting polygon into smaller bits
                 #(although the splitting also takes a ridiculous amount of time, so if they're running the MSA only once it is moot.
                 #simple version w/o spatial index:
-                # update_string = 'UPDATE "empty_basemap" SET "' + field.name() + '" = '  +\
-                #     '(SELECT "' + field.name() + '" FROM "' + layer.name() + '" ' +\
-                #     'WHERE INTERSECTS("' + layer.name() + '".GEOMETRY, "empty_basemap".GEOMETRY));'
+                update_string = 'UPDATE "empty_basemap" SET "' + field.name() + '" = '  +\
+                    '(SELECT "' + field.name() + '" FROM "' + layer.name() + '" ' +\
+                    'WHERE INTERSECTS("' + layer.name() + '".GEOMETRY, "empty_basemap".GEOMETRY));' # TODO temporarily enabled until the one using the spatial index is fixed
 
                 #new version that uses spatial index:
-                lyrn = layer.name()
+
                 fieldn = field.name()
 
-                update_string = 'UPDATE empty_basemap SET "' + fieldn + '" = ' +\
-                    '(SELECT lyr."' + fieldn + '" FROM "' + lyrn + '" AS lyr '+\
-                     'WHERE (lyr.ROWID IN ' +\
-                    '(SELECT ROWID FROM SpatialIndex ' \
-                    'WHERE (f_table_name = "DB='+ lyrn +'.' + lyrn + '" AND search_frame = "empty_basemap".GEOMETRY))) '+ \
-                    'AND (CONTAINS(lyr.GEOMETRY, "empty_basemap".GEOMETRY) = 1) )'
+                #
+                # update_string = 'UPDATE empty_basemap SET "' + fieldn + '" = ' +\
+                #     '(SELECT lyr."' + fieldn + '" FROM "' + lyrn + '" AS lyr '+\
+                #      'WHERE (lyr.ROWID IN ' +\
+                #     '(SELECT ROWID FROM SpatialIndex ' \
+                #     'WHERE (f_table_name = "'+ lyrn + '" AND search_frame = "empty_basemap".GEOMETRY))) '+ \
+                #     'AND (INTERSECTS(lyr.GEOMETRY, "empty_basemap".GEOMETRY)))' #TODO This is broken and returns no results
 
+                print('update string ', update_string)
                 cursor.execute(update_string)
                 conn.commit()
+
+                # cursor.execute('DETACH DATABASE "copy"') # for some reason does not allow disconnection before as the spatial index will break.
+                # conn.commit()
+
                 end_time = time.time() - start_time
                 print(fieldn, ' took ', end_time, ' to compute.')
 
-        #write csv file to check if everything went okay
-        # cursor.execute('select * from empty_basemap')
-        # with open (self.dlg.qgsFileWidget_vectorPoint.filePath()+ '//sql_basemap.csv', 'w', newline = '') as csv_file:
-        #     csv_writer = csv.writer(csv_file)
-        #     csv_writer.writerow([i[0] for i in cursor.description])
-        #     csv_writer.writerows(cursor)
+        # write csv file to check if everything went okay
+        cursor.execute('select * from empty_basemap')
+        with open (self.dlg.qgsFileWidget_vectorPoint.filePath()+ '//sql_basemap.csv', 'w', newline = '') as csv_file:
+            csv_writer = csv.writer(csv_file)
+            csv_writer.writerow([i[0] for i in cursor.description])
+            csv_writer.writerows(cursor)
+        string_vacuum_into = 'VACUUM INTO "' + self.dlg.qgsFileWidget_vectorPoint.filePath() + '//pointsampled_basemap.sqlite";'
+        cursor.execute(string_vacuum_into)
+        conn.commit()
+
         conn.close()
+
+    def copySpatialiteToMem(self, conn, cursor, file_name, table_name, layer=None):
+        """ copies all necessary tables from on disk spatialite database to given connected database"""
+        # ElementaryGeometries copy with basemap
+        # SpatialIndex copy...? Create only table headers
+        # geometry_columns copy here, then add per layer
+        # geometry-columns_auth copy here, then add per layer
+        # geometry_columns_statistics, copy here then add per layer
+        # geomtery_columns_time, copy here then add per layer
+        # idx_[name]_GEOMETRY add per layer
+        # idx_[name]_GEOMETRY_node add per layer
+        # idx_[name]_GEOMETRY_parent add per layer
+        # idx_[name]_GEOMETRY_rowid add per layer
+        # spatial_ref_sys add once
+        # spatial_ref_sys_aux add once
+        # spatialite_history add once??
+        # sql_statements_log add once
+        # views_geometry_columns add once
+        # views_geometry_columns_auth add once
+        # views_geometry_columns_field_infos add once
+        # views_geometry_columns_statistics add once
+        # virts_geometry_columns add once
+        # virts_geometry_columns_auth add once
+        # virts_geometry_columns_field_infos
+        # virts_geometry_columns_statistics
+
+
+        # attach empty basemap database
+        cursor.execute('ATTACH DATABASE "' + file_name + '" AS "copy"')
+        conn.commit()
+        cursor.execute('CREATE TABLE "' + table_name + '" AS SELECT * FROM copy."' + table_name+'"')
+        conn.commit()
+        if table_name == 'empty_basemap':
+            #base maps similar for every spatialite database- only have to be added for the first map/ empty basemap
+
+            cursor.execute('CREATE TABLE "ElementaryGeometries" AS SELECT * FROM copy.ElementaryGeometries')
+            cursor.execute('CREATE TABLE "geometry_columns" AS SELECT * FROM copy.geometry_columns')
+            cursor.execute('CREATE TABLE "geometry_columns_auth" AS SELECT * FROM copy.geometry_columns_auth')
+            cursor.execute('CREATE TABLE "geometry_columns_statistics" AS SELECT * FROM copy.geometry_columns_statistics')
+            cursor.execute(
+                'CREATE TABLE "geometry_columns_field_infos" AS SELECT * FROM copy.geometry_columns_field_infos')
+            cursor.execute('CREATE VIRTUAL TABLE "SpatialIndex" USING VirtualSpatialIndex')
+            # cursor.execute('DELETE FROM "SpatialIndex"') # empty the spatialindex as we will be filling it anew, but we want to retain the columns
+            cursor.execute('CREATE TABLE "spatial_ref_sys" AS SELECT * FROM copy.spatial_ref_sys')
+            cursor.execute('CREATE TABLE "spatial_ref_sys_aux" AS SELECT * FROM copy.spatial_ref_sys_aux')
+            cursor.execute('CREATE TABLE "spatialite_history" AS SELECT * FROM copy.spatialite_history')
+            cursor.execute('CREATE TABLE "sql_statements_log" AS SELECT * FROM copy.sql_statements_log')
+            cursor.execute('CREATE TABLE "views_geometry_columns" AS SELECT * FROM copy.views_geometry_columns')
+            cursor.execute('CREATE TABLE "views_geometry_columns_auth" AS SELECT * FROM copy.views_geometry_columns_auth')
+            cursor.execute('CREATE TABLE "views_geometry_columns_field_infos" AS SELECT * FROM copy.views_geometry_columns_field_infos')
+            cursor.execute('CREATE TABLE "views_geometry_columns_statistics" AS SELECT * FROM copy.views_geometry_columns_statistics')
+            cursor.execute('CREATE TABLE "virts_geometry_columns" AS SELECT * FROM copy.virts_geometry_columns')
+            cursor.execute('CREATE TABLE "virts_geometry_columns_auth" AS SELECT * FROM copy.virts_geometry_columns_auth')
+            cursor.execute('CREATE TABLE "virts_geometry_columns_field_infos" AS SELECT * FROM copy.virts_geometry_columns_field_infos')
+            cursor.execute('CREATE TABLE "virts_geometry_columns_statistics" AS SELECT * FROM copy.virts_geometry_columns_statistics')
+            conn.commit()
+        else:
+            cursor.execute('INSERT INTO "geometry_columns" SELECT * FROM copy.geometry_columns;')
+            cursor.execute('INSERT INTO "geometry_columns_auth" SELECT * FROM copy.geometry_columns_auth;')
+            cursor.execute('INSERT INTO "geometry_columns_field_infos" SELECT * FROM copy.geometry_columns_field_infos;')
+            cursor.execute('INSERT INTO "geometry_columns_statistics" SELECT * FROM copy.geometry_columns_statistics;')
+
+
+        #maps that are specific per base map table
+        cursor.execute(
+            'CREATE TABLE "idx_' + table_name + '_GEOMETRY" AS SELECT * FROM copy."idx_' + table_name + '_GEOMETRY"')
+        cursor.execute(
+            'CREATE TABLE "idx_' + table_name + '_GEOMETRY_node" AS SELECT * FROM copy."idx_' + table_name + '_GEOMETRY_node"')
+        cursor.execute(
+            'CREATE TABLE "idx_' + table_name + '_GEOMETRY_parent" AS SELECT * FROM copy."idx_' + table_name + '_GEOMETRY_parent"')
+        cursor.execute(
+            'CREATE TABLE "idx_' + table_name + '_GEOMETRY_rowid" AS SELECT * FROM copy."idx_' + table_name + '_GEOMETRY_rowid"')
+        conn.commit()
+        #detach the database
+        cursor.execute('DETACH DATABASE "copy"')
+        conn.commit()
+
+        #create spatial index
+        cursor.execute('SELECT CreateSpatialIndex("'+table_name+'", "GEOMETRY")')
+        conn.commit()
 
     def assignVegetationDEPRECIATED(self, order_id, map): # DEPRECIATED
         """ This assigns the vegetation to a map based on the environmental rules defined by the user in the UI
@@ -908,7 +984,53 @@ class MsaQgis:
 
         return sql_map_name
 
+    def createSiteTable(self, conn, cursor):
+        """ Forms an sql string and executes it to create a table containing samples and associated tables with
+        pollen data per sample"""
 
+        #create new table
+        cursor.execute(' CREATE TABLE "sampling_sites"(site_name TEXT VARCHAR(50) PRIMARY KEY, ' \
+                              'sample_x REAL, sample_y REAL, sample_is_lake BOOL)')
+
+        conn.commit()
+        #fill table with data site by site from the UI
+        insert_into_string = 'INSERT INTO "sampling_sites"(site_name, sample_x, sample_y, sample_is_lake) VALUES('
+        table_sites = self.dlg.tableWidget_sites
+        table_files = self.dlg.tableWidget_pollenFile
+        for row in range(table_sites.rowCount()):
+            sample_site = table_sites.ItemAt(row, 0).text()
+            sample_x = float(table_sites.ItemAt(row, 1).text())
+            sample_y = float(table_sites.ItemAt(row, 2).text())
+            sample_is_lake = table_sites.ItemAt(row, 3).text()
+            values_string = sample_site+', '+ sample_x + ', '+sample_y + ', '+ sample_is_lake+')'
+            cursor.execute(insert_into_string+values_string)
+            conn.commit()
+            #create new pollen data table
+            for row2 in range(table_files.rowCount()):
+                if sample_site == table_files.ItemAt(row,0).text():
+                    create_table_string = 'CREATE TABLE "'+sample_site +'"(site_name TEXT VARCHAR(50), ' +\
+                                          'taxon_code VARCHAR(20), taxon_percentage REAL)'
+                    cursor.execute(create_table_string)
+                    conn.commit()
+                    file_name = table_files.ItemAt(row,1).text()
+                    if file_name[-4:] == '.csv':
+                        with open(file_name, mode='r') as file:
+                            pollen_counts_csv = csv.reader(file)
+                            for line in pollen_counts_csv:
+                                if line[0] == '':
+                                    pass
+                                elif line[0] == 'Code':
+                                    for index in range(len(line)):
+                                        if line[index] == sample_site:
+                                            sample_csv_index = index
+                                else:
+                                    insert_into_string = 'INSERT INTO "'+ sample_site + \
+                                                         '"(site_name, taxon_code,  taxon_percentage) VALUES('
+                                    taxon_name = line[0]
+                                    taxon_percent = line[sample_csv_index]
+                                    cursor.execute(insert_into_string + sample_site + ', '+ taxon_name + ', '+
+                                                   taxon_percent + ')')
+                                    conn.commit()
 
     def run(self):
         """Run method that performs all the real work"""
@@ -930,9 +1052,9 @@ class MsaQgis:
             startTime = time.time()
 
 ### Create the base point layer with resolution and extent given by user
-            crs = iface.activeLayer().crs()
+            self.crs = iface.activeLayer().crs()
             spacing = self.dlg.spinBox_resolution.value()  # Takes input from user in "resolution" to set spacing
-            vector_point_base = self.createPointLayer(crs, spacing)
+            vector_point_base = self.createPointLayer(self.crs, spacing)
 
 
             #timer
@@ -950,7 +1072,7 @@ class MsaQgis:
                 point_sample_time_end = time.time()
                 print('point sampling native, Execution time in seconds: ' + str(point_sample_time))
             else:
-                self.pointSampleSQL(vector_point_base,crs)
+                self.pointSampleSQL(vector_point_base,self.crs)
                 # timer
                 point_sample_time = (time.time() - create_points_time_end)
                 point_sample_time_end = time.time()
@@ -982,12 +1104,14 @@ class MsaQgis:
             cursor = conn.cursor()
             #create first map ( = copy of empty basemap)
             string_attach_empty_basemap = 'ATTACH DATABASE "' + self.dlg.qgsFileWidget_vectorPoint.filePath()+\
-                                          '\empty_basemap.sqlite" AS "empty_basemap";'
+                                          '\pointsampled_basemap.sqlite" AS "empty_basemap";'
             string_copy_empty_basemap = 'CREATE TABLE basemap AS SELECT * FROM "empty_basemap";'
             string_drop_empty_basemap = 'DROP TABLE IF EXISTS "empty_basemap";'
+            string_detach_empty_basemap = 'DETACH DATABASE "empty_basemap"'
             cursor.execute(string_attach_empty_basemap)
             cursor.execute(string_copy_empty_basemap)
             cursor.execute(string_drop_empty_basemap)
+            cursor.execute(string_detach_empty_basemap)
             conn.commit()
 
             #get number of entries (necessary for processing chance)
@@ -995,8 +1119,14 @@ class MsaQgis:
             number_of_entries = len(cursor.fetchall())
             print('number of entries is: ',  number_of_entries)
 
+
+
             # TODO create table with sites
             # TODO create table with distance and direction to the sites
+            # TODO create table with pollen counts
+            # TODO create reference table vegcom - pollen
+            # TODO create table with pseudo points for sample points
+            # TODO create table list of maps (but don't fill it yet)
 
 
             #process the base rules and save it, if there is no base group, set basemap_table to 0
@@ -1072,7 +1202,7 @@ class MsaQgis:
                             conn.commit()
                     # TODO simulate pollen for the output map of the final rule
 
-                    # TODO compare the simulated pollen with the actual pollen
+                    # TODO compare the simulated pollen with the actual pollen (least squares)
                     # TODO if simulated pollen match well enough with the actual pollen then:
                     # print or otherwise save the final map/table
                     # delete all the tables that are not in list_memory_branches

@@ -64,7 +64,7 @@
         <string notr="true">tab_rules {background-color: rgb(240, 240, 240)};</string>
        </property>
        <property name="currentIndex">
-        <number>4</number>
+        <number>1</number>
        </property>
        <widget class="QWidget" name="tab_envAndSpatial">
         <attribute name="title">
@@ -1094,80 +1094,53 @@
        </widget>
        <widget class="QWidget" name="tab_modelParameters">
         <property name="enabled">
-         <bool>false</bool>
+         <bool>true</bool>
         </property>
         <attribute name="title">
          <string>Model Parameters</string>
         </attribute>
-        <widget class="QComboBox" name="comboBox_dispModel">
-         <property name="geometry">
-          <rect>
-           <x>170</x>
-           <y>20</y>
-           <width>69</width>
-           <height>22</height>
-          </rect>
-         </property>
-        </widget>
-        <widget class="QLabel" name="label">
-         <property name="geometry">
-          <rect>
-           <x>10</x>
-           <y>30</y>
-           <width>141</width>
-           <height>16</height>
-          </rect>
-         </property>
-         <property name="text">
-          <string>Model for distance weighting</string>
-         </property>
-        </widget>
-        <widget class="QgsFileWidget" name="mQgsFileWidget">
-         <property name="geometry">
-          <rect>
-           <x>170</x>
-           <y>70</y>
-           <width>90</width>
-           <height>27</height>
-          </rect>
-         </property>
-        </widget>
-        <widget class="QLabel" name="label_2">
-         <property name="geometry">
-          <rect>
-           <x>10</x>
-           <y>80</y>
-           <width>101</width>
-           <height>16</height>
-          </rect>
-         </property>
-         <property name="text">
-          <string>Import Lookup Table</string>
-         </property>
-        </widget>
-        <widget class="QTableWidget" name="tableWidget">
-         <property name="geometry">
-          <rect>
-           <x>170</x>
-           <y>110</y>
-           <width>256</width>
-           <height>192</height>
-          </rect>
-         </property>
-        </widget>
-        <widget class="QLabel" name="label_3">
-         <property name="geometry">
-          <rect>
-           <x>20</x>
-           <y>180</y>
-           <width>91</width>
-           <height>16</height>
-          </rect>
-         </property>
-         <property name="text">
-          <string>Lookup table</string>
-         </property>
-        </widget>
+        <layout class="QGridLayout" name="gridLayout_4">
+         <item row="0" column="0">
+          <widget class="QLabel" name="label">
+           <property name="text">
+            <string>Model for distance weighting</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="QComboBox" name="comboBox_dispModel"/>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="label_2">
+           <property name="text">
+            <string>Import Lookup Table</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="QgsFileWidget" name="mQgsFileWidget"/>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="label_3">
+           <property name="text">
+            <string>Lookup table exerpt</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="QTableWidget" name="tableWidget"/>
+         </item>
+         <item row="3" column="0">
+          <widget class="QLabel" name="label_5">
+           <property name="text">
+            <string>Desrired fit</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="1">
+          <widget class="QDoubleSpinBox" name="doubleSpinBox"/>
+         </item>
+        </layout>
        </widget>
        <widget class="QWidget" name="tab_metadata">
         <property name="enabled">
