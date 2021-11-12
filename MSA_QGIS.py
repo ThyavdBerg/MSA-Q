@@ -28,7 +28,8 @@ import re
 import time
 import sqlite3
 import traceback
-
+import math
+import numpy
 
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, QVariant
 from qgis.PyQt.QtGui import QIcon
@@ -50,6 +51,8 @@ sys.path.append(home + '\OSGeo4W64\apps\qgis\python\plugins')
 import processing
 from processing.core.Processing import Processing
 Processing.initialize()
+
+
 
 
 class MsaQgis:
@@ -211,6 +214,7 @@ class MsaQgis:
         # Set extent of the new layer
         if self.dlg.extent is None:
             self.iface.messageBar().pushMessage('Extent not chosen!', level=1)
+            return
         else:
             self.iface.messageBar().pushMessage('Extent set!', level=0)
             x_min = self.dlg.extent.xMinimum() + inset
@@ -232,9 +236,21 @@ class MsaQgis:
             #     y_max = self.dlg.spinBox_north.value() - inset
 
             # Create the coordinates of the points in the grid
-            points = []
+
+            # for y in numpy.arange(y_min, y_max, spacing, dtype = float): # arguments are floats so use numpy.  #TODO test if faster on large datasets. is slightly slower than while on small datasets
+            #     points=[]
+            #     for x in numpy.arange(x_min, x_max, spacing, dtype = float):
+            #         geom = QgsGeometry.fromPointXY((QgsPointXY(x,y-spacing)))
+            #         feat = QgsFeature()
+            #         feat.setGeometry(geom)
+            #         points.append(feat)
+            #     data_provider.addFeatures(points)
+            #     vector_point_base.updateExtents()
+
+
             y = y_max
             while y >= y_min:
+                points = []
                 x = x_min
                 while x <= x_max:
                     geom = QgsGeometry.fromPointXY(QgsPointXY(x, y))
@@ -242,9 +258,11 @@ class MsaQgis:
                     feat.setGeometry(geom)
                     points.append(feat)
                     x += spacing
+                data_provider.addFeatures(points) # separate this action in to lines as qgis crashes when the list gets too big (?)#TODO
+                vector_point_base.updateExtents()
+                print('row created')
                 y = y - spacing
-            data_provider.addFeatures(points)
-            vector_point_base.updateExtents()
+
 
         ### Add fields with x and y geometry and the feature id
         data_provider.addAttributes([QgsField('geom_X', QVariant.Double, 'double', 20, 5),
@@ -545,11 +563,6 @@ class MsaQgis:
         conn = spatialite.connect(":memory:")
         cursor = conn.cursor()
         self.copySpatialiteToMem(conn, cursor, file_name_basemap, 'empty_basemap')
-
-
-        #find out primary key
-        cursor.execute('SELECT l.name FROM pragma_table_info("empty_basemap") as l WHERE l.pk = 1;')
-        print('primary key is ',cursor.fetchall())
         #convert name primary key to msa_id
         cursor.execute('ALTER TABLE "empty_basemap" RENAME COLUMN "ogc_fid" TO "msa_id"')
         conn.commit()
@@ -564,7 +577,7 @@ class MsaQgis:
                                                     onlySelected=False, datasourceOptions=['SPATIALITE=YES'])
             #attach the new db to the basemap db with ATTACH and copy it to the in-memory database
             self.copySpatialiteToMem(conn, cursor, file_name, lyrn, layer)
-
+            cursor.execute('BEGIN TRANSACTION')
             for field in dict_of_fields_vec[layer]:
                 start_time = time.time()
                 #Add a new empty column to empty_basemap
@@ -584,10 +597,6 @@ class MsaQgis:
 
                 alter_table_string = alter_table_string + column_string
                 cursor.execute(alter_table_string)
-                conn.commit()
-
-
-
 
                 #TODO identify layers unsuitable for spatial index beforehand and choose simple method (if it is faster)
                 #This is bc layers that have polygons spanning the entire layer run slower with the spatial index instead of faster.
@@ -598,7 +607,7 @@ class MsaQgis:
                     '(SELECT "' + field.name() + '" FROM "' + layer.name() + '" ' +\
                     'WHERE INTERSECTS("' + layer.name() + '".GEOMETRY, "empty_basemap".GEOMETRY));' # TODO temporarily enabled until the one using the spatial index is fixed
 
-                #new version that uses spatial index:
+                #new version that uses spatial index:# TODO still broken!!
 
                 fieldn = field.name()
 
@@ -610,16 +619,14 @@ class MsaQgis:
                 #     'WHERE (f_table_name = "'+ lyrn + '" AND search_frame = "empty_basemap".GEOMETRY))) '+ \
                 #     'AND (INTERSECTS(lyr.GEOMETRY, "empty_basemap".GEOMETRY)))' #TODO This is broken and returns no results
 
-                print('update string ', update_string)
-                cursor.execute(update_string)
-                conn.commit()
+                #print('update string ', update_string)
 
-                # cursor.execute('DETACH DATABASE "copy"') # for some reason does not allow disconnection before as the spatial index will break.
-                # conn.commit()
+                cursor.execute(update_string)
+
 
                 end_time = time.time() - start_time
                 print(fieldn, ' took ', end_time, ' to compute.')
-
+            cursor.execute('COMMIT')
         # write csv file to check if everything went okay
         cursor.execute('select * from empty_basemap')
         with open (self.dlg.qgsFileWidget_vectorPoint.filePath()+ '//sql_basemap.csv', 'w', newline = '') as csv_file:
@@ -634,35 +641,13 @@ class MsaQgis:
 
     def copySpatialiteToMem(self, conn, cursor, file_name, table_name, layer=None):
         """ copies all necessary tables from on disk spatialite database to given connected database"""
-        # ElementaryGeometries copy with basemap
-        # SpatialIndex copy...? Create only table headers
-        # geometry_columns copy here, then add per layer
-        # geometry-columns_auth copy here, then add per layer
-        # geometry_columns_statistics, copy here then add per layer
-        # geomtery_columns_time, copy here then add per layer
-        # idx_[name]_GEOMETRY add per layer
-        # idx_[name]_GEOMETRY_node add per layer
-        # idx_[name]_GEOMETRY_parent add per layer
-        # idx_[name]_GEOMETRY_rowid add per layer
-        # spatial_ref_sys add once
-        # spatial_ref_sys_aux add once
-        # spatialite_history add once??
-        # sql_statements_log add once
-        # views_geometry_columns add once
-        # views_geometry_columns_auth add once
-        # views_geometry_columns_field_infos add once
-        # views_geometry_columns_statistics add once
-        # virts_geometry_columns add once
-        # virts_geometry_columns_auth add once
-        # virts_geometry_columns_field_infos
-        # virts_geometry_columns_statistics
-
 
         # attach empty basemap database
         cursor.execute('ATTACH DATABASE "' + file_name + '" AS "copy"')
         conn.commit()
         cursor.execute('CREATE TABLE "' + table_name + '" AS SELECT * FROM copy."' + table_name+'"')
         conn.commit()
+        cursor.execute('BEGIN TRANSACTION')
         if table_name == 'empty_basemap':
             #base maps similar for every spatialite database- only have to be added for the first map/ empty basemap
 
@@ -673,7 +658,6 @@ class MsaQgis:
             cursor.execute(
                 'CREATE TABLE "geometry_columns_field_infos" AS SELECT * FROM copy.geometry_columns_field_infos')
             cursor.execute('CREATE VIRTUAL TABLE "SpatialIndex" USING VirtualSpatialIndex')
-            # cursor.execute('DELETE FROM "SpatialIndex"') # empty the spatialindex as we will be filling it anew, but we want to retain the columns
             cursor.execute('CREATE TABLE "spatial_ref_sys" AS SELECT * FROM copy.spatial_ref_sys')
             cursor.execute('CREATE TABLE "spatial_ref_sys_aux" AS SELECT * FROM copy.spatial_ref_sys_aux')
             cursor.execute('CREATE TABLE "spatialite_history" AS SELECT * FROM copy.spatialite_history')
@@ -703,7 +687,7 @@ class MsaQgis:
             'CREATE TABLE "idx_' + table_name + '_GEOMETRY_parent" AS SELECT * FROM copy."idx_' + table_name + '_GEOMETRY_parent"')
         cursor.execute(
             'CREATE TABLE "idx_' + table_name + '_GEOMETRY_rowid" AS SELECT * FROM copy."idx_' + table_name + '_GEOMETRY_rowid"')
-        conn.commit()
+        cursor.execute('COMMIT')
         #detach the database
         cursor.execute('DETACH DATABASE "copy"')
         conn.commit()
@@ -711,103 +695,6 @@ class MsaQgis:
         #create spatial index
         cursor.execute('SELECT CreateSpatialIndex("'+table_name+'", "GEOMETRY")')
         conn.commit()
-
-    def assignVegetationDEPRECIATED(self, order_id, map): # DEPRECIATED
-        """ This assigns the vegetation to a map based on the environmental rules defined by the user in the UI
-        DEPRECIATED!!! Use sql version instead."""
-        #variables
-        list_of_features_env_var = []
-        dict_of_env_var = {}
-        list_of_features_prev_vegcom = []
-        #from nested dict get rule
-        if self.dlg.dict_ruleTreeWidgets[order_id].duplicate_ruleTreeWidgets:
-            visible_duplicate = min(self.dlg.dict_ruleTreeWidgets[order_id].duplicate_ruleTreeWidgets)
-            rule = self.dlg.dict_ruleTreeWidgets[visible_duplicate].comboBox_name.currentText()
-        else:
-            rule = self.dlg.dict_ruleTreeWidgets[order_id].comboBox_name.currentText()
-
-
-        #from nested dict get vegcom
-        veg_com = self.dlg.nest_dict_rules[rule][2]
-        #get lists of features and fields
-        mapFeatures = map.getFeatures()
-        mapFields = map.fields()
-        if self.dlg.nest_dict_rules[rule][3] == '(Re)place':
-            # limit the features to those with the right veg com in previous veg com
-            list_of_prev_vegcom = self.dlg.nest_dict_rules[rule][9]
-            if self.dlg.nest_dict_rules[rule][8]: # if all veg coms was checked
-                for feature in mapFeatures:
-                    list_of_features_prev_vegcom.append(feature)
-            elif self.dlg.nest_dict_rules[rule][9][0]== 'Empty':
-                for feature in mapFeatures:
-                    if feature.attribute('veg_com') == NULL:
-                        list_of_features_prev_vegcom.append(feature)
-            else:
-                for feature in mapFeatures:
-                    if feature.attribute('veg_com') in list_of_prev_vegcom:
-                        list_of_features_prev_vegcom.append(feature)
-
-
-            # limit the features to those with the right values of the environmental variables
-            list_of_keys = []
-            list_of_features_env_var = list_of_features_prev_vegcom.copy()
-            for key in self.dlg.nest_dict_rules[rule][10]:
-                list_of_keys.append(key)
-            if list_of_keys[0]== 'Empty':
-                pass
-            else:
-                # create a list of the env var names relevant to the rule
-                for key in self.dlg.nest_dict_rules[rule][10]:
-                    env_var = re.split(' - ', key)[1]
-                    env_var_layer = re.split(' - ', key)[0]
-                    # recreate the field name from the raster band name, which takes the format layer name[0:9] + band number
-                    # see rastersampling for why. limitaition: This means the word 'band' may never be used as a layer name
-                    if env_var[:5] == 'Band ':
-                        dict_of_env_var[env_var_layer[0:8] + env_var[5]] = key
-                    else:  # recreate field name from vector field. limitation: This means the fields used may not have the same name!
-                        dict_of_env_var[env_var[0:10]] = key
-
-                for feature in list_of_features_prev_vegcom:
-                    for field in mapFields:
-                        field_name = field.name()[:10]
-                        #check if the field is part of the environmental variables in the rule.
-                        if field_name in dict_of_env_var:
-                            #Check if field is categorical or numerical
-                            if isinstance(self.dlg.nest_dict_rules[rule][10][dict_of_env_var[field_name]], str):
-                                #if the attribute of the feature in the relevant field is NOT the desired value, remove from list
-                                if feature.attribute(field.name()) != self.dlg.nest_dict_rules[rule][10][dict_of_env_var[field_name]]:
-                                    if feature in list_of_features_env_var:
-                                        list_of_features_env_var.remove(feature)
-                            else:
-                                if feature.attribute(field.name()) <= self.dlg.nest_dict_rules[rule][10][dict_of_env_var[field_name]][0] or \
-                                    feature.attribute(field.name()) >= self.dlg.nest_dict_rules[rule][10][dict_of_env_var[field_name]][1]:
-
-                                    if feature in list_of_features_env_var:
-                                        list_of_features_env_var.remove(feature)
-        elif self.dlg.nest_dict_rules[rule][3] == 'Enchroach':
-            pass
-        elif self.dlg.nest_dict_rules[rule][3] == 'Adjacent':
-            pass
-        elif self.dlg.nest_dict_rules[rule][3] == 'Extent':
-            pass
-        # get index of veg_com field
-        data_provider = map.dataProvider()
-        veg_com_field_index = data_provider.fieldNameIndex('veg_com')
-        map.startEditing()
-        #Apply chance and place vegetation community
-
-        if self.dlg.nest_dict_rules[rule][4] == 100:
-            for feature in list_of_features_env_var:
-                feature.setAttribute(veg_com_field_index,veg_com)
-
-                map.updateFeature(feature)
-        else:
-            pass
-            #create random generator
-        map.commitChanges()
-
-        return(map)
-        pass
 
     def assignVegetationSQL(self, order_id, input_table, output_table, conn, cursor, iteration, table_length):
         """ Edits items in the SQLite database version of the map based on the given rule."""
@@ -851,7 +738,6 @@ class MsaQgis:
                 conn.commit()
 
         start_string = 'UPDATE "' + sql_map_name + '" SET "veg_com"= "' + veg_com + '" WHERE '
-        #start_string = 'UPDATE "' + sql_map_name + '" SET "veg_com" = "banana" WHERE ('
         #create the conditional update string
         if rule_type == '(Re)place':
 
@@ -984,53 +870,263 @@ class MsaQgis:
 
         return sql_map_name
 
-    def createSiteTable(self, conn, cursor):
-        """ Forms an sql string and executes it to create a table containing samples and associated tables with
-        pollen data per sample"""
+    def createSiteTables(self, conn, cursor, resolution):
+        """ Forms sql strings and executes them to create a table containing samples and associated tables with
+        pollen data per sample, which it gets from the file paths given in the UI"""
 
         #create new table
-        cursor.execute(' CREATE TABLE "sampling_sites"(site_name TEXT VARCHAR(50) PRIMARY KEY, ' \
-                              'sample_x REAL, sample_y REAL, sample_is_lake BOOL)')
+        create_table_string = ' CREATE TABLE "sampling_sites"(site_name TEXT VARCHAR(50), ' \
+                              'sample_x REAL, sample_y REAL, sample_is_lake BOOL, snapped_x REAL, snapped_y REAL, msa_id, PRIMARY KEY(site_name), FOREIGN KEY (msa_id) REFERENCES basemap (msa_id))'
+        cursor.execute(create_table_string)
 
         conn.commit()
         #fill table with data site by site from the UI
-        insert_into_string = 'INSERT INTO "sampling_sites"(site_name, sample_x, sample_y, sample_is_lake) VALUES('
+
         table_sites = self.dlg.tableWidget_sites
         table_files = self.dlg.tableWidget_pollenFile
         for row in range(table_sites.rowCount()):
-            sample_site = table_sites.ItemAt(row, 0).text()
-            sample_x = float(table_sites.ItemAt(row, 1).text())
-            sample_y = float(table_sites.ItemAt(row, 2).text())
-            sample_is_lake = table_sites.ItemAt(row, 3).text()
-            values_string = sample_site+', '+ sample_x + ', '+sample_y + ', '+ sample_is_lake+')'
+            insert_into_string = 'INSERT INTO "sampling_sites"(site_name, sample_x, sample_y, sample_is_lake, snapped_x, snapped_y) VALUES('
+            sample_site = table_sites.item(row,0).text()
+            sample_x = table_sites.item(row,1).text()
+            sample_y = table_sites.item(row,2).text()
+            sample_is_lake = table_sites.item(row,3).text()
+            snapped_x = '(SELECT geom_x FROM basemap WHERE geom_x BETWEEN ('+sample_x+'-'+str(resolution)+') ' \
+                        'AND ('+sample_x+' + '+str(resolution)+') ORDER BY abs('+sample_x+'-geom_x) limit 1)'
+            snapped_y = '(SELECT geom_y FROM basemap WHERE geom_y BETWEEN ('+sample_y+'-'+str(resolution)+') ' \
+                        'AND ('+sample_y+' + '+str(resolution)+') ORDER BY abs('+sample_x+'-geom_y) limit 1)'
+            values_string = '"'+sample_site+'", '+ sample_x + ', '+sample_y + ', "'+ sample_is_lake+'", '+snapped_x+', '+snapped_y+')'
+            print(insert_into_string+values_string)
             cursor.execute(insert_into_string+values_string)
             conn.commit()
+
             #create new pollen data table
             for row2 in range(table_files.rowCount()):
-                if sample_site == table_files.ItemAt(row,0).text():
+                if sample_site == table_files.item(row2,0).text():
                     create_table_string = 'CREATE TABLE "'+sample_site +'"(site_name TEXT VARCHAR(50), ' +\
-                                          'taxon_code VARCHAR(20), taxon_percentage REAL)'
+                                          'taxon_code VARCHAR(20), taxon_percentage REAL, PRIMARY KEY(taxon_code))'
+
                     cursor.execute(create_table_string)
                     conn.commit()
-                    file_name = table_files.ItemAt(row,1).text()
+                    file_name = table_files.item(row2,1).text()
                     if file_name[-4:] == '.csv':
                         with open(file_name, mode='r') as file:
-                            pollen_counts_csv = csv.reader(file)
-                            for line in pollen_counts_csv:
-                                if line[0] == '':
-                                    pass
-                                elif line[0] == 'Code':
+                            pollen_counts_reader = csv.reader(file)
+                            next(pollen_counts_reader) # skip the first line
+                            for line in pollen_counts_reader: #read rest of file for pollen data
+                                if line[0] == 'Code':
                                     for index in range(len(line)):
                                         if line[index] == sample_site:
                                             sample_csv_index = index
                                 else:
-                                    insert_into_string = 'INSERT INTO "'+ sample_site + \
+                                    insert_into_string = 'INSERT INTO "' + sample_site + \
                                                          '"(site_name, taxon_code,  taxon_percentage) VALUES('
                                     taxon_name = line[0]
                                     taxon_percent = line[sample_csv_index]
-                                    cursor.execute(insert_into_string + sample_site + ', '+ taxon_name + ', '+
+
+                                    cursor.execute(insert_into_string + '"' + sample_site + '", "' + taxon_name + '", ' +
                                                    taxon_percent + ')')
                                     conn.commit()
+        update_msa_string = 'UPDATE sampling_sites SET msa_id = (SELECT msa_id FROM basemap WHERE basemap.geom_x = sampling_sites.snapped_x AND basemap.geom_y = sampling_sites.snapped_y)'
+        cursor.execute(update_msa_string)
+        conn.commit()
+
+    def createTaxonTables(self, conn, cursor):
+        """Forms sql strings and executes them to create tables of taxa and their characteristics,
+        and of the vegetation communities and their associated taxa"""
+        taxa_table = self.dlg.tableWidget_taxa
+        vegcom_table = self.dlg.tableWidget_vegCom
+
+        #create taxon table
+        create_table_string = 'CREATE TABLE taxa("taxon_code" TEXT VARCHAR(20) NOT NULL, "full_name" TEXT, "fall_speed" REAL, ' \
+                              '"RelPP" REAL, PRIMARY KEY(taxon_code))'
+        cursor.execute(create_table_string)
+        conn.commit()
+        insert_string = 'INSERT INTO taxa("taxon_code", "full_name", "fall_speed", "relpp") VALUES("'
+        cursor.execute('BEGIN TRANSACTION')
+        #fill taxon table
+        for row in range(taxa_table.rowCount()):
+            taxon_code = taxa_table.item(row,0).text()
+            full_name = taxa_table.item(row,1).text()
+            fall_speed = taxa_table.item(row,2).text()
+            relative_pollen_productivity = taxa_table.item(row,3).text()
+            cursor.execute(insert_string + taxon_code +'", "'+full_name+'", "'+fall_speed+'", "'+\
+                           relative_pollen_productivity+'")')
+        cursor.execute('COMMIT')
+
+        #create the veg com table
+        create_table_string = 'CREATE TABLE vegcom("veg_com" TEXT VARCHAR(20), "taxon_Code" TEXT VARCHAR(20), ' \
+                              '"vegcom_percent" REAL, PRIMARY KEY("veg_com", "taxon_code"))'
+        cursor.execute(create_table_string)
+        conn.commit()
+        insert_string = 'INSERT INTO vegcom("veg_com", "taxon_code", "vegcom_percent") VALUES("'
+        cursor.execute('BEGIN TRANSACTION')
+        for row in range(vegcom_table.rowCount()):
+            for column in range(1,vegcom_table.columnCount()): # skip column 0 which contains the veg_com names
+                veg_com_percent = vegcom_table.item(row,column).text()
+                if veg_com_percent == '':
+                    veg_com_percent = '0'
+                veg_com = vegcom_table.item(row,0).text()
+                taxon_code = vegcom_table.horizontalHeaderItem(column).text()
+                cursor.execute(insert_string + veg_com+'", "'+taxon_code+'", '+veg_com_percent+')')
+        cursor.execute('COMMIT')
+
+    def createTableDistanceToSite(self,conn, cursor, number_of_entries):
+        """Creates new tables based on the coordinates of msa_id and sites ann calculates the distance and direction
+        to said sites. One table is created per site"""
+        #TODO make it work for lakes
+        table_sites = self.dlg.tableWidget_sites
+        create_table_string = 'CREATE TABLE dist_dir(msa_id INT,site_name TEXT VARCHAR(50),geom_x REAL, ' \
+                              'geom_y REAL, distance REAL, direction TEXT VARCHAR(5), PRIMARY KEY(msa_id, site_name))'
+        cursor.execute(create_table_string)
+        conn.commit()
+        conn.create_function("SQRT", 1, self._Sqlsqrt)
+        conn.create_function("CARDDIR", 2, self._SqlCardinalDir)
+        cursor.execute('BEGIN TRANSACTION')
+        counter = 0
+        for row in range(table_sites.rowCount()):
+            sample_site = table_sites.item(row,0).text()
+            # for version using non-snapped x and y
+            # sample_x = table_sites.item(row,1).text()
+            # sample_y = table_sites.item(row,2).text()
+            #if using snapped x & y # TODO create version that uses non-snapped x,y and option to choose.
+            cursor.execute('SELECT snapped_x FROM sampling_sites WHERE site_name = "'+sample_site+'"')
+            snapped_x = str(cursor.fetchone()[0])
+            print('snapped_x =', snapped_x)
+            cursor.execute('SELECT snapped_y FROM sampling_sites WHERE site_name = "'+sample_site+'"')
+            snapped_y = str(cursor.fetchone()[0])
+            for entry in range(1,number_of_entries+1):# no msa_id 1 is made, so exclude it. +1 because range is exclusive
+                #insert data per msa_id (select all of them from msa_id with x and y)
+                # TODO probably a way to directly use msa_id instead of number_of_entries which would be better and more consistent, but for now it works.
+                insert_into_string ='INSERT INTO dist_dir(msa_id, site_name, geom_x, geom_y) VALUES(' +\
+                                    str(entry) +', "' + sample_site + '", ' \
+                                    '(SELECT geom_x FROM "basemap" WHERE msa_id ='+str(entry) +\
+                                    '), (SELECT geom_y FROM basemap WHERE msa_id = '+str(entry)+'))'
+                cursor.execute(insert_into_string)
+
+            #calculate distance
+            # create new square function bc this is not in base SQLite
+            update_distance_string = 'UPDATE dist_dir SET distance = (SQRT(((geom_x-'+snapped_x+')*(geom_x-'+snapped_x+'))+((geom_y-'+snapped_y+')*(geom_y-'+snapped_y+'))))'
+            cursor.execute(update_distance_string)
+            #determine direction
+            update_direction_string='UPDATE dist_dir SET direction = (SELECT CARDDIR((geom_x-'+snapped_x+'), (geom_y-'+snapped_y+')))'
+            cursor.execute(update_direction_string)
+            counter += 1
+            print('counter =',counter)
+
+        cursor.execute('COMMIT')
+
+    def _Sqlsqrt(self, real_number):
+        """ Function that imports the python sqrt function to sqlite"""
+        return math.sqrt(real_number)
+
+    def _SqlCardinalDir(self, x, y):
+        """ Takes a points and determines its cardinal direction from 0,0 using normalized vectors"""
+        # create normalized vectors for cardinal directions
+        vecN = numpy.array([1, 0])
+        vecNE = numpy.array([1, 1])
+        norm_vecNE = vecNE / numpy.linalg.norm(vecNE)
+        vecE = numpy.array([0, 1])
+        vecSE = numpy.array([-1, 1])
+        norm_vecSE = vecSE/numpy.linalg.norm(vecSE)
+        vecS = numpy.array([-1, 0])
+        vecSW = numpy.array([-1, -1])
+        norm_vecSW = vecSW/numpy.linalg.norm(vecSW)
+        vecW = numpy.array([0, -1])
+        vecNW = numpy.array([1, -1])
+        norm_vecNW = vecSE/numpy.linalg.norm(vecNW)
+
+        vecPoint = numpy.array([x,y])
+        #calculate euclidean distances to all normalized vectors of cardinal directions
+        dist_N = numpy.linalg.norm(vecN - vecPoint)
+        dist_NE = numpy.linalg.norm(norm_vecNE - vecPoint)
+        dist_E = numpy.linalg.norm(vecE - vecPoint)
+        dist_SE = numpy.linalg.norm(norm_vecSE - vecPoint)
+        dist_S = numpy.linalg.norm(vecS - vecPoint)
+        dist_SW = numpy.linalg.norm(norm_vecSW - vecPoint)
+        dist_W = numpy.linalg.norm(vecW - vecPoint)
+        dist_NW = numpy.linalg.norm(norm_vecNW - vecPoint)
+        list_dist = [dist_N, dist_NE, dist_E, dist_SE, dist_S, dist_SW, dist_W, dist_NW]
+        if min(list_dist) == list_dist[0]:
+            return 'N'
+        elif min(list_dist) == list_dist[1]:
+            return 'NE'
+        elif min(list_dist) == list_dist[2]:
+            return 'E'
+        elif min(list_dist) == list_dist[3]:
+            return 'SE'
+        elif min(list_dist) == list_dist[4]:
+            return 'S'
+        elif min(list_dist) == list_dist[5]:
+            return 'SW'
+        elif min(list_dist) == list_dist[6]:
+            return 'W'
+        elif min(list_dist) == list_dist[7]:
+            return 'NW'
+        else:
+            return 'Error'
+
+    def createTablePseudoPoints(self,conn,cursor, resolution):
+        """ Creates a table with 4 points per sampling site that lie around the snapped x and y to avoid overcontribution of the
+        point to which the site is snapped."""
+
+        #create table
+        create_table_string = 'CREATE TABLE pseudo_points(pseudo_id INT, site_name VARCHAR(50), msa_id INT(20), ' \
+                              'direction REAL, distance REAL, geom_x REAL, geom_y REAL, veg_com VARCHAR(20) DEFAULT "empty", ' \
+                              'primary key(pseudo_id), FOREIGN KEY(site_name) REFERENCES sampling_sites(site_name),' \
+                              'FOREIGN KEY(msa_id) REFERENCES basemap(msa_id), FOREIGN KEY(veg_com) REFERENCES vegcom(veg_com))'
+        cursor.execute(create_table_string)
+
+        #fill table 4 points at a time
+        distance = math.sqrt(((resolution*0.5)**2)+((resolution*0.5)**2))
+        table_sites = self.dlg.tableWidget_sites
+        counter = 0
+        cursor.execute('BEGIN TRANSACTION')
+        for row in range(table_sites.rowCount()):
+            sample_site = table_sites.item(row, 0).text()
+            insert_into_string = 'INSERT INTO pseudo_points(pseudo_id, site_name, msa_id, direction, distance, geom_x, geom_y) VALUES(' + \
+                                 str(counter) + ', "' + sample_site + '", (SELECT msa_id FROM "sampling_sites" WHERE site_name = "' + sample_site + '"), "NE", ' + str(distance)\
+                                 + ', ' \
+                                    '(SELECT snapped_x FROM "sampling_sites" WHERE site_name = "' + sample_site + '")+ ' + str(
+                resolution * 0.5) + ', ' \
+                                    '(SELECT snapped_y FROM "sampling_sites" WHERE site_name = "' + sample_site + '")+ ' + str(
+                resolution * 0.5) + ') '
+            print(insert_into_string)
+            cursor.execute(insert_into_string)
+            insert_into_string = 'INSERT INTO pseudo_points(pseudo_id, site_name, msa_id, direction, distance, geom_x, geom_y) VALUES(' + \
+                                 str(counter+1) + ', "' + sample_site + '", (SELECT msa_id FROM "sampling_sites" WHERE site_name = "' + sample_site + '"), "SE", ' + str(distance)\
+                                 + ', ' \
+                                    '(SELECT snapped_x FROM "sampling_sites" WHERE site_name = "' + sample_site + '")+ ' + str(
+                resolution * 0.5) + ', ' \
+                                    '(SELECT snapped_y FROM "sampling_sites" WHERE site_name = "' + sample_site + '")- ' + str(
+                resolution * 0.5) + ') '
+            cursor.execute(insert_into_string)
+            insert_into_string = 'INSERT INTO pseudo_points(pseudo_id, site_name, msa_id, direction, distance, geom_x, geom_y) VALUES(' + \
+                                 str(counter+2) + ', "' + sample_site + '", (SELECT msa_id FROM "sampling_sites" WHERE site_name = "' + sample_site + '"), "SW", ' + str(distance)\
+                                 + ', ' \
+                                    '(SELECT snapped_x FROM "sampling_sites" WHERE site_name = "' + sample_site + '")- ' + str(
+                resolution * 0.5) + ', ' \
+                                    '(SELECT snapped_y FROM "sampling_sites" WHERE site_name = "' + sample_site + '")- ' + str(
+                resolution * 0.5) + ') '
+            cursor.execute(insert_into_string)
+            insert_into_string = 'INSERT INTO pseudo_points(pseudo_id, site_name, msa_id, direction, distance, geom_x, geom_y) VALUES(' + \
+                                 str(counter+3) + ', "' + sample_site + '", (SELECT msa_id FROM "sampling_sites" WHERE site_name = "' + sample_site + '"), "SE", ' + str(distance)\
+                                 + ', ' \
+                                    '(SELECT snapped_x FROM "sampling_sites" WHERE site_name = "' + sample_site + '")- ' + str(
+                resolution * 0.5) + ', ' \
+                                    '(SELECT snapped_y FROM "sampling_sites" WHERE site_name = "' + sample_site + '")+ ' + str(
+                resolution * 0.5) + ') '
+            cursor.execute(insert_into_string)
+            counter += 4
+        cursor.execute('COMMIT')
+
+    def createTableOfMaps(self,conn, cursor):
+        """Creates a table where the list of maps will go after running the main body MSA(assigning veg_coms and calculating pollen)"""
+        create_table_string = 'CREATE TABLE maps(map_id, final_map INT, iteration INT, likelihood_met BOOL, likelihood REAL) '
+        cursor.execute(create_table_string)
+        conn.commit()
+
+    def createTableWindrose(self,conn,cursor):
+        pass
 
     def run(self):
         """Run method that performs all the real work"""
@@ -1095,9 +1191,7 @@ class MsaQgis:
             list_base_group_ids.sort()
             #create the map with basegroup
             list_to_remove = []
-            # #receate conn and cursor
-            # conn = sqlite3.connect(self.dlg.qgsFileWidget_vectorPoint.filePath()+'//empty_basemap.sqlite')
-            # cursor = conn.cursor()
+
 
             #create conn and cursor for memory
             conn = sqlite3.connect(":memory:")
@@ -1105,7 +1199,7 @@ class MsaQgis:
             #create first map ( = copy of empty basemap)
             string_attach_empty_basemap = 'ATTACH DATABASE "' + self.dlg.qgsFileWidget_vectorPoint.filePath()+\
                                           '\pointsampled_basemap.sqlite" AS "empty_basemap";'
-            string_copy_empty_basemap = 'CREATE TABLE basemap AS SELECT * FROM "empty_basemap";'
+            string_copy_empty_basemap = 'CREATE TABLE basemap AS SELECT * FROM "empty_basemap";' #TODO if possible recreate this with primary and foreign keys
             string_drop_empty_basemap = 'DROP TABLE IF EXISTS "empty_basemap";'
             string_detach_empty_basemap = 'DETACH DATABASE "empty_basemap"'
             cursor.execute(string_attach_empty_basemap)
@@ -1119,14 +1213,14 @@ class MsaQgis:
             number_of_entries = len(cursor.fetchall())
             print('number of entries is: ',  number_of_entries)
 
-
-
-            # TODO create table with sites
-            # TODO create table with distance and direction to the sites
-            # TODO create table with pollen counts
-            # TODO create reference table vegcom - pollen
-            # TODO create table with pseudo points for sample points
-            # TODO create table list of maps (but don't fill it yet)
+            self.createSiteTables(conn, cursor, spacing) # creates both table with site and tables with pollen counts
+            self.createTaxonTables(conn,cursor)
+            self.createTableDistanceToSite(conn,cursor, number_of_entries)
+            self.createTablePseudoPoints(conn,cursor, spacing)
+            self.createTableOfMaps(conn,cursor)
+            self.createTableWindrose(conn,cursor) # not yet functional, make UI first
+            #TODO create table with weighting windrose
+            # TODO create a table with lakes
 
 
             #process the base rules and save it, if there is no base group, set basemap_table to 0
@@ -1202,7 +1296,7 @@ class MsaQgis:
                             conn.commit()
                     # TODO simulate pollen for the output map of the final rule
 
-                    # TODO compare the simulated pollen with the actual pollen (least squares)
+                    # TODO compare the simulated pollen with the actual pollen (least squares, other options)
                     # TODO if simulated pollen match well enough with the actual pollen then:
                     # print or otherwise save the final map/table
                     # delete all the tables that are not in list_memory_branches

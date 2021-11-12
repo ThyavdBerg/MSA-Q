@@ -45,7 +45,17 @@
     </widget>
    </item>
    <item row="4" column="2">
-    <widget class="QgsFileWidget" name="mQgsFileWidget_PollenPercent"/>
+    <widget class="QgsFileWidget" name="mQgsFileWidget_PollenPercent">
+     <property name="dialogTitle">
+      <string>Choose .csv or .xml file to load</string>
+     </property>
+     <property name="filter">
+      <string/>
+     </property>
+     <property name="defaultRoot">
+      <string/>
+     </property>
+    </widget>
    </item>
    <item row="5" column="1" colspan="3">
     <widget class="QDialogButtonBox" name="buttonBox">

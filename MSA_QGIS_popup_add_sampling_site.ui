@@ -22,7 +22,11 @@
     </widget>
    </item>
    <item row="2" column="2" colspan="2">
-    <widget class="QLineEdit" name="lineEdit_siteName"/>
+    <widget class="QLineEdit" name="lineEdit_siteName">
+     <property name="text">
+      <string>North</string>
+     </property>
+    </widget>
    </item>
    <item row="2" column="0">
     <widget class="QLabel" name="label_siteName">
@@ -80,12 +84,24 @@
      <property name="decimals">
       <number>20</number>
      </property>
+     <property name="maximum">
+      <double>9999999999999.000000000000000</double>
+     </property>
+     <property name="value">
+      <double>195100.000000000000000</double>
+     </property>
     </widget>
    </item>
    <item row="5" column="2" colspan="2">
     <widget class="QDoubleSpinBox" name="doubleSpin_y">
      <property name="decimals">
       <number>20</number>
+     </property>
+     <property name="maximum">
+      <double>9999999999999.000000000000000</double>
+     </property>
+     <property name="value">
+      <double>647567.000000000000000</double>
      </property>
     </widget>
    </item>

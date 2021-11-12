@@ -1289,6 +1289,19 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                         list_veg_com_species.append(None)
                 writer.writerow(list_veg_com_species)
                 list_veg_com_species = []
+            #samples
+            writer.writerow(['Sampling Sites'])
+            list_samples_header= [None, 'site-name', 'sample_x', 'sample_y', 'Lake_or_point']
+            writer.writerow(list_samples_header)
+            for row in range(self.tableWidget_sites.rowCount()):
+                list_samples =['sampling site', self.tableWidget_sites.item(row,0).text(), self.tableWidget_sites.item(row,1).text(), self.tableWidget_sites.item(row, 2).text(), self.tableWidget_sites.item(row, 3).text()]
+                writer.writerow(list_samples)
+            writer.writerow(['Sampling Paths'])
+            list_samples_paths_headers = [None, 'site_name', 'file_path']
+            writer.writerow(list_samples_paths_headers)
+            for row in range(self.tableWidget_pollenFile.rowCount()):
+                list_sample_file_path =['file path', self.tableWidget_pollenFile.item(row, 0).text(),  self.tableWidget_pollenFile.item(row,1).text()]
+                writer.writerow(list_sample_file_path)
             #rules
             writer.writerow(['Rule list', 'not used in loading file, open pickled file instead'])
             for key in self.nest_dict_rules:
@@ -1333,11 +1346,12 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                                 row[3] == self.tableWidget_raster.item(table_row, 1).text():
                             self.tableWidget_raster.selectRow(table_row)
                 elif row[0] == 'taxon':
-                    self.tableWidget_taxa.setRowCount(self.tableWidget_taxa.rowCount()+1)
-                    self.tableWidget_taxa.setItem(self.tableWidget_taxa.rowCount()-1, 0, QTableWidgetItem(row[2]))
-                    self.tableWidget_taxa.setItem(self.tableWidget_taxa.rowCount()-1, 1, QTableWidgetItem(row[3]))
-                    self.tableWidget_taxa.setItem(self.tableWidget_taxa.rowCount()-1, 2, QTableWidgetItem(row[4]))
-                    self.tableWidget_taxa.setItem(self.tableWidget_taxa.rowCount()-1, 3, QTableWidgetItem(row[5]))
+                    rows = self.tableWidget_taxa.rowCount()
+                    self.tableWidget_taxa.setRowCount(rows+1)
+                    self.tableWidget_taxa.setItem(rows, 0, QTableWidgetItem(row[2]))
+                    self.tableWidget_taxa.setItem(rows, 1, QTableWidgetItem(row[3]))
+                    self.tableWidget_taxa.setItem(rows, 2, QTableWidgetItem(row[4]))
+                    self.tableWidget_taxa.setItem(rows, 3, QTableWidgetItem(row[5]))
                 elif row[0] == 'community headers':
                     self.tableWidget_vegCom.setColumnCount(len(row)-2)
                     for item in range(2,len(row)):
@@ -1346,7 +1360,25 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                     self.tableWidget_vegCom.setRowCount(self.tableWidget_vegCom.rowCount()+1)
                     for item in range(2,len(row)):
                         self.tableWidget_vegCom.setItem(self.tableWidget_vegCom.rowCount()-1, item-2, QTableWidgetItem(row[item]))
-
+                elif row[0] == 'sampling site':
+                    rows = self.tableWidget_sites.rowCount()
+                    self.tableWidget_sites.setRowCount(rows+1)
+                    self.tableWidget_sites.setItem(rows, 0, QTableWidgetItem(row[1]))
+                    self.tableWidget_sites.setItem(rows, 1, QTableWidgetItem(row[2]))
+                    self.tableWidget_sites.setItem(rows, 2, QTableWidgetItem(row[3]))
+                    self.tableWidget_sites.setItem(rows, 3, QTableWidgetItem(row[4]))
+                elif row[0] == 'file path':
+                    selected_sample = row[1]
+                    sample_file_path = row[2]
+                    #load into table
+                    rows = self.tableWidget_pollenFile.rowCount()
+                    self.tableWidget_pollenFile.setRowCount(rows+1)
+                    self.tableWidget_pollenFile.setItem(rows, 0, QTableWidgetItem(row[1]))
+                    self.tableWidget_pollenFile.setItem(rows, 1, QTableWidgetItem(row[2]))
+                    # load into dict
+                    self.dict_pollen_percent_files[selected_sample] = sample_file_path
+                    # load into excerpts
+                    self.addPollenExcerpt(selected_sample, sample_file_path)
                 else:
                     pass
 
@@ -1460,66 +1492,68 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                     iface.messageBar().pushMessage('Sampling site already has an associated file.', level=1)
                     return
             #add file path to UI, dictionary and show excerpt of pollen in the pollen table/tabs
-            if add_pollen_percentage_popup.mQgsFileWidget_PollenPercent.filePath():
-                #add file path to tablewidget
+            if sample_file_path:
                 row_count = self.tableWidget_pollenFile.rowCount()
-                self.tableWidget_pollenFile.setRowCount(row_count+1)
+                self.tableWidget_pollenFile.setRowCount(row_count + 1)
                 self.dict_pollen_percent_files[selected_sample] = sample_file_path
                 self.tableWidget_pollenFile.setItem(row_count, 0, QTableWidgetItem(selected_sample))
                 self.tableWidget_pollenFile.setItem(row_count, 1, QTableWidgetItem(sample_file_path))
-                #add tab with pollen counts table to excerpts
-                #create QtableWidget
-                tableWidget_percentages = QTableWidget()
-                #TODO set tablewidget settings
-                self.tabWidget_countSheets.addTab(tableWidget_percentages, selected_sample)
-                #remove the dummy tab, if it is not already removed
-                dummy_page = self.tabWidget_countSheets.findChild(QWidget, 'tab_dummySample')
-                if dummy_page:
-                    index = self.tabWidget_countSheets.indexOf(dummy_page)
-                    self.tabWidget_countSheets.removeTab(index)
-                #fill tablewidget percentages with file entry
-                ##TODO create option for no file found (for if the file moved and the path changed)
-                if add_pollen_percentage_popup.mQgsFileWidget_PollenPercent.filePath()[-4:] == '.csv':
-                    table_row_count = tableWidget_percentages.rowCount()
-                    tableWidget_percentages.setColumnCount(3)
-                    tableWidget_percentages.setHorizontalHeaderItem(0, QTableWidgetItem('Code'))
-                    tableWidget_percentages.setHorizontalHeaderItem(1, QTableWidgetItem('Full Name'))
-                    tableWidget_percentages.setHorizontalHeaderItem(2, QTableWidgetItem(selected_sample + '%'))
+                self.addPollenExcerpt(selected_sample, sample_file_path)
 
-                    with open(add_pollen_percentage_popup.mQgsFileWidget_PollenPercent.filePath(), mode = 'r') as file:
-                        pollen_counts_csv = csv.reader(file)
-                        for line in pollen_counts_csv:
-                            if line[0] == 'Code' and line[1] == 'Name': # find the line with sample names
-                                for column in line:
-                                    if column == selected_sample:
-                                        sample_column = line.index(column)
-                    with open(add_pollen_percentage_popup.mQgsFileWidget_PollenPercent.filePath(),
-                                  mode='r') as file:
-                        pollen_counts_csv = csv.reader(file)
-                        for line in pollen_counts_csv:
-                            if (line[0] == 'Code' and line[1] == 'Name') or (line[1] == ''):
-                                pass
-                            else:
-                                table_row_count = table_row_count + 1
-                                tableWidget_percentages.setRowCount(table_row_count)
-                                tableWidget_percentages.setItem(table_row_count-1, 0, QTableWidgetItem(line[0]))
-                                tableWidget_percentages.setItem(table_row_count-1, 1, QTableWidgetItem(line[1]))
-                                tableWidget_percentages.setItem(table_row_count-1, 2, QTableWidgetItem(line[sample_column]))
-                    pass
-                elif add_pollen_percentage_popup.mQgsFileWidget_PollenPercent.filePath()[:4] == '.til' \
-                        or add_pollen_percentage_popup.mQgsFileWidget_PollenPercent.filePath()[:4] == '.txl':
-                    #TODO read the tilia files
-                    pass
-                else:
-                    tableWidget_percentages.setRowCount(1)
-                    tableWidget_percentages.setColumnCount(1)
-                    tableWidget_percentages.horizontalHeader().setStretchLastSection(True)
-                    tableWidget_percentages.setItem(0,0, QTableWidgetItem('Cannot read file type'))
             else:
                 iface.messageBar().pushMessage('No file was chosen.', level=1)
                 return
 
                 #create signals to delete later- not sure yet if necessary as tabs should be deletable by name
+
+    def addPollenExcerpt(self, selected_sample, sample_file_path):
+        """ Creates a new tab in tabWidget_countSheets and new table therein that shows an excepts of the contents of
+        the pollen file, or indicates that the file or file path is incorrect"""
+        # create QtableWidget
+        tableWidget_percentages = QTableWidget()
+        self.tabWidget_countSheets.addTab(tableWidget_percentages, selected_sample)
+        # remove the dummy tab, if it is not already removed
+        dummy_page = self.tabWidget_countSheets.findChild(QWidget, 'tab_dummySample')
+        if dummy_page:
+            index = self.tabWidget_countSheets.indexOf(dummy_page)
+            self.tabWidget_countSheets.removeTab(index)
+        # fill tablewidget percentages with file entry
+        ##TODO create option for no file found (for if the file moved and the path changed)
+        if sample_file_path[-4:] == '.csv':
+            table_row_count = tableWidget_percentages.rowCount()
+            tableWidget_percentages.setColumnCount(3)
+            tableWidget_percentages.setHorizontalHeaderItem(0, QTableWidgetItem('Code'))
+            tableWidget_percentages.setHorizontalHeaderItem(1, QTableWidgetItem('Full Name'))
+            tableWidget_percentages.setHorizontalHeaderItem(2, QTableWidgetItem(selected_sample + '%'))
+
+            with open(sample_file_path, mode='r') as file:
+                pollen_counts_csv = csv.reader(file)
+                next(pollen_counts_csv)  # skip first line
+                for index, line in enumerate(pollen_counts_csv):
+                    if index >= 10:  # only compute the first 10 lines
+                        break
+                    if line[0] == 'Code' and line[1] == 'Name':  # find the line with sample names
+                        for column in line:
+                            if column == selected_sample:
+                                sample_column = line.index(column)
+                    else:
+                        table_row_count = table_row_count + 1
+                        tableWidget_percentages.setRowCount(table_row_count)
+                        tableWidget_percentages.setItem(table_row_count - 1, 0, QTableWidgetItem(line[0]))
+                        tableWidget_percentages.setItem(table_row_count - 1, 1, QTableWidgetItem(line[1]))
+                        tableWidget_percentages.setItem(table_row_count - 1, 2,
+                                                        QTableWidgetItem(line[sample_column]))
+
+                pass
+        elif sample_file_path[:4] == '.til' \
+                or sample_file_path[:4] == '.txl':
+            # TODO read the tilia files
+            pass
+        else:
+            tableWidget_percentages.setRowCount(1)
+            tableWidget_percentages.setColumnCount(1)
+            tableWidget_percentages.horizontalHeader().setStretchLastSection(True)
+            tableWidget_percentages.setItem(0, 0, QTableWidgetItem('Cannot read file type'))
 
     def removePollenCountsFilePath(self):
         """ Removes the file path of a sample site from table, as well as the entry into the table with pollen counts"""
@@ -1527,7 +1561,8 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             for row in self.tableWidget_pollenFile.selectionModel().selectedRows():
                 #get index row
                 row_index = row.row()
-                selected_sample = self.tableWidget_pollenFile.itemAt(row_index, 0).text()
+                print(row_index)
+                selected_sample = self.tableWidget_pollenFile.item(row_index, 0).text()
                 print('selected sample ', selected_sample)
                 #find related and delete tab
                 for index in range(self.tabWidget_countSheets.count()):

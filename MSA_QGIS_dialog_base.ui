@@ -64,7 +64,7 @@
         <string notr="true">tab_rules {background-color: rgb(240, 240, 240)};</string>
        </property>
        <property name="currentIndex">
-        <number>1</number>
+        <number>4</number>
        </property>
        <widget class="QWidget" name="tab_envAndSpatial">
         <attribute name="title">
@@ -109,7 +109,7 @@
               <x>0</x>
               <y>0</y>
               <width>700</width>
-              <height>633</height>
+              <height>634</height>
              </rect>
             </property>
             <layout class="QGridLayout" name="gridLayout">
@@ -397,7 +397,7 @@
               <x>0</x>
               <y>0</y>
               <width>700</width>
-              <height>633</height>
+              <height>634</height>
              </rect>
             </property>
             <layout class="QGridLayout" name="gridLayout_2">
@@ -762,7 +762,7 @@
                 <x>0</x>
                 <y>0</y>
                 <width>524</width>
-                <height>594</height>
+                <height>587</height>
                </rect>
               </property>
               <layout class="QHBoxLayout" name="horizontalLayout_18">
@@ -934,7 +934,7 @@
               <x>0</x>
               <y>0</y>
               <width>700</width>
-              <height>633</height>
+              <height>634</height>
              </rect>
             </property>
             <layout class="QGridLayout" name="gridLayout_3" rowstretch="0,0,0,0,0">
@@ -999,7 +999,7 @@
                 <set>QAbstractItemView::NoEditTriggers</set>
                </property>
                <property name="selectionMode">
-                <enum>QAbstractItemView::SingleSelection</enum>
+                <enum>QAbstractItemView::MultiSelection</enum>
                </property>
                <property name="selectionBehavior">
                 <enum>QAbstractItemView::SelectRows</enum>
@@ -1167,8 +1167,8 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>706</width>
-        <height>218</height>
+        <width>768</width>
+        <height>215</height>
        </rect>
       </property>
       <layout class="QHBoxLayout" name="horizontalLayout_20" stretch="0">
@@ -1347,6 +1347,9 @@
             <widget class="QgsFileWidget" name="qgsFileWidget_vectorPoint">
              <property name="toolTip">
               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Set a directory where you would like to save your output files. Make sure the directory does not contain any results from other runs, as the data will be overwritten.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <property name="defaultRoot">
+              <string/>
              </property>
              <property name="storageMode">
               <enum>QgsFileWidget::GetDirectory</enum>
