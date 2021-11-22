@@ -129,6 +129,8 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.pushButton_removeSite.clicked.connect(self.removeSamplingSite)
         self.pushButton_importPollen.clicked.connect(self.addPollenCountsFilePath)
         self.pushButton_removePollenFile.clicked.connect(self.removePollenCountsFilePath)
+        #TODO disable model parameters when other than prentice sugita is selected, and enable load lookup if use lookup table is selected.
+        #TODO update turbulence constant when atmospheric constant is changed
         #TODO close all assocated windows when main dialog is closed
 
 

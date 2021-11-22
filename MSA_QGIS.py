@@ -27,7 +27,7 @@ import random
 import re
 import time
 import sqlite3
-import traceback
+import tracemalloc
 import math
 import numpy
 
@@ -51,8 +51,6 @@ sys.path.append(home + '\OSGeo4W64\apps\qgis\python\plugins')
 import processing
 from processing.core.Processing import Processing
 Processing.initialize()
-
-
 
 
 class MsaQgis:
@@ -246,22 +244,22 @@ class MsaQgis:
             #         points.append(feat)
             #     data_provider.addFeatures(points)
             #     vector_point_base.updateExtents()
-
-
+            QgsMessageLog.logMessage("Initiate point creation", 'MSA_QGIS', Qgis.Info)
             y = y_max
             while y >= y_min:
-                points = []
                 x = x_min
                 while x <= x_max:
                     geom = QgsGeometry.fromPointXY(QgsPointXY(x, y))
                     feat = QgsFeature()
                     feat.setGeometry(geom)
-                    points.append(feat)
+                    del geom
                     x += spacing
-                data_provider.addFeatures(points) # separate this action in to lines as qgis crashes when the list gets too big (?)#TODO
-                vector_point_base.updateExtents()
-                print('row created')
+                    data_provider.addFeature(feat)
+                    del feat
+                    vector_point_base.updateExtents()
+                QgsMessageLog.logMessage("row made", 'MSA_QGIS', Qgis.Info)
                 y = y - spacing
+
 
 
         ### Add fields with x and y geometry and the feature id
@@ -285,14 +283,16 @@ class MsaQgis:
                 feat['msa_id'] = feat.id()
             vector_point_base.updateFeature(feat)
         vector_point_base.commitChanges()
-
+        QgsMessageLog.logMessage("All points created", 'MSA_QGIS', Qgis.Info)
         return vector_point_base
+
 
     def pointSampleNative(self, point_layer):
         """ Uses native QGIS methods and processing algorithms to point sample user-selected raster and polygon layers
          Slow, but does not require the user manually installs spatialite"""
         #TODO remove seperate creation of veg_com
         #create destination layers for vector and raster layer
+        QgsMessageLog.logMessage("Native points sampling initiated", 'MSA_QGIS', Qgis.Info)
         point_layer.selectAll()
         vector_point_polygon = processing.run("native:saveselectedfeatures", {'INPUT': point_layer, 'OUTPUT': 'memory:'})['OUTPUT']
         vector_point_raster = processing.run("native:saveselectedfeatures", {'INPUT': point_layer, 'OUTPUT': 'memory:'})['OUTPUT']
@@ -317,7 +317,8 @@ class MsaQgis:
                     next_row = selection_table.item(rows_column3, 0)
                     break
                 else:
-                    print('something went wrong in finding the next layer name')
+                    QgsMessageLog.logMessage('something went wrong in finding the next layer name',
+                                             'MSA_QGIS', Qgis.Warning)
                     return
 
             # Check if a new layer name in the table was reached and that that is NOT the last layer in the list
@@ -357,7 +358,8 @@ class MsaQgis:
             elif previous_row.text() == layer_name:
                 pass
             else:
-                print('something went wrong around the point sampling processing algorithm')
+                QgsMessageLog.logMessage('something went wrong around the point sampling processing algorithm',
+                                         'MSA_QGIS', Qgis.Warning)
                 break
 
         # Point sample the raster layers using sample raster values processing algorithm
@@ -384,7 +386,8 @@ class MsaQgis:
                     next_row = selection_table.item(rows_column3, 0)
                     break
                 else:
-                    print('something went wrong in finding the next layer name - raster')
+                    QgsMessageLog.logMessage('something went wrong in finding the next layer name - raster',
+                                             'MSA_QGIS', Qgis.Warning)
                     break
 
             # Check if a new layer name in the table was reached and that that is NOT the last layer in the list
@@ -419,7 +422,8 @@ class MsaQgis:
             elif previous_row.text() == layer_name:
                 pass
             else:
-                print('something went wrong around the processing algorithm')
+                QgsMessageLog.logMessage('something went wrong around the processing algorithm - raster',
+                                         'MSA_QGIS', Qgis.Warning)
                 break
 
 
@@ -436,6 +440,8 @@ class MsaQgis:
         self.vector_point_filled_ras.updateFields()
         self.vector_point_filled_ras.commitChanges()
 
+        QgsMessageLog.logMessage("Native points sampling finished", 'MSA_QGIS', Qgis.Info)
+
         # Save the map to csv (not necessary except for testing)
         # QgsVectorFileWriter.writeAsVectorFormat(self.vector_point_filled_ras,
         #                                         self.dlg.qgsFileWidget_vectorPoint.filePath() + '\_basemap_empty.csv',
@@ -443,6 +449,7 @@ class MsaQgis:
 
     def convertToSQL(self):
         """ If the native algorithm was used, this method converts the outcome to SQLite so it can be used further"""
+        QgsMessageLog.logMessage("Convert native qgis points to SQL initiated", 'MSA_QGIS', Qgis.Info)
         conn = sqlite3.connect(self.dlg.qgsFileWidget_vectorPoint.filePath()+'//empty_basemap.sqlite')
         cursor = conn.cursor()
         # generate create table string (add " so the query can deal with column names and values that contain spaces
@@ -466,7 +473,8 @@ class MsaQgis:
                 columns_string = columns_string + current_column_string
                 pass
             else:  # I doubt anyone will be using blobs or anything... and geometry is already stored in a double
-                print('variable is wrong datatype for sql, look up Qvariant: ', field.type())
+                QgsMessageLog.logMessage('variable of '+field.name()+' is wrong datatype for sql, look up Qvariant: '+field.type(),
+                                         'MSA_QGIS', Qgis.Warning)
 
         # create the table columns
         create_table_string = start_string + primary_key_string + columns_string + ');'
@@ -500,10 +508,12 @@ class MsaQgis:
             cursor.execute(insert_string)
             conn.commit()
         conn.close()
+        QgsMessageLog.logMessage("Convert native qgis points to SQL finished", 'MSA_QGIS', Qgis.Info)
 
     def pointSampleSQL(self, vector_point_base, crs):
         """ Uses Spatialite to point sample user-selected raster and polygon layers.
         Requires the user to install spatialite manually through the OSGeo4W Shell"""
+        QgsMessageLog.logMessage("Points sampling using spatialite initiated", 'MSA_QGIS', Qgis.Info)
 
         dict_of_fields_vec = {}
         tableWidget_selVec = self.dlg.tableWidget_selected
@@ -593,7 +603,9 @@ class MsaQgis:
                     column_string = '"' + field.name() + '" FLOAT'
                     pass
                 else:  # I doubt anyone will be using blobs or anything... and geometry is already stored in a double
-                    print('variable is wrong datatype for sql, look up Qvariant: ', field.type())
+                    QgsMessageLog.logMessage(
+                        'variable of ' + field.name() + ' is wrong datatype for sql, look up Qvariant: ' + field.type(),
+                        'MSA_QGIS', Qgis.Warning)
 
                 alter_table_string = alter_table_string + column_string
                 cursor.execute(alter_table_string)
@@ -619,13 +631,13 @@ class MsaQgis:
                 #     'WHERE (f_table_name = "'+ lyrn + '" AND search_frame = "empty_basemap".GEOMETRY))) '+ \
                 #     'AND (INTERSECTS(lyr.GEOMETRY, "empty_basemap".GEOMETRY)))' #TODO This is broken and returns no results
 
-                #print('update string ', update_string)
-
                 cursor.execute(update_string)
 
 
                 end_time = time.time() - start_time
-                print(fieldn, ' took ', end_time, ' to compute.')
+                QgsMessageLog.logMessage(
+                    fieldn + ' took ' + str(end_time) + ' to compute.',
+                    'MSA_QGIS', Qgis.Info)
             cursor.execute('COMMIT')
         # write csv file to check if everything went okay
         cursor.execute('select * from empty_basemap')
@@ -638,8 +650,10 @@ class MsaQgis:
         conn.commit()
 
         conn.close()
+        QgsMessageLog.logMessage("Points sampling using spatialite finished", 'MSA_QGIS', Qgis.Info)
 
     def copySpatialiteToMem(self, conn, cursor, file_name, table_name, layer=None):
+        QgsMessageLog.logMessage("Copying spatialite db to memory initiated", 'MSA_QGIS', Qgis.Info)
         """ copies all necessary tables from on disk spatialite database to given connected database"""
 
         # attach empty basemap database
@@ -647,7 +661,7 @@ class MsaQgis:
         conn.commit()
         cursor.execute('CREATE TABLE "' + table_name + '" AS SELECT * FROM copy."' + table_name+'"')
         conn.commit()
-        cursor.execute('BEGIN TRANSACTION')
+
         if table_name == 'empty_basemap':
             #base maps similar for every spatialite database- only have to be added for the first map/ empty basemap
 
@@ -672,11 +686,12 @@ class MsaQgis:
             cursor.execute('CREATE TABLE "virts_geometry_columns_statistics" AS SELECT * FROM copy.virts_geometry_columns_statistics')
             conn.commit()
         else:
+            cursor.execute('BEGIN TRANSACTION')
             cursor.execute('INSERT INTO "geometry_columns" SELECT * FROM copy.geometry_columns;')
             cursor.execute('INSERT INTO "geometry_columns_auth" SELECT * FROM copy.geometry_columns_auth;')
             cursor.execute('INSERT INTO "geometry_columns_field_infos" SELECT * FROM copy.geometry_columns_field_infos;')
             cursor.execute('INSERT INTO "geometry_columns_statistics" SELECT * FROM copy.geometry_columns_statistics;')
-
+            cursor.execute('COMMIT')
 
         #maps that are specific per base map table
         cursor.execute(
@@ -687,7 +702,7 @@ class MsaQgis:
             'CREATE TABLE "idx_' + table_name + '_GEOMETRY_parent" AS SELECT * FROM copy."idx_' + table_name + '_GEOMETRY_parent"')
         cursor.execute(
             'CREATE TABLE "idx_' + table_name + '_GEOMETRY_rowid" AS SELECT * FROM copy."idx_' + table_name + '_GEOMETRY_rowid"')
-        cursor.execute('COMMIT')
+
         #detach the database
         cursor.execute('DETACH DATABASE "copy"')
         conn.commit()
@@ -695,9 +710,11 @@ class MsaQgis:
         #create spatial index
         cursor.execute('SELECT CreateSpatialIndex("'+table_name+'", "GEOMETRY")')
         conn.commit()
+        QgsMessageLog.logMessage("Copying spatialite db to memory finished", 'MSA_QGIS', Qgis.Info)
 
     def assignVegetationSQL(self, order_id, input_table, output_table, conn, cursor, iteration, table_length):
         """ Edits items in the SQLite database version of the map based on the given rule."""
+        QgsMessageLog.logMessage("Assigning vegetation communities for "+str(order_id)+" initiated" , 'MSA_QGIS', Qgis.Info)
         start_time = time.time()
         #determine whether the place where the rule is applied requires the creation of a new table
         if input_table == output_table:
@@ -726,7 +743,7 @@ class MsaQgis:
         #randomize the chance column if necessary
         chance = self.dlg.nest_dict_rules[rule][4]
         if chance == 100:
-            print('not randomized')
+            pass
         else:
             for msa_id in range(1,table_length+1):
                 #generate random number 0-100.00
@@ -866,14 +883,18 @@ class MsaQgis:
             csv_writer.writerow([i[0] for i in cursor.description])
             csv_writer.writerows(cursor)
         end_time_assign_veg = time.time() - start_time
-        print('rule ', rule, ' of type ',  rule_type,  ' took ', end_time_assign_veg, ' to run')
-
+        QgsMessageLog.logMessage('rule ' + str(rule) + ' of type ' +  rule_type +  ' took ' + str(end_time_assign_veg)+ ' to run',
+                                 'MSA_QGIS',
+                                 Qgis.Info)
+        QgsMessageLog.logMessage("Assigning vegetation communities for " + str(order_id) + " finished", 'MSA_QGIS',
+                                 Qgis.Info)
         return sql_map_name
 
     def createSiteTables(self, conn, cursor, resolution):
         """ Forms sql strings and executes them to create a table containing samples and associated tables with
         pollen data per sample, which it gets from the file paths given in the UI"""
-
+        QgsMessageLog.logMessage("Creation of site tables initiated", 'MSA_QGIS',
+                                 Qgis.Info)
         #create new table
         create_table_string = ' CREATE TABLE "sampling_sites"(site_name TEXT VARCHAR(50), ' \
                               'sample_x REAL, sample_y REAL, sample_is_lake BOOL, snapped_x REAL, snapped_y REAL, msa_id, PRIMARY KEY(site_name), FOREIGN KEY (msa_id) REFERENCES basemap (msa_id))'
@@ -895,7 +916,6 @@ class MsaQgis:
             snapped_y = '(SELECT geom_y FROM basemap WHERE geom_y BETWEEN ('+sample_y+'-'+str(resolution)+') ' \
                         'AND ('+sample_y+' + '+str(resolution)+') ORDER BY abs('+sample_x+'-geom_y) limit 1)'
             values_string = '"'+sample_site+'", '+ sample_x + ', '+sample_y + ', "'+ sample_is_lake+'", '+snapped_x+', '+snapped_y+')'
-            print(insert_into_string+values_string)
             cursor.execute(insert_into_string+values_string)
             conn.commit()
 
@@ -929,10 +949,14 @@ class MsaQgis:
         update_msa_string = 'UPDATE sampling_sites SET msa_id = (SELECT msa_id FROM basemap WHERE basemap.geom_x = sampling_sites.snapped_x AND basemap.geom_y = sampling_sites.snapped_y)'
         cursor.execute(update_msa_string)
         conn.commit()
+        QgsMessageLog.logMessage("Creation of site tables finished", 'MSA_QGIS',
+                                 Qgis.Info)
 
     def createTaxonTables(self, conn, cursor):
         """Forms sql strings and executes them to create tables of taxa and their characteristics,
         and of the vegetation communities and their associated taxa"""
+        QgsMessageLog.logMessage("Creation of taxon tables initiated", 'MSA_QGIS',
+                                 Qgis.Info)
         taxa_table = self.dlg.tableWidget_taxa
         vegcom_table = self.dlg.tableWidget_vegCom
 
@@ -969,20 +993,24 @@ class MsaQgis:
                 taxon_code = vegcom_table.horizontalHeaderItem(column).text()
                 cursor.execute(insert_string + veg_com+'", "'+taxon_code+'", '+veg_com_percent+')')
         cursor.execute('COMMIT')
+        QgsMessageLog.logMessage("Creation of taxon tables finished", 'MSA_QGIS',
+                                 Qgis.Info)
 
     def createTableDistanceToSite(self,conn, cursor, number_of_entries):
         """Creates new tables based on the coordinates of msa_id and sites ann calculates the distance and direction
         to said sites. One table is created per site"""
+        QgsMessageLog.logMessage("Creation of distance and direction tables initiated", 'MSA_QGIS',
+                                 Qgis.Info)
         #TODO make it work for lakes
         table_sites = self.dlg.tableWidget_sites
         create_table_string = 'CREATE TABLE dist_dir(msa_id INT,site_name TEXT VARCHAR(50),geom_x REAL, ' \
                               'geom_y REAL, distance REAL, direction TEXT VARCHAR(5), PRIMARY KEY(msa_id, site_name))'
         cursor.execute(create_table_string)
         conn.commit()
+        #Create new (math) functions from python to SQLite that are not normally available.
         conn.create_function("SQRT", 1, self._Sqlsqrt)
         conn.create_function("CARDDIR", 2, self._SqlCardinalDir)
         cursor.execute('BEGIN TRANSACTION')
-        counter = 0
         for row in range(table_sites.rowCount()):
             sample_site = table_sites.item(row,0).text()
             # for version using non-snapped x and y
@@ -991,7 +1019,6 @@ class MsaQgis:
             #if using snapped x & y # TODO create version that uses non-snapped x,y and option to choose.
             cursor.execute('SELECT snapped_x FROM sampling_sites WHERE site_name = "'+sample_site+'"')
             snapped_x = str(cursor.fetchone()[0])
-            print('snapped_x =', snapped_x)
             cursor.execute('SELECT snapped_y FROM sampling_sites WHERE site_name = "'+sample_site+'"')
             snapped_y = str(cursor.fetchone()[0])
             for entry in range(1,number_of_entries+1):# no msa_id 1 is made, so exclude it. +1 because range is exclusive
@@ -1004,16 +1031,16 @@ class MsaQgis:
                 cursor.execute(insert_into_string)
 
             #calculate distance
-            # create new square function bc this is not in base SQLite
             update_distance_string = 'UPDATE dist_dir SET distance = (SQRT(((geom_x-'+snapped_x+')*(geom_x-'+snapped_x+'))+((geom_y-'+snapped_y+')*(geom_y-'+snapped_y+'))))'
             cursor.execute(update_distance_string)
             #determine direction
             update_direction_string='UPDATE dist_dir SET direction = (SELECT CARDDIR((geom_x-'+snapped_x+'), (geom_y-'+snapped_y+')))'
             cursor.execute(update_direction_string)
-            counter += 1
-            print('counter =',counter)
+
 
         cursor.execute('COMMIT')
+        QgsMessageLog.logMessage("Creation of distance and direction tables finished", 'MSA_QGIS',
+                                 Qgis.Info)
 
     def _Sqlsqrt(self, real_number):
         """ Function that imports the python sqrt function to sqlite"""
@@ -1068,6 +1095,8 @@ class MsaQgis:
     def createTablePseudoPoints(self,conn,cursor, resolution):
         """ Creates a table with 4 points per sampling site that lie around the snapped x and y to avoid overcontribution of the
         point to which the site is snapped."""
+        QgsMessageLog.logMessage("Creation of site pseudopoints table initiated", 'MSA_QGIS',
+                                 Qgis.Info)
 
         #create table
         create_table_string = 'CREATE TABLE pseudo_points(pseudo_id INT, site_name VARCHAR(50), msa_id INT(20), ' \
@@ -1090,7 +1119,6 @@ class MsaQgis:
                 resolution * 0.5) + ', ' \
                                     '(SELECT snapped_y FROM "sampling_sites" WHERE site_name = "' + sample_site + '")+ ' + str(
                 resolution * 0.5) + ') '
-            print(insert_into_string)
             cursor.execute(insert_into_string)
             insert_into_string = 'INSERT INTO pseudo_points(pseudo_id, site_name, msa_id, direction, distance, geom_x, geom_y) VALUES(' + \
                                  str(counter+1) + ', "' + sample_site + '", (SELECT msa_id FROM "sampling_sites" WHERE site_name = "' + sample_site + '"), "SE", ' + str(distance)\
@@ -1109,7 +1137,7 @@ class MsaQgis:
                 resolution * 0.5) + ') '
             cursor.execute(insert_into_string)
             insert_into_string = 'INSERT INTO pseudo_points(pseudo_id, site_name, msa_id, direction, distance, geom_x, geom_y) VALUES(' + \
-                                 str(counter+3) + ', "' + sample_site + '", (SELECT msa_id FROM "sampling_sites" WHERE site_name = "' + sample_site + '"), "SE", ' + str(distance)\
+                                 str(counter+3) + ', "' + sample_site + '", (SELECT msa_id FROM "sampling_sites" WHERE site_name = "' + sample_site + '"), "NW", ' + str(distance)\
                                  + ', ' \
                                     '(SELECT snapped_x FROM "sampling_sites" WHERE site_name = "' + sample_site + '")- ' + str(
                 resolution * 0.5) + ', ' \
@@ -1118,15 +1146,228 @@ class MsaQgis:
             cursor.execute(insert_into_string)
             counter += 4
         cursor.execute('COMMIT')
+        QgsMessageLog.logMessage("Creation of site pseudopoints table finished", 'MSA_QGIS',
+                                 Qgis.Info)
 
     def createTableOfMaps(self,conn, cursor):
-        """Creates a table where the list of maps will go after running the main body MSA(assigning veg_coms and calculating pollen)"""
-        create_table_string = 'CREATE TABLE maps(map_id, final_map INT, iteration INT, likelihood_met BOOL, likelihood REAL) '
+        """Creates a table where the list of maps will go after running the main body MSA(assigning veg_coms and
+        calculating pollen) including the pollen percentages calculated per taxon"""
+        QgsMessageLog.logMessage("Creation of map tables initiated", 'MSA_QGIS',
+                                 Qgis.Info)
+        create_table_string = 'CREATE TABLE maps(map_id INT, final_map INT, iteration INT, likelihood_met BOOL, likelihood REAL, '
+        for row in range(self.dlg.tableWidget_taxa.rowCount()):
+            taxon = self.dlg.tableWidget_taxa.item(row, 0).text()
+            if row+1 == self.dlg.tableWidget_taxa.rowCount():
+                taxon_string = taxon + ' REAL)'
+                create_table_string += taxon_string
+            else:
+                taxon_string = taxon+' REAL, '
+                create_table_string += taxon_string
+
+
         cursor.execute(create_table_string)
         conn.commit()
+        QgsMessageLog.logMessage("Creation of site tables finished", 'MSA_QGIS',
+                                 Qgis.Info)
 
     def createTableWindrose(self,conn,cursor):
+        """ Creates a SQLite table for the windrose weightings."""
+        QgsMessageLog.logMessage("Creation of windrose table initiated", 'MSA_QGIS',
+                                 Qgis.Info)
+        create_table_string = 'CREATE TABLE windrose(direction TEXT PRIMARY KEY, windrose_weight REAL)'
+        cursor.execute(create_table_string)
+        conn.commit()
+        cursor.execute('BEGIN TRANSACTION')
+        insert_into_string = 'INSERT INTO windrose("direction", "windrose_weight") ' \
+                             'VALUES ("N", '+self.dlg.lineEdit_north.text()+'),' \
+                             '("NE", ' + self.dlg.lineEdit_northEast.text() + '),'\
+                             '("E", ' + self.dlg.lineEdit_east.text() + '),'\
+                             '("SE", ' + self.dlg.lineEdit_southEast.text() + '),'\
+                             '("S", ' + self.dlg.lineEdit_south.text() + '),' \
+                             '("SW", ' + self.dlg.lineEdit_southWest.text() + '),'\
+                             '("W", ' + self.dlg.lineEdit_west.text() + '),'\
+                             '("NW", ' + self.dlg.lineEdit_northWest.text() + ');'
+        cursor.execute(insert_into_string)
+        cursor.execute('COMMIT')
+
+        QgsMessageLog.logMessage("Creation of windrose tables finished", 'MSA_QGIS',
+                                 Qgis.Info)
         pass
+
+    def createTablePollenLookupBasin(self, conn, cursor):
+        """Creates a table with the various computed distances to the sites and determines the pollen dispersal and
+        deposition function for each taxon gi(z), based on Parsons/Prentice/Sugita's (mixed) basin model."""
+        QgsMessageLog.logMessage("Creation of distance weighted plant abundance tables initiated", 'MSA_QGIS',
+                                 Qgis.Info)
+        #columns: distance, DWPA_taxon (per taxon)
+        create_table_string = 'CREATE TABLE PollenLookup(distance REAL, '
+        for row in range(self.dlg.tableWidget_taxa.rowCount()):
+            taxon = self.dlg.tableWidget_taxa.item(row, 0).text()
+            if row+1 == self.dlg.tableWidget_taxa.rowCount():
+                add_column_string = taxon+'_DW REAL)'
+                create_table_string+=add_column_string
+            else:
+                add_column_string= taxon+'_DW REAL,'
+                create_table_string+=add_column_string
+        cursor.execute(create_table_string)
+        #insert all unique distances from dist_dir and pseudo_points
+        insert_into_table = 'INSERT INTO PollenLookup(distance) SELECT DISTINCT distance FROM dist_dir'
+        cursor.execute(insert_into_table)
+        insert_into_table = 'INSERT INTO PollenLookup(distance) SELECT DISTINCT distance FROM pseudo_points'
+        cursor.execute(insert_into_table)
+        conn.commit()
+
+
+        ##calculate distance weighting per taxon
+        #define distance weighting function
+        cursor.execute('BEGIN TRANSACTION')
+        if self.dlg.comboBox_dispModel.currentText() == 'Prentice-Sugita':
+            conn.create_function("DISTANCEWEIGHT", 5, self._SqlDw_Prentice_Sugita)
+            # calculate the pollen dispersal and deposition functions
+            for row in range(self.dlg.tableWidget_taxa.rowCount()):
+
+
+                taxon = self.dlg.tableWidget_taxa.item(row, 0).text()
+                atmos_const= self.dlg.lineEdit_atmosConst.text()
+                diffusion_const = self.dlg.lineEdit_diffConst.text()
+                wind_speed = self.dlg.lineEdit_windSpeed.text()
+                #test function
+                fall_speed = 'SELECT "fall_speed" FROM "taxa" WHERE "taxon_code" = "'+taxon+'"'
+                cursor.execute(fall_speed)
+                fall_speed = cursor.fetchone()[0]
+                update_DWPA_string = 'UPDATE PollenLookup SET ' + taxon + '_DW = (SELECT DISTANCEWEIGHT('+str(atmos_const)+\
+                    ', '+str(diffusion_const)+', '+str(wind_speed)+', distance, '+str(fall_speed)+'))'
+                cursor.execute(update_DWPA_string)
+                # try:
+                #     cursor.execute(update_DWPA_string)
+                # except Exception as e:
+                #     QgsMessageLog.logMessage("Exception raised ",
+                #                              'SQLite error',
+                #                              Qgis.Warning)
+                #     QgsMessageLog.logMessage(str(e), 'SQLite error', Qgis.Warning)
+
+
+        cursor.execute('COMMIT')
+
+        # template add distance weighting function
+        # elif self.dlg.comboBox_model.currentText() == '1/d':
+        #     conn.create_function("DISTANCEWEIGHT", 1, self._SqlDw_OneOverD)
+        #     pass
+        QgsMessageLog.logMessage("Creation of distance weighted plant abundance tables finished", 'MSA_QGIS',
+                                 Qgis.Info)
+
+
+
+
+
+    def _SqlDw_Prentice_Sugita(self, atmos_const, diffusion_const, wind_speed, distance, fall_speed):
+        """A distance weighting function.
+        The pollen dispersal and deposition function from the Prentice/Sugita's (mixed) basin models and the
+        HUMPOL model."""
+        if distance == 0:
+            return -1
+        else:
+            atmos_const = float(atmos_const)
+            diffusion_const = float(diffusion_const)
+            wind_speed = float(wind_speed)
+            distance = float(distance)
+            fall_speed = float(fall_speed)
+            turb_const = 2 * atmos_const
+            settling_coefficient = (4*fall_speed)/(turb_const*wind_speed* math.sqrt(math.pi * diffusion_const))
+            pollen_dispersal_deposition = settling_coefficient*atmos_const*(distance**(atmos_const*-1))*math.exp((settling_coefficient*-1)*(distance**atmos_const))
+            return pollen_dispersal_deposition
+
+
+    #ADD NEW DISTANCE WEIGHTING FUNCTIONS HERE.
+    #template distance weighting function
+    # def _SQLDW_{name of your distance weighting function}(self, distance, input_variable1, input_variable2):
+    #     """ A distance weighting function.
+    #     {put description of your distance weighting function here}"""
+    #     distance_weight = {your pollen distance weighting function here}
+    #     return distance_weight
+
+
+    def simulatePollen(self, output_map, conn, cursor):
+        """Simulates the pollen per map, per site and determines whether the fit between the simulated pollen and actual
+         pollen is close enough to retain the map."""
+        #temporary maps per sample
+        #include all points and pseudopoints EXCEPT where distance is 0
+        # msa_id, distance, and direction come from dist_dir. gi(z) comes from PollenLookup. veg_com per msa_id comes
+        # from the output_map. veg_com for the pseudo_id comes from msa_id of the map after lookup of related msa_id in
+        # pseudo_points. Then x(ik) comes from the vegcom table searching by veg_com, and RPP comes from the taxon table.
+
+        #create new table per site
+        for row in range(self.dlg.tableWidget_sites.rowCount()):
+            site_name = self.dlg.tableWidget_sites.item(row, 0).text()
+            create_table_string = 'CREATE TABLE ' + site_name + output_map + '(msa_id INT, pseudo_id INT, pollen_load REAL, '
+            for row in range(self.dlg.tableWidget_taxa.rowCount()):
+                taxon = self.dlg.tableWidget_taxa.item(row,0).text()
+                if row+1 == self.dlg.tableWidget_taxa.rowCount():
+                    add_column_string = taxon +'_PL TEXT)'
+                    create_table_string+= add_column_string
+                else:
+                    add_column_string = taxon + '_PL TEXT, '
+                    create_table_string += add_column_string
+            cursor.execute(create_table_string)
+            conn.commit()
+
+            insert_into_string = 'INSERT INTO ' + site_name + output_map + '(msa_id) ' \
+                                 'SELECT "msa_id" FROM "dist_dir" WHERE ("site_name" = "'+site_name+'") ' \
+                                 'AND ("distance" != "0")'
+            cursor.execute(insert_into_string)
+            insert_into_string = 'INSERT INTO ' + site_name + output_map + '(pseudo_id) ' \
+                                 'SELECT "pseudo_id" FROM "pseudo_points" WHERE "site_name" = "'+site_name+'"'
+            cursor.execute(insert_into_string)
+            update_table_string = 'UPDATE "' + site_name + output_map + '" SET "msa_id" = (SELECT "msa_id" FROM ' \
+                                  '"pseudo_points" WHERE "site_name" = "'  +site_name+'") WHERE pseudo_id >= 0'
+            cursor.execute(update_table_string)
+            conn.commit()
+
+            for row in range(self.dlg.tableWidget_taxa.rowCount()): # TODO not yet functional
+                taxon = self.dlg.tableWidget_taxa.item(row,0).text()
+                find_pollen_productivity_string = 'SELECT "RelPP" FROM taxa WHERE "taxon_code" = "'+taxon+'"'
+                find_plant_abundance_string = 'SELECT "vegcom_percent" FROM vegcom WHERE "taxon_code" = "'+taxon+'"'\
+                                            ' AND "veg_com" = (SELECT "veg_com" FROM "'+output_map+ '" WHERE (msa_id = ' + site_name + output_map + '.msa_id))'
+                find_dw_pollen_string = 'SELECT "'+taxon+'_DW" FROM PollenLookup WHERE PollenLookup.distance = (' \
+                                        'SELECT "distance" FROM dist_dir WHERE (msa_id = ' + site_name + output_map + '.msa_id) AND (site_name = "'+site_name+'"))'
+                find_distance_string = 'SELECT "distance" FROM dist_dir WHERE (msa_id = ' + site_name + output_map + '.msa_id) AND (site_name = "'+site_name+'")'
+
+                update_table_string = 'UPDATE ' + site_name + output_map + ' SET "'+taxon+'_PL" = (SELECT ('+\
+                                      find_pollen_productivity_string+') * ('+find_plant_abundance_string+ ') * (' + \
+                                      find_dw_pollen_string + ') * (' + find_distance_string
+                if self.dlg.checkBox_enableWindrose.isChecked():
+                    find_windrose_string = 'SELECT "windrose_weight" FROM windrose WHERE (CASE WHEN ' + site_name + output_map + '.pseudo_id IS NULL THEN ' \
+                                           '"direction" = (SELECT "direction" FROM dist_dir WHERE ((msa_id = ' + site_name + output_map + '.msa_id) AND (site_name = "'+site_name+'"))) ' \
+                                           'ELSE "direction" = (SELECT "direction" FROM pseudo_points WHERE (pseudo_id = ' + site_name + output_map + '.pseudo_id)) END))'
+                    enable_windrose_string = ') * ('+ find_windrose_string + ')'
+                    update_table_string += enable_windrose_string
+                else:
+                    update_table_string += '))'
+                print('see which ones are broken')
+                print(find_windrose_string)
+                # cursor.execute(find_windrose_string)
+                # print(cursor.fetchall())
+                # cursor.execute(find_pollen_productivity_string)
+                # print(cursor.fetchall())
+                # cursor.execute(find_distance_string)
+                # print(cursor.fetchall())
+                # cursor.execute(find_dw_pollen_string)
+                # print(cursor.fetchall())
+                # print(find_plant_abundance_string)
+                # cursor.execute(find_plant_abundance_string)
+                # print(cursor.fetchall())
+
+
+                print(update_table_string)
+                cursor.execute(update_table_string)
+
+                pass
+
+
+
+        #calculate pollen percentages to "maps"
+        retain_map = False
+        return retain_map,
 
     def run(self):
         """Run method that performs all the real work"""
@@ -1144,19 +1385,21 @@ class MsaQgis:
         result = self.dlg.exec_() #TODO change so that window stays open while running main analysis
         # See if OK was pressed
         if result:
-
+            QgsMessageLog.logMessage("MSA_QGIS started", 'MSA_QGIS',
+                                     Qgis.Info)
             startTime = time.time()
 
 ### Create the base point layer with resolution and extent given by user
             self.crs = iface.activeLayer().crs()
             spacing = self.dlg.spinBox_resolution.value()  # Takes input from user in "resolution" to set spacing
-            vector_point_base = self.createPointLayer(self.crs, spacing)
 
+            vector_point_base = self.createPointLayer(self.crs, spacing)
 
             #timer
             create_points_time = (time.time() - startTime)
             create_points_time_end = time.time()
-            print('Vector point creation, Execution time in seconds: ' + str(create_points_time))
+            QgsMessageLog.logMessage('Vector point creation, Execution time in seconds: ' + str(create_points_time), 'MSA_QGIS',
+                                     Qgis.Info)
 
 #### Point sample natively and convert to sql, or create sql directly
 
@@ -1166,13 +1409,17 @@ class MsaQgis:
                 # timer
                 point_sample_time = (time.time() - create_points_time_end)
                 point_sample_time_end = time.time()
-                print('point sampling native, Execution time in seconds: ' + str(point_sample_time))
+                QgsMessageLog.logMessage('point sampling native, Execution time in seconds: ' + str(point_sample_time),
+                                         'MSA_QGIS',
+                                         Qgis.Info)
             else:
                 self.pointSampleSQL(vector_point_base,self.crs)
                 # timer
                 point_sample_time = (time.time() - create_points_time_end)
                 point_sample_time_end = time.time()
-                print('point sampling, Execution time in seconds: ' + str(point_sample_time))
+                QgsMessageLog.logMessage('point sampling, Execution time in seconds: ' + str(point_sample_time),
+                                         'MSA_QGIS',
+                                         Qgis.Info)
 
 
 ### Processing the rules (this is in sql, but not necessarily in spatialite. Since the maps has both the csv version
@@ -1211,15 +1458,17 @@ class MsaQgis:
             #get number of entries (necessary for processing chance)
             cursor.execute('SELECT * FROM "basemap"')
             number_of_entries = len(cursor.fetchall())
-            print('number of entries is: ',  number_of_entries)
+            QgsMessageLog.logMessage('number of points is: '+ str(number_of_entries),
+                                     'MSA_QGIS',
+                                     Qgis.Info)
 
             self.createSiteTables(conn, cursor, spacing) # creates both table with site and tables with pollen counts
             self.createTaxonTables(conn,cursor)
             self.createTableDistanceToSite(conn,cursor, number_of_entries)
             self.createTablePseudoPoints(conn,cursor, spacing)
             self.createTableOfMaps(conn,cursor)
-            self.createTableWindrose(conn,cursor) # not yet functional, make UI first
-            #TODO create table with weighting windrose
+            self.createTablePollenLookupBasin(conn, cursor)
+            self.createTableWindrose(conn,cursor)
             # TODO create a table with lakes
 
 
@@ -1236,7 +1485,9 @@ class MsaQgis:
             #timer
             basemap_time = (time.time() - point_sample_time_end)
             basemap_time_end = time.time()
-            print('empty basemap to filled basemap in sql, Execution time in seconds: ' + str(basemap_time))
+            QgsMessageLog.logMessage('empty basemap to filled basemap in sql, Execution time in seconds: ' + str(basemap_time),
+                                     'MSA_QGIS',
+                                     Qgis.Info)
 
             #process the main rules
             #make a list of all the end-points in the rule tree
@@ -1255,16 +1506,15 @@ class MsaQgis:
                 ##final points in rule tree for loop
                 for final_id in list_final_rule_ids:
                     prev_ruleTreeWidgets = dict_of_rules_widgets[final_id].prev_ruleTreeWidgets.copy()
-                    #check if prev-ruleTreeWidget is in list_branchpoints AND the map in question exists. If yes, set the map as a starting point and take all > than that map out of the list of previous ruleTreeWidgets
+                    #check if prev_ruleTreeWidget is in list_branchpoints AND the map in question exists. If yes, set the map as a starting point and take all > than that map out of the list of previous ruleTreeWidgets
                     save_point = 1
                     for prev_id in prev_ruleTreeWidgets:
                         if prev_id in list_branchpoints:
-                            string_check_map_existence = ''
-                            print(cursor.execute(string_check_map_existence))
-                            if cursor.execute(string_check_map_existence) == True: #or whatever the actual outcome is
+                            string_check_map_existence = 'SELECT 1 FROM sqlite_master WHERE type = "table" AND name = "'+str(prev_id)+'run'+str(iteration)+'"'
+                            if cursor.execute(string_check_map_existence) == 1:
                                 if prev_id > save_point:
                                     save_point = prev_id # ensures that the highest/most recent out of the branchpoint order ids is chosen
-                    print('save point for ',  final_id, ' is ', save_point)
+
                     # if there is a branch point, remove all prev_id < branch point
                     prev_ruleTreeWidgets[:] = [prev_id for prev_id in prev_ruleTreeWidgets if prev_id >= save_point] # should delete nothing if no save_point was made
                     # remove all the basemap prev_id from the list
@@ -1273,13 +1523,22 @@ class MsaQgis:
                     #determine start input map
                     if save_point > 1:
                         input_map = str(save_point) + 'run'+str(iteration-1)
-                        print('input map is branch point ' + save_point)
+                        QgsMessageLog.logMessage(
+                            'input map is branch point ' + save_point,
+                            'MSA_QGIS',
+                            Qgis.Info)
                     elif basemap_table != 0:
                         input_map = basemap_table
-                        print('input map is basemap')
+                        QgsMessageLog.logMessage(
+                            'input map is basemap',
+                            'MSA_QGIS',
+                            Qgis.Info)
                     else:
                         input_map = self.assignVegetationSQL(final_id, 1, 1, conn, cursor, iteration, number_of_entries)
-                        print('input map is first in tree')
+                        QgsMessageLog.logMessage(
+                            'input map is first in tree',
+                            'MSA_QGIS',
+                            Qgis.Info)
                     ## previous rule tree widgets of final_id for loop
                     for running_id in prev_ruleTreeWidgets:
                         #assign vegetation
@@ -1287,7 +1546,7 @@ class MsaQgis:
                                                               iteration, number_of_entries)
                         input_map = output_map
                     # assign vegetation final rule
-                    self.assignVegetationSQL(final_id, input_map, final_id, conn, cursor, iteration, number_of_entries)
+                    output_map = self.assignVegetationSQL(final_id, input_map, final_id, conn, cursor, iteration, number_of_entries)
                     # drop all maps that are not the final rule or a saved rule
                     for prev_id in prev_ruleTreeWidgets:
                         if prev_id not in list_branchpoints and prev_id not in list_final_rule_ids:
@@ -1295,6 +1554,7 @@ class MsaQgis:
                             cursor.execute(string_drop_table)
                             conn.commit()
                     # TODO simulate pollen for the output map of the final rule
+                    self.simulatePollen(output_map, conn, cursor)
 
                     # TODO compare the simulated pollen with the actual pollen (least squares, other options)
                     # TODO if simulated pollen match well enough with the actual pollen then:
@@ -1311,8 +1571,12 @@ class MsaQgis:
                         cursor.execute(string_drop_table)
                         conn.commit()
 
+
                 iteration_time = (time.time() - start_time)
-                print('iteration ', str(iteration), ' took ', iteration_time, ' to run')
+                QgsMessageLog.logMessage(
+                    'iteration '+ str(iteration)+ ' took '+ str(iteration_time)+ ' to run',
+                    'MSA_QGIS',
+                    Qgis.Info)
             #save all the maps that are left in the memory database to file (should only contain final tables)
 
             #vacuum memory database to disk database
@@ -1323,10 +1587,18 @@ class MsaQgis:
 
             final_time = (time.time() - basemap_time_end)
             final_time_end = time.time()
-            print('all iterations completed, Execution time in seconds: ' + str(final_time))
+            QgsMessageLog.logMessage(
+                'all iterations completed, Execution time in seconds: ' + str(final_time),
+                'MSA_QGIS',
+                Qgis.Info)
 
             #...
             executionTime = (time.time() - startTime)
-            print('Total execution time in seconds: ' + str(executionTime))
+            QgsMessageLog.logMessage(
+                'Total execution time in seconds: ' + str(executionTime),
+                'MSA_QGIS',
+                Qgis.Info)
+            QgsMessageLog.logMessage("MSA_QGIS finished sucessfully", 'MSA_QGIS',
+                                     Qgis.Info)
             pass
 

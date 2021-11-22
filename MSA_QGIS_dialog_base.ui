@@ -9,7 +9,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>714</width>
+    <width>742</width>
     <height>890</height>
    </rect>
   </property>
@@ -64,7 +64,7 @@
         <string notr="true">tab_rules {background-color: rgb(240, 240, 240)};</string>
        </property>
        <property name="currentIndex">
-        <number>4</number>
+        <number>5</number>
        </property>
        <widget class="QWidget" name="tab_envAndSpatial">
         <attribute name="title">
@@ -108,8 +108,8 @@
              <rect>
               <x>0</x>
               <y>0</y>
-              <width>700</width>
-              <height>634</height>
+              <width>728</width>
+              <height>629</height>
              </rect>
             </property>
             <layout class="QGridLayout" name="gridLayout">
@@ -396,8 +396,8 @@
              <rect>
               <x>0</x>
               <y>0</y>
-              <width>700</width>
-              <height>634</height>
+              <width>728</width>
+              <height>629</height>
              </rect>
             </property>
             <layout class="QGridLayout" name="gridLayout_2">
@@ -761,8 +761,8 @@
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>524</width>
-                <height>587</height>
+                <width>521</width>
+                <height>590</height>
                </rect>
               </property>
               <layout class="QHBoxLayout" name="horizontalLayout_18">
@@ -933,8 +933,8 @@
              <rect>
               <x>0</x>
               <y>0</y>
-              <width>700</width>
-              <height>634</height>
+              <width>728</width>
+              <height>629</height>
              </rect>
             </property>
             <layout class="QGridLayout" name="gridLayout_3" rowstretch="0,0,0,0,0">
@@ -1099,46 +1099,286 @@
         <attribute name="title">
          <string>Model Parameters</string>
         </attribute>
-        <layout class="QGridLayout" name="gridLayout_4">
-         <item row="0" column="0">
-          <widget class="QLabel" name="label">
+        <layout class="QGridLayout" name="gridLayout_4" rowstretch="0,0,0,0,0,1,0,0,0,0" columnstretch="1,2,1,1">
+         <item row="4" column="1" rowspan="2">
+          <layout class="QHBoxLayout" name="horizontalLayout_3">
+           <item>
+            <layout class="QVBoxLayout" name="verticalLayout_3">
+             <item>
+              <widget class="QLabel" name="label_2">
+               <property name="text">
+                <string>North</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="label_3">
+               <property name="text">
+                <string>NorthEast</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="label_5">
+               <property name="text">
+                <string>East</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="label_6">
+               <property name="text">
+                <string>SouthEast</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="label_7">
+               <property name="text">
+                <string>South</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="label_8">
+               <property name="text">
+                <string>SouthWest</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="label_9">
+               <property name="text">
+                <string>West</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="label_10">
+               <property name="text">
+                <string>NorthWest</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QVBoxLayout" name="verticalLayout_4">
+             <item>
+              <widget class="QLineEdit" name="lineEdit_north">
+               <property name="text">
+                <string>1</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLineEdit" name="lineEdit_northEast">
+               <property name="text">
+                <string>1</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLineEdit" name="lineEdit_east">
+               <property name="text">
+                <string>0</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLineEdit" name="lineEdit_southEast">
+               <property name="text">
+                <string>100</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLineEdit" name="lineEdit_south">
+               <property name="text">
+                <string>10</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLineEdit" name="lineEdit_southWest">
+               <property name="text">
+                <string>100</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLineEdit" name="lineEdit_west">
+               <property name="text">
+                <string>10</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLineEdit" name="lineEdit_northWest">
+               <property name="text">
+                <string>1</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+          </layout>
+         </item>
+         <item row="1" column="2">
+          <widget class="QLabel" name="label_turbConst">
            <property name="text">
-            <string>Model for distance weighting</string>
+            <string>Turbulence constant</string>
            </property>
           </widget>
          </item>
-         <item row="0" column="1">
-          <widget class="QComboBox" name="comboBox_dispModel"/>
+         <item row="2" column="1" colspan="3">
+          <widget class="QLineEdit" name="lineEdit_diffConst">
+           <property name="text">
+            <string>0.12</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="QLineEdit" name="lineEdit_atmosConst">
+           <property name="text">
+            <string>0.25</string>
+           </property>
+          </widget>
          </item>
          <item row="1" column="0">
-          <widget class="QLabel" name="label_2">
+          <widget class="QLabel" name="label_atmosConst">
+           <property name="text">
+            <string>Atmospheric constant</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="label_difConst_2">
+           <property name="text">
+            <string>Diffusion constant</string>
+           </property>
+          </widget>
+         </item>
+         <item row="7" column="0">
+          <widget class="QLabel" name="label_importLookup">
+           <property name="toolTip">
+            <string>If a lookup table is imported, no lookup table will be generated. </string>
+           </property>
            <property name="text">
             <string>Import Lookup Table</string>
            </property>
           </widget>
          </item>
-         <item row="1" column="1">
-          <widget class="QgsFileWidget" name="mQgsFileWidget"/>
-         </item>
-         <item row="2" column="0">
-          <widget class="QLabel" name="label_3">
+         <item row="9" column="0">
+          <widget class="QLabel" name="label_fit">
+           <property name="toolTip">
+            <string>Maps of which the simulated pollen counts are below the desired fit will not be saved. The fit level will be reported in the table of maps</string>
+           </property>
            <property name="text">
-            <string>Lookup table exerpt</string>
+            <string>Desired fit</string>
            </property>
           </widget>
          </item>
-         <item row="2" column="1">
-          <widget class="QTableWidget" name="tableWidget"/>
+         <item row="9" column="1" colspan="3">
+          <widget class="QDoubleSpinBox" name="doubleSpinBox"/>
+         </item>
+         <item row="8" column="0">
+          <widget class="QLabel" name="label_11">
+           <property name="text">
+            <string>Fit calculation method</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="1" colspan="3">
+          <widget class="QLineEdit" name="lineEdit_windSpeed">
+           <property name="text">
+            <string>20</string>
+           </property>
+          </widget>
+         </item>
+         <item row="7" column="1" colspan="3">
+          <widget class="QgsFileWidget" name="mQgsFileWidget">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="8" column="1" colspan="3">
+          <widget class="QComboBox" name="comboBox">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+           <property name="currentText">
+            <string>At the moment, only square chord distance is available</string>
+           </property>
+           <item>
+            <property name="text">
+             <string>At the moment, only square chord distance is available</string>
+            </property>
+           </item>
+          </widget>
          </item>
          <item row="3" column="0">
-          <widget class="QLabel" name="label_5">
+          <widget class="QLabel" name="label_windSpeed">
            <property name="text">
-            <string>Desrired fit</string>
+            <string>Average Wind speed (m/s)</string>
            </property>
           </widget>
          </item>
-         <item row="3" column="1">
-          <widget class="QDoubleSpinBox" name="doubleSpinBox"/>
+         <item row="0" column="1" colspan="3">
+          <widget class="QComboBox" name="comboBox_dispModel">
+           <item>
+            <property name="text">
+             <string>Prentice-Sugita</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>1/d</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>1/d2</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Use lookup table</string>
+            </property>
+           </item>
+          </widget>
+         </item>
+         <item row="1" column="3">
+          <widget class="QLabel" name="label_calculatedTurbConst">
+           <property name="text">
+            <string>[]</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="0">
+          <widget class="QLabel" name="label_modelType">
+           <property name="text">
+            <string>Model for distance weighting</string>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="2" rowspan="2">
+          <widget class="QCheckBox" name="checkBox_enableWindrose">
+           <property name="text">
+            <string>Enable</string>
+           </property>
+           <property name="checked">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="0" rowspan="2">
+          <widget class="QLabel" name="label">
+           <property name="text">
+            <string>Windrose weighting</string>
+           </property>
+          </widget>
          </item>
         </layout>
        </widget>
@@ -1167,8 +1407,8 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>768</width>
-        <height>215</height>
+        <width>794</width>
+        <height>242</height>
        </rect>
       </property>
       <layout class="QHBoxLayout" name="horizontalLayout_20" stretch="0">
