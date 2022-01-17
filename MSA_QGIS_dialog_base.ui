@@ -9,7 +9,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>742</width>
+    <width>600</width>
     <height>890</height>
    </rect>
   </property>
@@ -60,6 +60,12 @@
        <property name="enabled">
         <bool>true</bool>
        </property>
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
        <property name="styleSheet">
         <string notr="true">tab_rules {background-color: rgb(240, 240, 240)};</string>
        </property>
@@ -108,8 +114,8 @@
              <rect>
               <x>0</x>
               <y>0</y>
-              <width>728</width>
-              <height>629</height>
+              <width>586</width>
+              <height>633</height>
              </rect>
             </property>
             <layout class="QGridLayout" name="gridLayout">
@@ -396,8 +402,8 @@
              <rect>
               <x>0</x>
               <y>0</y>
-              <width>728</width>
-              <height>629</height>
+              <width>586</width>
+              <height>633</height>
              </rect>
             </property>
             <layout class="QGridLayout" name="gridLayout_2">
@@ -761,8 +767,8 @@
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>521</width>
-                <height>590</height>
+                <width>410</width>
+                <height>594</height>
                </rect>
               </property>
               <layout class="QHBoxLayout" name="horizontalLayout_18">
@@ -869,7 +875,7 @@
                <item>
                 <widget class="QLabel" name="label_numberOfMaps">
                  <property name="text">
-                  <string>Will result in generating x  maps</string>
+                  <string>Will result in generating [6] maps</string>
                  </property>
                  <property name="wordWrap">
                   <bool>true</bool>
@@ -933,8 +939,8 @@
              <rect>
               <x>0</x>
               <y>0</y>
-              <width>728</width>
-              <height>629</height>
+              <width>586</width>
+              <height>633</height>
              </rect>
             </property>
             <layout class="QGridLayout" name="gridLayout_3" rowstretch="0,0,0,0,0">
@@ -1099,7 +1105,7 @@
         <attribute name="title">
          <string>Model Parameters</string>
         </attribute>
-        <layout class="QGridLayout" name="gridLayout_4" rowstretch="0,0,0,0,0,1,0,0,0,0" columnstretch="1,2,1,1">
+        <layout class="QGridLayout" name="gridLayout_4" rowstretch="0,0,0,0,0,1,0,0,0,0,0" columnstretch="1,2,1,1">
          <item row="4" column="1" rowspan="2">
           <layout class="QHBoxLayout" name="horizontalLayout_3">
            <item>
@@ -1252,11 +1258,36 @@
            </property>
           </widget>
          </item>
-         <item row="2" column="0">
-          <widget class="QLabel" name="label_difConst_2">
-           <property name="text">
-            <string>Diffusion constant</string>
+         <item row="8" column="0">
+          <widget class="QLabel" name="label_11">
+           <property name="toolTip">
+            <string>At the moment, only Square Chord Distance is available</string>
            </property>
+           <property name="text">
+            <string>Fit calculation method</string>
+           </property>
+          </widget>
+         </item>
+         <item row="7" column="1" colspan="3">
+          <widget class="QgsFileWidget" name="mQgsFileWidget">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="8" column="1" colspan="3">
+          <widget class="QComboBox" name="comboBox_fit">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+           <property name="currentText">
+            <string>Square Chord Distance</string>
+           </property>
+           <item>
+            <property name="text">
+             <string>Square Chord Distance</string>
+            </property>
+           </item>
           </widget>
          </item>
          <item row="7" column="0">
@@ -1269,23 +1300,16 @@
            </property>
           </widget>
          </item>
+         <item row="9" column="1" colspan="3">
+          <widget class="QDoubleSpinBox" name="doubleSpinBox_fit"/>
+         </item>
          <item row="9" column="0">
           <widget class="QLabel" name="label_fit">
            <property name="toolTip">
-            <string>Maps of which the simulated pollen counts are below the desired fit will not be saved. The fit level will be reported in the table of maps</string>
+            <string>Desired fit threshold that simulated pollen for every site should meet. Maps of which the simulated pollen counts are below the desired fit will not be saved.</string>
            </property>
            <property name="text">
             <string>Desired fit</string>
-           </property>
-          </widget>
-         </item>
-         <item row="9" column="1" colspan="3">
-          <widget class="QDoubleSpinBox" name="doubleSpinBox"/>
-         </item>
-         <item row="8" column="0">
-          <widget class="QLabel" name="label_11">
-           <property name="text">
-            <string>Fit calculation method</string>
            </property>
           </widget>
          </item>
@@ -1296,32 +1320,44 @@
            </property>
           </widget>
          </item>
-         <item row="7" column="1" colspan="3">
-          <widget class="QgsFileWidget" name="mQgsFileWidget">
-           <property name="enabled">
-            <bool>false</bool>
+         <item row="2" column="0">
+          <widget class="QLabel" name="label_difConst_2">
+           <property name="text">
+            <string>Diffusion constant</string>
            </property>
           </widget>
          </item>
-         <item row="8" column="1" colspan="3">
-          <widget class="QComboBox" name="comboBox">
-           <property name="enabled">
-            <bool>false</bool>
+         <item row="10" column="0">
+          <widget class="QLabel" name="label_12">
+           <property name="toolTip">
+            <string>Keeping more data than just the fitted maps is only recommended for test runs</string>
            </property>
-           <property name="currentText">
-            <string>At the moment, only square chord distance is available</string>
+           <property name="text">
+            <string>Data to keep</string>
            </property>
-           <item>
-            <property name="text">
-             <string>At the moment, only square chord distance is available</string>
-            </property>
-           </item>
           </widget>
          </item>
          <item row="3" column="0">
           <widget class="QLabel" name="label_windSpeed">
            <property name="text">
             <string>Average Wind speed (m/s)</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="0">
+          <widget class="QLabel" name="label_modelType">
+           <property name="text">
+            <string>Model for distance weighting</string>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="2" rowspan="2">
+          <widget class="QCheckBox" name="checkBox_enableWindrose">
+           <property name="text">
+            <string>Enable</string>
+           </property>
+           <property name="checked">
+            <bool>true</bool>
            </property>
           </widget>
          </item>
@@ -1356,29 +1392,109 @@
            </property>
           </widget>
          </item>
-         <item row="0" column="0">
-          <widget class="QLabel" name="label_modelType">
-           <property name="text">
-            <string>Model for distance weighting</string>
-           </property>
-          </widget>
-         </item>
-         <item row="4" column="2" rowspan="2">
-          <widget class="QCheckBox" name="checkBox_enableWindrose">
-           <property name="text">
-            <string>Enable</string>
-           </property>
-           <property name="checked">
-            <bool>true</bool>
-           </property>
-          </widget>
-         </item>
          <item row="4" column="0" rowspan="2">
           <widget class="QLabel" name="label">
            <property name="text">
             <string>Windrose weighting</string>
            </property>
           </widget>
+         </item>
+         <item row="10" column="1" colspan="3">
+          <layout class="QHBoxLayout" name="horizontalLayout_4">
+           <item>
+            <layout class="QHBoxLayout" name="horizontalLayout_5" stretch="0,1">
+             <item>
+              <widget class="QRadioButton" name="radioButton_keepFitted">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="label_13">
+               <property name="text">
+                <string>Keep fit maps and simulated percentages</string>
+               </property>
+               <property name="wordWrap">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QHBoxLayout" name="horizontalLayout_11" stretch="0,1">
+             <property name="sizeConstraint">
+              <enum>QLayout::SetDefaultConstraint</enum>
+             </property>
+             <item>
+              <widget class="QRadioButton" name="radioButton_keepTwo">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="text">
+                <string/>
+               </property>
+               <property name="checked">
+                <bool>false</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="label_15">
+               <property name="text">
+                <string>Keep all maps and simulated percentages</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+               </property>
+               <property name="wordWrap">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QHBoxLayout" name="horizontalLayout_10" stretch="0,1">
+             <item>
+              <widget class="QRadioButton" name="radioButton_keepAll">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="text">
+                <string/>
+               </property>
+               <property name="checked">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="label_14">
+               <property name="text">
+                <string>Keep all maps, simulated percentages, and simulated pollen loads</string>
+               </property>
+               <property name="wordWrap">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+          </layout>
          </item>
         </layout>
        </widget>
@@ -1407,8 +1523,8 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>794</width>
-        <height>242</height>
+        <width>592</width>
+        <height>218</height>
        </rect>
       </property>
       <layout class="QHBoxLayout" name="horizontalLayout_20" stretch="0">
@@ -1451,7 +1567,7 @@
             </font>
            </property>
            <property name="text">
-            <string>Checklist (not yet functional)</string>
+            <string>Checklist</string>
            </property>
            <property name="alignment">
             <set>Qt::AlignCenter</set>
@@ -1467,6 +1583,9 @@
                <property name="text">
                 <string>Extent set</string>
                </property>
+               <property name="checked">
+                <bool>true</bool>
+               </property>
               </widget>
              </item>
              <item>
@@ -1474,12 +1593,18 @@
                <property name="text">
                 <string>Resolution set</string>
                </property>
+               <property name="checked">
+                <bool>true</bool>
+               </property>
               </widget>
              </item>
              <item>
               <widget class="QCheckBox" name="checkBox_envLayers">
                <property name="text">
                 <string>Environmental Layers selected</string>
+               </property>
+               <property name="checked">
+                <bool>true</bool>
                </property>
               </widget>
              </item>
@@ -1499,12 +1624,18 @@
                <property name="text">
                 <string>Taxa set</string>
                </property>
+               <property name="checked">
+                <bool>true</bool>
+               </property>
               </widget>
              </item>
              <item>
               <widget class="QCheckBox" name="checkBox_vegCom">
                <property name="text">
                 <string>Vegetation communities set</string>
+               </property>
+               <property name="checked">
+                <bool>true</bool>
                </property>
               </widget>
              </item>
@@ -1513,12 +1644,18 @@
                <property name="text">
                 <string>Pollen counts set</string>
                </property>
+               <property name="checked">
+                <bool>true</bool>
+               </property>
               </widget>
              </item>
              <item>
               <widget class="QCheckBox" name="checkBox_windRose">
                <property name="text">
                 <string>(Optional) Wind rose set</string>
+               </property>
+               <property name="checked">
+                <bool>true</bool>
                </property>
               </widget>
              </item>
@@ -1531,12 +1668,18 @@
                <property name="text">
                 <string>Model Parameters set</string>
                </property>
+               <property name="checked">
+                <bool>true</bool>
+               </property>
               </widget>
              </item>
              <item>
               <widget class="QCheckBox" name="checkBox_rules">
                <property name="text">
                 <string>Rules set</string>
+               </property>
+               <property name="checked">
+                <bool>true</bool>
                </property>
               </widget>
              </item>
@@ -1620,7 +1763,7 @@
 background-color: rgb(199, 199, 199);</string>
              </property>
              <property name="text">
-              <string>Click OK to run MSA-QGIS... (status bar not yet functional)</string>
+              <string>Click OK to run MSA-QGIS...</string>
              </property>
             </widget>
            </item>

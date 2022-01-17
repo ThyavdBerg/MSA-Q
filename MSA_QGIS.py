@@ -1154,16 +1154,16 @@ class MsaQgis:
         calculating pollen) including the pollen percentages calculated per taxon"""
         QgsMessageLog.logMessage("Creation of map tables initiated", 'MSA_QGIS',
                                  Qgis.Info)
-        create_table_string = 'CREATE TABLE maps(map_id INT, final_map INT, iteration INT, likelihood_met BOOL, likelihood REAL, '
-        for row in range(self.dlg.tableWidget_taxa.rowCount()):
-            taxon = self.dlg.tableWidget_taxa.item(row, 0).text()
-            if row+1 == self.dlg.tableWidget_taxa.rowCount():
-                taxon_string = taxon + ' REAL)'
-                create_table_string += taxon_string
+        create_table_string = 'CREATE TABLE maps(map_id TEXT, iteration INT, likelihood_met BOOL, likelihood_threshold REAL, '
+        #insert a column for likelihood scores per site
+        for row in range (self.dlg.tableWidget_sites.rowCount()):
+            site = self.dlg.tableWidget_sites.item(row, 0).text()
+            if row+1 == self.dlg.tableWidget_sites.rowCount():
+                site_string = 'likelihood_' + site + ' REAL)'
+                create_table_string += site_string
             else:
-                taxon_string = taxon+' REAL, '
-                create_table_string += taxon_string
-
+                site_string = 'likelihood_' + site + ' REAL, '
+                create_table_string += site_string
 
         cursor.execute(create_table_string)
         conn.commit()
@@ -1287,26 +1287,24 @@ class MsaQgis:
     #     return distance_weight
 
 
-    def simulatePollen(self, output_map, conn, cursor):
+    def simulatePollen(self, output_map,iteration, conn, cursor):
         """Simulates the pollen per map, per site and determines whether the fit between the simulated pollen and actual
          pollen is close enough to retain the map."""
-        #temporary maps per sample
-        #include all points and pseudopoints EXCEPT where distance is 0
-        # msa_id, distance, and direction come from dist_dir. gi(z) comes from PollenLookup. veg_com per msa_id comes
-        # from the output_map. veg_com for the pseudo_id comes from msa_id of the map after lookup of related msa_id in
-        # pseudo_points. Then x(ik) comes from the vegcom table searching by veg_com, and RPP comes from the taxon table.
 
+        QgsMessageLog.logMessage(f"Simulation of pollen for {output_map} started", 'MSA_QGIS',
+                                 Qgis.Info)
+    ##calculate pollen load per point per site
         #create new table per site
         for row in range(self.dlg.tableWidget_sites.rowCount()):
             site_name = self.dlg.tableWidget_sites.item(row, 0).text()
-            create_table_string = 'CREATE TABLE ' + site_name + output_map + '(msa_id INT, pseudo_id INT, pollen_load REAL, '
+            create_table_string = 'CREATE TABLE ' + site_name + output_map + '(msa_id INT, pseudo_id INT, '
             for row in range(self.dlg.tableWidget_taxa.rowCount()):
                 taxon = self.dlg.tableWidget_taxa.item(row,0).text()
                 if row+1 == self.dlg.tableWidget_taxa.rowCount():
-                    add_column_string = taxon +'_PL TEXT)'
+                    add_column_string = taxon +'_PL REAL)'
                     create_table_string+= add_column_string
                 else:
-                    add_column_string = taxon + '_PL TEXT, '
+                    add_column_string = taxon + '_PL REAL, '
                     create_table_string += add_column_string
             cursor.execute(create_table_string)
             conn.commit()
@@ -1323,7 +1321,7 @@ class MsaQgis:
             cursor.execute(update_table_string)
             conn.commit()
 
-            for row in range(self.dlg.tableWidget_taxa.rowCount()): # TODO not yet functional
+            for row in range(self.dlg.tableWidget_taxa.rowCount()):
                 taxon = self.dlg.tableWidget_taxa.item(row,0).text()
                 find_pollen_productivity_string = 'SELECT "RelPP" FROM taxa WHERE "taxon_code" = "'+taxon+'"'
                 find_plant_abundance_string = 'SELECT "vegcom_percent" FROM vegcom WHERE "taxon_code" = "'+taxon+'"'\
@@ -1343,31 +1341,133 @@ class MsaQgis:
                     update_table_string += enable_windrose_string
                 else:
                     update_table_string += '))'
-                print('see which ones are broken')
-                print(find_windrose_string)
-                # cursor.execute(find_windrose_string)
-                # print(cursor.fetchall())
-                # cursor.execute(find_pollen_productivity_string)
-                # print(cursor.fetchall())
-                # cursor.execute(find_distance_string)
-                # print(cursor.fetchall())
-                # cursor.execute(find_dw_pollen_string)
-                # print(cursor.fetchall())
-                # print(find_plant_abundance_string)
-                # cursor.execute(find_plant_abundance_string)
-                # print(cursor.fetchall())
-
-
-                print(update_table_string)
                 cursor.execute(update_table_string)
+            conn.commit()
 
-                pass
+        #adjust where pseudo_id
+            for row in range(self.dlg.tableWidget_taxa.rowCount()):
+                taxon = self.dlg.tableWidget_taxa.item(row, 0).text()
+                update_table_string = f"""UPDATE {site_name+output_map} SET {taxon}_PL = (SELECT "{taxon}_PL" * 0.25) WHERE
+pseudo_id IS NOT NULL """
+                cursor.execute(update_table_string)
+            conn.commit()
+
+        QgsMessageLog.logMessage(f"Simulation of pollen for {output_map} finished", 'MSA_QGIS',
+                                         Qgis.Info)
+    ##calculate pollen percentages
+        QgsMessageLog.logMessage(f"calculation of pollen percentages {output_map} initiated", 'MSA_QGIS',
+                                 Qgis.Info)
+        #create table simulated pollen
+        create_table_string = f"""CREATE TABLE simpol_{output_map}(site_name TEXT, """
+        for row in range(self.dlg.tableWidget_taxa.rowCount()):
+            taxon = self.dlg.tableWidget_taxa.item(row, 0).text()
+            if row+1 == self.dlg.tableWidget_taxa.rowCount():
+                add_column_string = f'sim_{taxon}_percent REAL)'
+                create_table_string += add_column_string
+            else:
+                add_column_string = f'sim_{taxon}_percent REAL, '
+                create_table_string +=add_column_string
+
+        cursor.execute(create_table_string)
+
+        #get total pollen load and determine pollen percentages per site
+        for row in range(self.dlg.tableWidget_sites.rowCount()):
+            site_name = self.dlg.tableWidget_sites.item(row, 0).text()
+            total_pollen_load_string = 'SELECT '
+            for row in range(self.dlg.tableWidget_taxa.rowCount()):
+                taxon = self.dlg.tableWidget_taxa.item(row, 0).text()
+                if row+1 == self.dlg.tableWidget_taxa.rowCount():
+                    get_pl_taxa_string = f'(SELECT SUM({taxon}_PL) FROM {site_name}{output_map}) '
+                    total_pollen_load_string += get_pl_taxa_string
+                else:
+                    get_pl_taxa_string = f'(SELECT SUM({taxon}_PL) FROM {site_name}{output_map})+ '
+                    total_pollen_load_string +=get_pl_taxa_string
+            cursor.execute(total_pollen_load_string)
+            total_pollen_load = cursor.fetchone()[0]
+
+            insert_pollen_percent_string = f'INSERT INTO simpol_{output_map}(site_name, '
+            for row in range(self.dlg.tableWidget_taxa.rowCount()):
+                taxon = self.dlg.tableWidget_taxa.item(row, 0).text()
+                #add all columns of taxon percent
+                if row+1 == self.dlg.tableWidget_taxa.rowCount():
+                    add_column_string = f'sim_{taxon}_percent)'
+                    insert_pollen_percent_string +=add_column_string
+                else:
+                    add_column_string = f'sim_{taxon}_percent,'
+                    insert_pollen_percent_string += add_column_string
+                #add all values
+            insert_pollen_percent_string += f' VALUES("{site_name}", '
+            for row in range(self.dlg.tableWidget_taxa.rowCount()):
+                taxon = self.dlg.tableWidget_taxa.item(row, 0).text()
+                if row+1 == self.dlg.tableWidget_taxa.rowCount():
+                    add_value_string = f"""(SELECT ((SELECT SUM({taxon}_PL) FROM {site_name}{output_map})/
+{total_pollen_load}) * 100))"""
+                    insert_pollen_percent_string += add_value_string
+                else:
+                    add_value_string = f"""(SELECT ((SELECT SUM({taxon}_PL) FROM {site_name}{output_map})/
+{total_pollen_load}) * 100), """
+                    insert_pollen_percent_string += add_value_string
+            cursor.execute(insert_pollen_percent_string)
+            conn.commit()
+            QgsMessageLog.logMessage(f"calculating pollen percentages {output_map} finished", 'MSA_QGIS',
+                                     Qgis.Info)
+
+    ##calculate fit, for other methods see https://pubs.usgs.gov/of/1994/of94-645/distance.html
+        # associated paper : https://www.cambridge.org/core/journals/quaternary-research/article/abs/quantitative-interpretation-of-fossil-pollen-spectra-dissimilarity-coefficients-and-the-method-of-modern-analogs/E8485BA416DD4C7350EAB4297196D9A1
+        QgsMessageLog.logMessage(f"calculation of fit {output_map} initiated", 'MSA_QGIS',
+                                 Qgis.Info)
+        #insert map into maps table
+        likelihood_threshold = self.dlg.doubleSpinBox_fit.value()
+        string_add_to_table = f'INSERT INTO maps(map_id,  iteration, likelihood_threshold) ' \
+                              f'VALUES("{output_map}", "{iteration}", "{likelihood_threshold}")'
+        cursor.execute(string_add_to_table)
+        conn.commit()
+
+        # Fit calculation: squared chord distance
+        for row in range(self.dlg.tableWidget_sites.rowCount()):
+            site_name = self.dlg.tableWidget_sites.item(row, 0).text()
+            if self.dlg.comboBox_fit.currentText() == 'Square Chord Distance':
+                square_chord_input_string = 'SELECT '
+                for row in range(self.dlg.tableWidget_taxa.rowCount()):
+                    taxon = self.dlg.tableWidget_taxa.item(row,0).text()
+                    real_taxon_total_string = f'SELECT taxon_percentage FROM "{site_name}" WHERE taxon_code = "{taxon}"'
+                    cursor.execute(real_taxon_total_string)
+                    real_taxon_total = str(cursor.fetchone()[0])
+                    sim_taxon_total_string = f'SELECT sim_{taxon}_percent FROM "simpol_{output_map}" WHERE site_name = "{site_name}"'
+                    cursor.execute(sim_taxon_total_string)
+                    sim_taxon_total = str(cursor.fetchone()[0])
+                    if row+1 == self.dlg.tableWidget_taxa.rowCount(): # final row
+                        input_single_taxon_string = f'(SELECT (SELECT SQRT({real_taxon_total})-SQRT({sim_taxon_total}))' \
+                                                    f'*(SELECT SQRT({real_taxon_total})-SQRT({sim_taxon_total})))'
+                        square_chord_input_string += input_single_taxon_string
+                    else:
+                        input_single_taxon_string = f'(SELECT (SELECT SQRT({real_taxon_total})-SQRT({sim_taxon_total}))' \
+                                                    f'*(SELECT SQRT({real_taxon_total})-SQRT({sim_taxon_total})))+'
+                        square_chord_input_string += input_single_taxon_string
+
+                cursor.execute(square_chord_input_string)
+                fit = cursor.fetchone()[0]
+                # put fit in table
+                update_table = f'UPDATE maps SET likelihood_{site_name} = {fit}'
+                cursor.execute(update_table)
+                conn.commit()
+
+
+        QgsMessageLog.logMessage(f"calculation of fit {output_map} finished", 'MSA_QGIS',
+                                 Qgis.Info)
+        QgsMessageLog.logMessage(f"map retained", 'MSA_QGIS',
+                                 Qgis.Info)
 
 
 
-        #calculate pollen percentages to "maps"
-        retain_map = False
-        return retain_map,
+
+        return
+
+    def _SQLFit_SquaredChordDist(self, number_of_taxa, ):
+        """ A fit calculating function
+        Squared Chord Distance"""
+
+
 
     def run(self):
         """Run method that performs all the real work"""
@@ -1554,7 +1654,7 @@ class MsaQgis:
                             cursor.execute(string_drop_table)
                             conn.commit()
                     # TODO simulate pollen for the output map of the final rule
-                    self.simulatePollen(output_map, conn, cursor)
+                    self.simulatePollen(output_map,iteration, conn, cursor)
 
                     # TODO compare the simulated pollen with the actual pollen (least squares, other options)
                     # TODO if simulated pollen match well enough with the actual pollen then:
