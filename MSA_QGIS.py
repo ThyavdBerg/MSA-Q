@@ -461,19 +461,19 @@ class MsaQgis:
                 primary_key_string = 'msa_id INT PRIMARY KEY '
             elif field.type() == QVariant.String or field.type() == QVariant.Char:
                 length = str(field.length())
-                current_column_string = ', "' + field.name() + '" VARCHAR(' + length + ') '
+                current_column_string = f', "{field.name()}" VARCHAR({length}) '
                 columns_string = columns_string + current_column_string
                 pass
             elif field.type() == QVariant.Int or field.type() == QVariant.LongLong:
-                current_column_string = ', "' + field.name() + '" INT '
+                current_column_string = f', "{field.name()}" INT '
                 columns_string = columns_string + current_column_string
                 pass
             elif field.type() == QVariant.Double:
-                current_column_string = ', "' + field.name() + '" FLOAT '
+                current_column_string = f', "{field.name()}" FLOAT '
                 columns_string = columns_string + current_column_string
                 pass
             else:  # I doubt anyone will be using blobs or anything... and geometry is already stored in a double
-                QgsMessageLog.logMessage('variable of '+field.name()+' is wrong datatype for sql, look up Qvariant: '+field.type(),
+                QgsMessageLog.logMessage(f'variable of {field.name()} is wrong datatype for sql, look up Qvariant: {field.type()}',
                                          'MSA_QGIS', Qgis.Warning)
 
         # create the table columns
@@ -492,21 +492,25 @@ class MsaQgis:
             end_string = ');'
             for field in map_fields:
                 if map_fields.indexFromName(field.name()) != n_of_fields - 1:
-                    columns_string = columns_string + '"' + field.name() + '", '
+                    columns_string = columns_string + f'"{field.name()}",'
                     if feature.attribute(field.name()) == None: # None becomes empty space so it is the same as in the spatialite version. Otherwise it fills with None strings
                         values_string = values_string + '"", '
                     else:
-                        values_string = values_string + '"' + str(feature.attribute(field.name())) + '", '
+                        values_string = values_string + f'"{str(feature.attribute(field.name()))}", '
                 else:
-                    columns_string = columns_string + '"' + field.name() + '"'
+                    columns_string = columns_string + f'"{field.name()}"'
                     if feature.attribute(field.name()) == None:
                         values_string = values_string + '""'
                     else:
-                        values_string = values_string + '"' + str(feature.attribute(field.name())) + '"'
+                        values_string = values_string + f'"{str(feature.attribute(field.name()))}"'
 
             insert_string = start_string + columns_string + middle_string + values_string + end_string
             cursor.execute(insert_string)
             conn.commit()
+
+        string_vacuum_into = f'VACUUM INTO "{self.dlg.qgsFileWidget_vectorPoint.filePath()}//pointsampled_basemap.sqlite";'
+        cursor.execute(string_vacuum_into)
+        conn.commit()
         conn.close()
         QgsMessageLog.logMessage("Convert native qgis points to SQL finished", 'MSA_QGIS', Qgis.Info)
 
@@ -582,29 +586,32 @@ class MsaQgis:
         for layer in dict_of_fields_vec:
             lyrn = layer.name()
             #save layer as db
-            file_name = self.dlg.qgsFileWidget_vectorPoint.filePath()+'//' + lyrn+ '.sqlite'
+            file_name = f'{self.dlg.qgsFileWidget_vectorPoint.filePath()}//{lyrn}.sqlite'
             QgsVectorFileWriter.writeAsVectorFormat(layer,file_name,'utf-8', crs, driverName='SQLite',
                                                     onlySelected=False, datasourceOptions=['SPATIALITE=YES'])
             #attach the new db to the basemap db with ATTACH and copy it to the in-memory database
             self.copySpatialiteToMem(conn, cursor, file_name, lyrn, layer)
+
+
             cursor.execute('BEGIN TRANSACTION')
             for field in dict_of_fields_vec[layer]:
                 start_time = time.time()
+                field_name = field.name()
+                field_type = field.type()
                 #Add a new empty column to empty_basemap
                 alter_table_string = 'ALTER TABLE "empty_basemap" ADD COLUMN '
-                if field.type() == QVariant.String or field.type() == QVariant.Char:
+                if field_type == QVariant.String or field_type == QVariant.Char:
                     length = str(field.length())
-                    column_string = '"' + field.name() + '" VARCHAR(' + length + ')'
+                    column_string = f'"{field_name}" VARCHAR ({length})'
                     pass
-                elif field.type() == QVariant.Int or field.type() == QVariant.LongLong:
-                    column_string = '"' + field.name() + '" INT'
+                elif field_type == QVariant.Int or field_type == QVariant.LongLong:
+                    column_string = f'"{field_name}" INT'
                     pass
-                elif field.type() == QVariant.Double:
-                    column_string = '"' + field.name() + '" FLOAT'
+                elif field_type == QVariant.Double:
+                    column_string = f'"{field_name}" FLOAT'
                     pass
                 else:  # I doubt anyone will be using blobs or anything... and geometry is already stored in a double
-                    QgsMessageLog.logMessage(
-                        'variable of ' + field.name() + ' is wrong datatype for sql, look up Qvariant: ' + field.type(),
+                    QgsMessageLog.logMessage(f'{field_name} is wrong datatype for sql, look up Qvariant: {field_type}',
                         'MSA_QGIS', Qgis.Warning)
 
                 alter_table_string = alter_table_string + column_string
@@ -614,38 +621,35 @@ class MsaQgis:
                 #This is bc layers that have polygons spanning the entire layer run slower with the spatial index instead of faster.
                 #Other option is to warn users in the manual and have them prepare their data by splitting polygon into smaller bits
                 #(although the splitting also takes a ridiculous amount of time, so if they're running the MSA only once it is moot.
+
                 #simple version w/o spatial index:
-                update_string = 'UPDATE "empty_basemap" SET "' + field.name() + '" = '  +\
-                    '(SELECT "' + field.name() + '" FROM "' + layer.name() + '" ' +\
-                    'WHERE INTERSECTS("' + layer.name() + '".GEOMETRY, "empty_basemap".GEOMETRY));' # TODO temporarily enabled until the one using the spatial index is fixed
+                update_string = f'UPDATE "empty_basemap" SET "{field_name}" = (SELECT "{field_name}" FROM "{lyrn}" ' \
+                                f'WHERE INTERSECTS("{lyrn}".GEOMETRY, "empty_basemap".GEOMETRY));'# TODO temporarily enabled until the one using the spatial index is fixed
 
                 #new version that uses spatial index:# TODO still broken!!
-
-                fieldn = field.name()
-
                 #
-                # update_string = 'UPDATE empty_basemap SET "' + fieldn + '" = ' +\
-                #     '(SELECT lyr."' + fieldn + '" FROM "' + lyrn + '" AS lyr '+\
-                #      'WHERE (lyr.ROWID IN ' +\
-                #     '(SELECT ROWID FROM SpatialIndex ' \
-                #     'WHERE (f_table_name = "'+ lyrn + '" AND search_frame = "empty_basemap".GEOMETRY))) '+ \
-                #     'AND (INTERSECTS(lyr.GEOMETRY, "empty_basemap".GEOMETRY)))' #TODO This is broken and returns no results
+                # update_string = f'UPDATE empty_basemap SET "{field_name}" = ' \
+                #                 f'(SELECT lyr."{field_name}" FROM {lyrn} AS lyr ' \
+                #                 f'WHERE (lyr.ROWID IN (SELECT ROWID FROM SpatialIndex ' \
+                #                 f'WHERE (f_table_name = "{lyrn}" AND search_frame = "empty_basemap".GEOMETRY))) ' \
+                #                 f'AND (INTERSECTS(lyr.GEOMETRY, "empty_basemap".GEOMETRY)))'#TODO This is broken and returns no results
 
                 cursor.execute(update_string)
 
 
                 end_time = time.time() - start_time
-                QgsMessageLog.logMessage(
-                    fieldn + ' took ' + str(end_time) + ' to compute.',
+                QgsMessageLog.logMessage(f'{field_name} took {str(end_time)} to compute.',
                     'MSA_QGIS', Qgis.Info)
             cursor.execute('COMMIT')
+
         # write csv file to check if everything went okay
         cursor.execute('select * from empty_basemap')
-        with open (self.dlg.qgsFileWidget_vectorPoint.filePath()+ '//sql_basemap.csv', 'w', newline = '') as csv_file:
-            csv_writer = csv.writer(csv_file)
-            csv_writer.writerow([i[0] for i in cursor.description])
-            csv_writer.writerows(cursor)
-        string_vacuum_into = 'VACUUM INTO "' + self.dlg.qgsFileWidget_vectorPoint.filePath() + '//pointsampled_basemap.sqlite";'
+        # with open (self.dlg.qgsFileWidget_vectorPoint.filePath()+ '//sql_basemap.csv', 'w', newline = '') as csv_file:
+        #     csv_writer = csv.writer(csv_file)
+        #     csv_writer.writerow([i[0] for i in cursor.description])
+        #     csv_writer.writerows(cursor)
+        #string_vacuum_into = 'VACUUM INTO "' + self.dlg.qgsFileWidget_vectorPoint.filePath() + '//pointsampled_basemap.sqlite";' # TODO remove non fstring
+        string_vacuum_into = f'VACUUM INTO "{self.dlg.qgsFileWidget_vectorPoint.filePath()}//pointsampled_basemap.sqlite";'
         cursor.execute(string_vacuum_into)
         conn.commit()
 
@@ -653,13 +657,13 @@ class MsaQgis:
         QgsMessageLog.logMessage("Points sampling using spatialite finished", 'MSA_QGIS', Qgis.Info)
 
     def copySpatialiteToMem(self, conn, cursor, file_name, table_name, layer=None):
-        QgsMessageLog.logMessage("Copying spatialite db to memory initiated", 'MSA_QGIS', Qgis.Info)
         """ copies all necessary tables from on disk spatialite database to given connected database"""
+        QgsMessageLog.logMessage("Copying spatialite db to memory initiated", 'MSA_QGIS', Qgis.Info)
 
         # attach empty basemap database
-        cursor.execute('ATTACH DATABASE "' + file_name + '" AS "copy"')
+        cursor.execute(f'ATTACH DATABASE "{file_name}" AS "copy"')
         conn.commit()
-        cursor.execute('CREATE TABLE "' + table_name + '" AS SELECT * FROM copy."' + table_name+'"')
+        cursor.execute(f'CREATE TABLE "{table_name}" AS SELECT * FROM copy."{table_name}"')
         conn.commit()
 
         if table_name == 'empty_basemap':
@@ -695,33 +699,33 @@ class MsaQgis:
 
         #maps that are specific per base map table
         cursor.execute(
-            'CREATE TABLE "idx_' + table_name + '_GEOMETRY" AS SELECT * FROM copy."idx_' + table_name + '_GEOMETRY"')
+            f'CREATE TABLE "idx_{table_name}_GEOMETRY" AS SELECT * FROM copy."idx_{table_name}_GEOMETRY"')
         cursor.execute(
-            'CREATE TABLE "idx_' + table_name + '_GEOMETRY_node" AS SELECT * FROM copy."idx_' + table_name + '_GEOMETRY_node"')
+            f'CREATE TABLE "idx_{table_name}_GEOMETRY_node" AS SELECT * FROM copy."idx_{table_name}_GEOMETRY_node"')
         cursor.execute(
-            'CREATE TABLE "idx_' + table_name + '_GEOMETRY_parent" AS SELECT * FROM copy."idx_' + table_name + '_GEOMETRY_parent"')
+            f'CREATE TABLE "idx_{table_name}_GEOMETRY_parent" AS SELECT * FROM copy."idx_{table_name}_GEOMETRY_parent"')
         cursor.execute(
-            'CREATE TABLE "idx_' + table_name + '_GEOMETRY_rowid" AS SELECT * FROM copy."idx_' + table_name + '_GEOMETRY_rowid"')
+            f'CREATE TABLE "idx_{table_name}_GEOMETRY_rowid" AS SELECT * FROM copy."idx_{table_name}_GEOMETRY_rowid"')
 
         #detach the database
         cursor.execute('DETACH DATABASE "copy"')
         conn.commit()
 
         #create spatial index
-        cursor.execute('SELECT CreateSpatialIndex("'+table_name+'", "GEOMETRY")')
+        cursor.execute(f'SELECT CreateSpatialIndex("{table_name}", "GEOMETRY")')
         conn.commit()
         QgsMessageLog.logMessage("Copying spatialite db to memory finished", 'MSA_QGIS', Qgis.Info)
 
     def assignVegetationSQL(self, order_id, input_table, output_table, conn, cursor, iteration, table_length):
         """ Edits items in the SQLite database version of the map based on the given rule."""
-        QgsMessageLog.logMessage("Assigning vegetation communities for "+str(order_id)+" initiated" , 'MSA_QGIS', Qgis.Info)
+        QgsMessageLog.logMessage(f"Assigning vegetation communities for {str(order_id)} initiated" , 'MSA_QGIS', Qgis.Info)
         start_time = time.time()
         #determine whether the place where the rule is applied requires the creation of a new table
         if input_table == output_table:
             sql_map_name = str(input_table)
         else:
-            sql_map_name = str(output_table)+'run'+str(iteration)
-            create_table_string = 'CREATE TABLE "' + sql_map_name + '" AS SELECT * FROM "' + input_table + '";'
+            sql_map_name = f'{str(output_table)}run{str(iteration)}'
+            create_table_string = f'CREATE TABLE "{sql_map_name}" AS SELECT * FROM "{input_table}";'
             cursor.execute(create_table_string)
             #create new table by copying the input table, with the new table having the order_id of the ruleTreeWidget that is being computed as the name TODO
             pass
@@ -749,12 +753,13 @@ class MsaQgis:
                 #generate random number 0-100.00
                 random_number = round(random.uniform(0.01, 100.00),2)
                 #insert random number into chance_to_happen column
-                insert_random_string = 'UPDATE "' + sql_map_name + '" SET "chance_to_happen" =' + str(random_number) +\
-                                       ' WHERE (msa_id =' + str(msa_id) + ');'
+                insert_random_string = f'UPDATE "{sql_map_name}" SET "chance_to_happen" = {str(random_number)}' \
+                                       f' WHERE (msa_id = {str(msa_id)});'
                 cursor.execute(insert_random_string)
                 conn.commit()
 
-        start_string = 'UPDATE "' + sql_map_name + '" SET "veg_com"= "' + veg_com + '" WHERE '
+        #start_string = 'UPDATE "' + sql_map_name + '" SET "veg_com"= "' + veg_com + '" WHERE '#TODO remove non fstring
+        start_string = f'UPDATE "{sql_map_name}" SET "veg_com" = "{veg_com}" WHERE '
         #create the conditional update string
         if rule_type == '(Re)place':
 
@@ -765,8 +770,7 @@ class MsaQgis:
                 string_condition_prev_veg_com = '"veg_com" = "Empty" AND '
             else:
                 for prev_veg_com in list_of_prev_vegcom:
-                    string_condition_prev_veg_com = string_condition_prev_veg_com + '"veg_com" = "' + prev_veg_com \
-                                                    + '" AND '
+                    string_condition_prev_veg_com = string_condition_prev_veg_com + f'"veg_com" = "{prev_veg_com}" AND '
         elif rule_type == 'Encroach':
             #get n_of_points and calculate the distance within which the encroachable points must be. Should be very clear in the manual what is included per encroach!
             n_of_points = self.dlg.nest_dict_rules[rule][5]
@@ -776,30 +780,29 @@ class MsaQgis:
             #as otherwise the table will update while running and increase the number of points while running, which changes the entire map to the encroaching veg_com.
             string_create_temp_table = 'CREATE TEMPORARY TABLE temp AS SELECT * FROM "' + sql_map_name + '" WHERE veg_com = "' + veg_com + '"'
             cursor.execute(string_create_temp_table)
-            string_condition_prev_veg_com = '"veg_com" <> "' + veg_com + '" AND EXISTS ' +\
-                                            '(SELECT 1 FROM "temp" WHERE "' +\
-                                            sql_map_name + '".geom_x BETWEEN temp.geom_x - ' + str(encroachable_distance) +\
-                                            ' AND temp.geom_x + ' + str(encroachable_distance) + ' ' +\
-                                            'AND "'+\
-                                            sql_map_name + '".geom_y BETWEEN temp.geom_y - ' + str(encroachable_distance) +\
-                                            ' AND temp.geom_y + ' + str(encroachable_distance) + ') AND '
+            string_condition_prev_veg_com = f'"veg_com" <> "{veg_com}" AND EXISTS ' \
+                                            f'(SELECT 1 FROM "temp" WHERE ' \
+                                            f'"{sql_map_name}".geom_x BETWEEN temp.geom_x - {str(encroachable_distance)} ' \
+                                            f'AND temp.geom_x + {str(encroachable_distance)} AND' \
+                                            f'"{sql_map_name}".geom_y BETWEEN temp.geom_y - {str(encroachable_distance)} ' \
+                                            f'AND temp.geom_y + {str(encroachable_distance)}) AND'
         elif rule_type == 'Adjacent': # TODO needs significant changes to the UI. Postpone as a workaround by creating buffer maps in QGIS is possible.
             n_of_points = self.dlg.nest_dict_rules[rule][5]
             spacing = self.dlg.spinBox_resolution.value()
             encroachable_distance = n_of_points * spacing
             adjacent_veg_com = 'Mystery'
-            string_condition_prev_veg_com = '"veg_com" != "' + veg_com + '" AND EXISTS ' +\
-                                            '(SELECT * FROM "' + sql_map_name + '" map ' +\
-                                            'WHERE map.veg_com = "' + adjacent_veg_com + '" '+\
-                                            'AND "' + sql_map_name + '".geom_x BETWEEN map.geom_x - ' + str(encroachable_distance) +\
-                                            ' AND map.geom_x + ' + str(encroachable_distance) + ' ' +\
-                                            'AND "' + sql_map_name + '".geom_y BETWEEN map.geom_y - ' + str(encroachable_distance) +\
-                                            ' AND map.geom_y + ' + str(encroachable_distance) + ') AND '
+            string_condition_prev_veg_com = f'"veg_com" != "{veg_com}" AND EXISTS ' \
+                                            f'(SELECT * FROM "{sql_map_name}" AS map ' \
+                                            f'WHERE map.veg_com = "{adjacent_veg_com}" ' \
+                                            f'AND "{sql_map_name}".geom_x BETWEEN map.geom_x - {str(encroachable_distance)} ' \
+                                            f'AND map.geom_x + {str(encroachable_distance)} ' \
+                                            f'AND "{sql_map_name}".geom_y BETWEEN map.geom_y - {str(encroachable_distance)} ' \
+                                            f'AND map.geom_y + {str(encroachable_distance)}) AND '
             return
         elif rule_type == 'Extent': # TODO needs significant changes to the UI. Postpone as a workaround by drawing the extent in QGIS is possible.
             return
         #implement limitation chance
-        string_chance = '("chance_to_happen" >= "' + str(chance) + '") AND '
+        string_chance = f'("chance_to_happen" >= "{str(chance)}") AND '
 
         #find the conditions that apply to the same column, add them to a dict by column name
         dict_env_var = {}
@@ -846,28 +849,30 @@ class MsaQgis:
                 if key == 'Empty':
                     break #leaves string_condition_env_var empty
                 else: #column with 1 category to select for
-                    string_condition_env_var = string_condition_env_var + '("' + key + '" = "' + dict_env_var[key][0] + '") AND '
+                    string_condition_env_var = string_condition_env_var + f'("{key}" = "{dict_env_var[key][0]}") AND '
             else:
                 if isinstance(dict_env_var[key][0], str): #column with multiple categories to select for
-                    string_to_insert = '("' + key + '" = "'
+                    string_to_insert = f'("{key}" = "'
                     for entry in dict_env_var[key]:
-                        string_to_insert = string_to_insert + entry + '" OR "'
+                        string_to_insert = string_to_insert + f'{entry}" OR "'
                     string_to_insert = string_to_insert + '") AND '
                     string_condition_env_var = string_condition_env_var + string_to_insert
                 elif len(dict_env_var[key]) == 2: # column with a single range to select between
-                    string_condition_env_var = string_condition_env_var + '("' + key + '" BETWEEN ' + \
-                                               str(dict_env_var[key][0]) + ' AND ' + str(dict_env_var[key][1]) + ') AND '
+                    string_condition_env_var = string_condition_env_var + f'("{key}" BETWEEN {str(dict_env_var[key][0])} ' \
+                                                                          f'AND {str(dict_env_var[key][1])}) AND '
                 else: #column with multiple ranges to select between
                     string_to_insert = '("'
                     for index in range(len(dict_env_var[key]),2):
-                        string_to_insert = string_to_insert + key + '" BETWEEN ' + str(dict_env_var[key][index]) + ' AND ' + \
-                            str(dict_env_var[key][index+1]) + ' OR "'
+                        string_to_insert = string_to_insert + f'{key}" BETWEEN {str(dict_env_var[key][index])} AND ' \
+                                                              f'{str(dict_env_var[key][index+1])} OR "'
+
                     string_to_insert = string_to_insert[:-4] + ') AND'
                     string_condition_env_var = string_condition_env_var + string_to_insert
 
         string_condition_env_var = string_condition_env_var
         string_condition_rule = start_string + string_condition_prev_veg_com + string_chance + string_condition_env_var
         string_condition_rule = string_condition_rule[:-4] + ';'
+        print(string_condition_rule)
         cursor.execute(string_condition_rule)
         conn.commit()
         #if the enroach rule was run, the temp table needs to be dropped
@@ -877,16 +882,16 @@ class MsaQgis:
             conn.commit()
 
         #temporarily create csv to check if correct
-        cursor.execute('select * from "' + sql_map_name + '"')
-        with open (self.dlg.qgsFileWidget_vectorPoint.filePath()+ '//' + sql_map_name + '.csv', 'w', newline = '') as csv_file:
-            csv_writer = csv.writer(csv_file)
-            csv_writer.writerow([i[0] for i in cursor.description])
-            csv_writer.writerows(cursor)
+        cursor.execute(f'select * from "{sql_map_name}"')
+        # with open (self.dlg.qgsFileWidget_vectorPoint.filePath()+ '//' + sql_map_name + '.csv', 'w', newline = '') as csv_file:
+        #     csv_writer = csv.writer(csv_file)
+        #     csv_writer.writerow([i[0] for i in cursor.description])
+        #     csv_writer.writerows(cursor)
         end_time_assign_veg = time.time() - start_time
-        QgsMessageLog.logMessage('rule ' + str(rule) + ' of type ' +  rule_type +  ' took ' + str(end_time_assign_veg)+ ' to run',
+        QgsMessageLog.logMessage(f'rule {str(rule)} of type {rule_type} took {str(end_time_assign_veg)} to run',
                                  'MSA_QGIS',
                                  Qgis.Info)
-        QgsMessageLog.logMessage("Assigning vegetation communities for " + str(order_id) + " finished", 'MSA_QGIS',
+        QgsMessageLog.logMessage(f'Assigning vegetation communities for {str(order_id)} finished', 'MSA_QGIS',
                                  Qgis.Info)
         return sql_map_name
 
@@ -1154,17 +1159,18 @@ class MsaQgis:
         calculating pollen) including the pollen percentages calculated per taxon"""
         QgsMessageLog.logMessage("Creation of map tables initiated", 'MSA_QGIS',
                                  Qgis.Info)
-        create_table_string = 'CREATE TABLE maps(map_id TEXT, iteration INT, likelihood_met BOOL, likelihood_threshold REAL, '
+        create_table_string = 'CREATE TABLE maps(map_id TEXT, iteration INT, likelihood_met BOOL, ' \
+                              'like_thres_sites REAL, like_thres_cumul REAL, likelihood_cumul REAL, '
         #insert a column for likelihood scores per site
         for row in range (self.dlg.tableWidget_sites.rowCount()):
-            site = self.dlg.tableWidget_sites.item(row, 0).text()
+            site_name = self.dlg.tableWidget_sites.item(row, 0).text()
             if row+1 == self.dlg.tableWidget_sites.rowCount():
-                site_string = 'likelihood_' + site + ' REAL)'
+                site_string = f'likelihood_{site_name} REAL)'
                 create_table_string += site_string
             else:
-                site_string = 'likelihood_' + site + ' REAL, '
+                site_string = f'likelihood_{site_name} REAL, '
                 create_table_string += site_string
-
+        print(create_table_string)
         cursor.execute(create_table_string)
         conn.commit()
         QgsMessageLog.logMessage("Creation of site tables finished", 'MSA_QGIS',
@@ -1418,14 +1424,18 @@ pseudo_id IS NOT NULL """
                                  Qgis.Info)
         #insert map into maps table
         likelihood_threshold = self.dlg.doubleSpinBox_fit.value()
-        string_add_to_table = f'INSERT INTO maps(map_id,  iteration, likelihood_threshold) ' \
-                              f'VALUES("{output_map}", "{iteration}", "{likelihood_threshold}")'
+        cumulative_likelihood_threshold = self.dlg.doubleSpinBox_cumulFit.value()
+        string_add_to_table = f'INSERT INTO maps(map_id,  iteration, like_thres_sites, like_thres_cumul) ' \
+                              f'VALUES("{output_map}", "{iteration}", ' \
+                              f'"{likelihood_threshold}", "{cumulative_likelihood_threshold}")'
         cursor.execute(string_add_to_table)
         conn.commit()
+        cumul_fit = 0
 
         # Fit calculation: squared chord distance
-        for row in range(self.dlg.tableWidget_sites.rowCount()):
-            site_name = self.dlg.tableWidget_sites.item(row, 0).text()
+        like_thres_met = 'Yes'
+        for row_sites in range(self.dlg.tableWidget_sites.rowCount()):
+            site_name = self.dlg.tableWidget_sites.item(row_sites, 0).text()
             if self.dlg.comboBox_fit.currentText() == 'Square Chord Distance':
                 square_chord_input_string = 'SELECT '
                 for row in range(self.dlg.tableWidget_taxa.rowCount()):
@@ -1447,26 +1457,74 @@ pseudo_id IS NOT NULL """
 
                 cursor.execute(square_chord_input_string)
                 fit = cursor.fetchone()[0]
-                # put fit in table
-                update_table = f'UPDATE maps SET likelihood_{site_name} = {fit}'
-                cursor.execute(update_table)
-                conn.commit()
+                # Process site fit
+                update_table = f'UPDATE maps SET likelihood_{site_name} = {fit} WHERE map_id = "{output_map}"'
+                print(update_table)
+                try:
+                    cursor.execute(update_table)
+                    conn.commit()
+                except Exception as e:
+                    QgsMessageLog.logMessage("Exception raised ",
+                                             'SQLite error',
+                                             Qgis.Warning)
+                    QgsMessageLog.logMessage(str(e), 'SQLite error', Qgis.Warning)
 
+                # add to cumulative fit (both for SQL statement and for the log)
+                if row_sites+1 == self.dlg.tableWidget_sites.rowCount(): # final row
+                    cumul_fit += fit
+                else:
+                    cumul_fit += fit
+                #determine whether likelihood threshold for site was met
+                if like_thres_met == 'Yes' and fit > likelihood_threshold:
+                    like_thres_met = 'No'
 
-        QgsMessageLog.logMessage(f"calculation of fit {output_map} finished", 'MSA_QGIS',
+                # report fit in log
+                QgsMessageLog.logMessage(f"Fit for {output_map} site {site_name} is {fit}", 'MSA_QGIS',
+                                         Qgis.Info)
+        #calculate cumulative fit
+        string_cumulative_fit = f'UPDATE maps SET "likelihood_cumul" = {cumul_fit} WHERE map_id = "{output_map}"'
+        cursor.execute(string_cumulative_fit)
+        QgsMessageLog.logMessage(f"Cumulative fit for {output_map} is {cumul_fit}", 'MSA_QGIS',
                                  Qgis.Info)
-        QgsMessageLog.logMessage(f"map retained", 'MSA_QGIS',
+        #determine whether cumulative likelihood threshold was met
+        if like_thres_met == 'Yes' and cumul_fit > cumulative_likelihood_threshold:
+            like_thres_met = 'No'
+        #set likelihood met in table
+        update_table = f'UPDATE maps SET likelihood_met = "{like_thres_met}" WHERE map_id = "{output_map}"'
+        cursor.execute(update_table)
+        conn.commit()
+
+        #Delete tables/files/maps where fit was not met
+        cursor.execute('BEGIN TRANSACTION')
+        if like_thres_met == 'No' and self.dlg.radioButton_keepFitted.isChecked():
+            #throw away map, percentages and loadings
+            string_delete_map = f'DROP TABLE "{output_map}"'
+            cursor.execute(string_delete_map)
+            string_delete_simulated_pollen = f'DROP TABLE "simpol_{output_map}"'
+            cursor.execute(string_delete_simulated_pollen)
+            for row_sites in range(self.dlg.tableWidget_sites.rowCount()):
+                site_name = self.dlg.tableWidget_sites.item(row_sites, 0).text()
+                string_delete_pollen_loadings = f'DROP TABLE "{site_name}{output_map}"'
+                cursor.execute(string_delete_pollen_loadings)
+            QgsMessageLog.logMessage(f"Fit not met, {output_map} map, pollen percentages and pollen loadings deleted", 'MSA_QGIS',
+                                     Qgis.Info)
+        elif like_thres_met == 'No' and self.dlg.radioButton_keepTwo.isChecked():
+            #throw away loadings
+            for row_sites in range(self.dlg.tableWidget_sites.rowCount()):
+                site_name = self.dlg.tableWidget_sites.item(row_sites, 0).text()
+                string_delete_pollen_loadings = f'DROP TABLE "{site_name}{output_map}"'
+                cursor.execute(string_delete_pollen_loadings)
+            QgsMessageLog.logMessage(f"Fit not met, {output_map} pollen loadings deleted", 'MSA_QGIS', Qgis.Info)
+        elif like_thres_met == 'Yes':
+            QgsMessageLog.logMessage(f"Map {output_map} retained", 'MSA_QGIS', Qgis.Info)
+        else:
+            pass # keepAll was checked, throw nothing away
+            QgsMessageLog.logMessage(f"Map {output_map} retained (Keep all was checked)", 'MSA_QGIS', Qgis.Info)
+        cursor.execute('COMMIT')
+
+        QgsMessageLog.logMessage(f"Calculation of fit {output_map} finished", 'MSA_QGIS',
                                  Qgis.Info)
-
-
-
-
         return
-
-    def _SQLFit_SquaredChordDist(self, number_of_taxa, ):
-        """ A fit calculating function
-        Squared Chord Distance"""
-
 
 
     def run(self):
@@ -1656,7 +1714,6 @@ pseudo_id IS NOT NULL """
                     # TODO simulate pollen for the output map of the final rule
                     self.simulatePollen(output_map,iteration, conn, cursor)
 
-                    # TODO compare the simulated pollen with the actual pollen (least squares, other options)
                     # TODO if simulated pollen match well enough with the actual pollen then:
                     # print or otherwise save the final map/table
                     # delete all the tables that are not in list_memory_branches
