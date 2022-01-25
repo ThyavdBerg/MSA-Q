@@ -23,16 +23,46 @@
 """
 
 import os
+import pickle
+import re
+import csv
 
-from PyQt5.QtWidgets import QTableWidgetItem
+from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QTableWidgetItem, QWidget, QLineEdit, QLabel, QVBoxLayout, QComboBox, QGridLayout, \
+    QDoubleSpinBox, QFrame, QRadioButton, QHBoxLayout, QPushButton, QSpacerItem, QScrollArea, QCheckBox, QMessageBox, \
+    QSizePolicy, QFileDialog, QWidgetItem, QTableWidget
 from qgis.PyQt import uic
 from qgis.PyQt import QtWidgets
 from qgis.utils import iface
-from qgis.core import QgsWkbTypes
+from qgis.core import *
+
+from.MSA_QGIS_custom_widget_frame_rule_tree import RuleTreeFrame
+from .MSA_QGIS_custom_widget_rule_tree import RuleTreeWidget
+
 
 # This loads your .ui file so that PyQt can populate your plugin with the elements from Qt Designer
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'MSA_QGIS_dialog_base.ui'))
+FORM_CLASS_TAXA, _ = uic.loadUiType(os.path.join(
+    os.path.dirname(__file__), 'MSA_QGIS_dialog_popup_taxa.ui'))
+FORM_CLASS_VEGCOM, _ = uic.loadUiType(os.path.join(
+    os.path.dirname(__file__), 'MSA_QGIS_dialog_popup_vegcom.ui'))
+FORM_CLASS_RULES, _ = uic.loadUiType(os.path.join(
+    os.path.dirname(__file__), 'MSA_QGIS_dialog_popup_add_rule.ui'))
+FORM_CLASS_RULE_TREE, _ = uic.loadUiType(os.path.join(
+    os.path.dirname(__file__), 'MSA_QGIS_dialog_add_to_rule_tree.ui'))
+FORM_CLASS_SAVELOAD, _ = uic.loadUiType(os.path.join(
+    os.path.dirname(__file__), 'MSA_QGIS_load_save_dialog.ui'))
+FORM_CLASS_RULELIST, _ = uic.loadUiType(os.path.join(
+    os.path.dirname(__file__), 'MSA-QGIS_dialog_popup_rulelist.ui'))
+FORM_CLASS_SAMPLESITE, _ = uic.loadUiType(os.path.join(
+    os.path.dirname(__file__), 'MSA_QGIS_popup_add_sampling_site.ui'))
+FORM_CLASS_PERCENT, _ = uic.loadUiType(os.path.join(
+    os.path.dirname(__file__), 'MSA_QGIS_popup_add_pollen_percentages.ui'))
+FORM_CLASS_SUCCES, _ = uic.loadUiType(os.path.join(
+    os.path.dirname(__file__), 'MSA_QGIS_succes_dialog.ui'))
+
+### Main dialog window
 
 
 class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
@@ -45,16 +75,64 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         # http://qt-project.org/doc/qt-4.8/designer-using-a-ui-file.html
         # #widgets-and-dialogs-with-auto-connect
         self.setupUi(self)
+
+        # class variables
         self.extent = None
+
+        # class lists & dictionaries
+        self.list_cb_rule_veg_com = []
+        self.list_cb_env_var = []
+        self.list_cb_rule_type = []
+        self.nest_dict_rules = {}    # {'rule number': [rule_number(int), vegcom(str), chance(float), n of prev vegcoms(int),
+                                # n of env vars(int), # all(bool),
+                                # prevvegcom (QTableItem), AND(bool), OR(bool), nextprevvegcom...etc,
+                                # envvar (QtableItem), AND(bool), OR(bool), next envvar...etc}
+        self.dict_ruleTreeWidgets = {}
+        self.dict_pollen_percent_files = {}
+
+        # UI setup
+        self.qgsFileWidget_importHandbag.setFilter('*.hum')
+
+        self.frame_ruleTree = RuleTreeFrame()
+        self.scrollArea_ruleTree.setWidget(self.frame_ruleTree)
+        self.ruleTreeLayout = QVBoxLayout()
+        self.ruleTreeLayout.setSpacing(40)
+        self.frame_ruleTree.setLayout(self.ruleTreeLayout)
+
+
+
+
+        # events
         self.mExtentGroupBox.setMapCanvas(iface.mapCanvas())
         #self.mExtentGroupBox.setOutputExtentFromDrawOnCanvas() #for some reason causes really weird behaviour.
         # Q asked on GIS stackexchange
         self.mExtentGroupBox.extentChanged.connect(self.setExtent)
-        self.getFieldsandBands(self.tableWidget,self.tableWidget_Raster)
-        self.tableWidget.itemSelectionChanged.connect(lambda: self.updateSelectedRows(self.tableWidget_selected,
-                                                                                      self.tableWidget))
-        self.tableWidget_Raster.itemSelectionChanged.connect(lambda: self.updateSelectedRows(self.tableWidget_Sel_Raster,
-                                                                                             self.tableWidget_Raster))
+        self.getFieldsandBands(self.tableWidget_vector, self.tableWidget_raster)
+        self.tableWidget_vector.itemSelectionChanged.connect(lambda: self.updateSelectedRows(self.tableWidget_selected,
+                                                                                      self.tableWidget_vector))
+        self.tableWidget_raster.itemSelectionChanged.connect(lambda: self.updateSelectedRows(self.tableWidget_selRaster,
+                                                                                             self.tableWidget_raster))
+        self.pushButton_newTaxa.clicked.connect(self.addNewTaxon)
+        self.pushButton_newVegCom.clicked.connect(self.addNewVegCom)
+        self.pushButton_removeTaxa.clicked.connect(self.removeTaxaEntry)
+        self.pushButton_removeVegCom.clicked.connect(self.removeVegComEntry)
+        self.pushButton_importHandbag.clicked.connect(self.loadHandbagFile)
+        self.pushButton_addRule.clicked.connect(self.addNewRule)
+        self.pushButton_removeRule.clicked.connect(self.deleteRule)
+        self.pushButton_ruleBelow.clicked.connect(self.addRuleToTree)
+        self.pushButton_asBaseGroup.clicked.connect(self.addAndRemoveFromBaseGroup)
+        self.pushButton_deleteBranch.clicked.connect(self.removeRuleFromRuleTree)
+        self.pushButton_ruleSeries.clicked.connect(self.addRuleToTreeSeries)
+        self.pushButton_viewList.clicked.connect(self.viewRuleList)
+        self.pushButton_save.clicked.connect(self.saveFiles)
+        self.pushButton_load.clicked.connect(self.loadFiles)
+        self.pushButton_addSite.clicked.connect(self.addSamplingSite)
+        self.pushButton_removeSite.clicked.connect(self.removeSamplingSite)
+        self.pushButton_importPollen.clicked.connect(self.addPollenCountsFilePath)
+        self.pushButton_removePollenFile.clicked.connect(self.removePollenCountsFilePath)
+        #TODO disable model parameters when other than prentice sugita is selected, and enable load lookup if use lookup table is selected.
+        #TODO update turbulence constant when atmospheric constant is changed
+        #TODO close all assocated windows when main dialog is closed
 
 
     def setExtent(self):
@@ -63,66 +141,1977 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.extent = self.mExtentGroupBox.outputExtent()
         self.mExtentGroupBox.setCurrentExtent(self.extent, self.mExtentGroupBox.outputCrs())
 
-
-    def getFieldsandBands(self, listTable,rasTable):
+    def getFieldsandBands(self, tableWidget_vector, tableWidget_raster):
         """Fills a table widget with all fields from vector polygon layers and all bands from raster layers currently
         loaded into the QGIS interface"""
-        listTable.clear()
-        rowCount = 0
-        columnCount = 0
-        listTable.setRowCount(rowCount + 1)
+        tableWidget_vector.clear()
+        row_count = 0
+        column_count = 0
+        tableWidget_vector.setRowCount(row_count + 1)
 
-        rasTable.clear()
-        rasRowCount = 0
-        rasColumnCount = 0
-        rasTable.setRowCount(rasRowCount+1)
+        tableWidget_raster.clear()
+        ras_row_count = 0
+        ras_column_count = 0
+        tableWidget_raster.setRowCount(ras_row_count + 1)
 
-        for lyrnr in range(iface.mapCanvas().layerCount()):
-            layer = iface.mapCanvas().layer(lyrnr)
+        for lyr_nr in range(iface.mapCanvas().layerCount()):
+            layer = iface.mapCanvas().layer(lyr_nr)
             if (layer.type() == layer.VectorLayer) and (layer.geometryType() == QgsWkbTypes.PolygonGeometry):
-                provider = layer.dataProvider()
-                for field in provider.fields():
-                    listTable.setItem(rowCount, columnCount,QTableWidgetItem(layer.name()))
-                    columnCount +=1
-                    listTable.setItem(rowCount,columnCount, QTableWidgetItem(field.name()))
-                    rowCount += 1
-                    listTable.setRowCount(rowCount+1)
-                    columnCount -= 1
-
-
+                data_provider = layer.dataProvider()
+                for field in data_provider.fields():
+                    tableWidget_vector.setItem(row_count, column_count, QTableWidgetItem(layer.name()))
+                    column_count +=1
+                    tableWidget_vector.setItem(row_count, column_count, QTableWidgetItem(field.name()))
+                    row_count += 1
+                    tableWidget_vector.setRowCount(row_count + 1)
+                    column_count -= 1
             elif layer.type() == layer.RasterLayer:
                 for band in range(layer.bandCount()):
-                    rasTable.setItem(rasRowCount, rasColumnCount,QTableWidgetItem(layer.name()))
-                    rasColumnCount += 1
-                    rasTable.setItem(rasRowCount, rasColumnCount, QTableWidgetItem(layer.bandName(band+1)))
-                    rasRowCount += 1
-                    rasTable.setRowCount(rasRowCount + 1)
-                    rasColumnCount -= 1
+                    tableWidget_raster.setItem(ras_row_count, ras_column_count, QTableWidgetItem(layer.name()))
+                    ras_column_count += 1
+                    tableWidget_raster.setItem(ras_row_count, ras_column_count, QTableWidgetItem(layer.bandName(band + 1)))
+                    ras_row_count += 1
+                    tableWidget_raster.setRowCount(ras_row_count + 1)
+                    ras_column_count -= 1
             else:
                 continue
 
-            listTable.setHorizontalHeaderLabels(['Layers', 'Fields'])
-            rasTable.setHorizontalHeaderLabels(['Layers', 'Bands'])
-        listTable.setRowCount(rowCount)
-        rasTable.setRowCount(rasRowCount)
+            tableWidget_vector.setHorizontalHeaderLabels(['Layers', 'Fields'])
+            tableWidget_raster.setHorizontalHeaderLabels(['Layers', 'Bands'])
+        tableWidget_vector.setRowCount(row_count)
+        tableWidget_raster.setRowCount(ras_row_count)
 
-
-    def updateSelectedRows(self, selectionTable,listTable):
+    def updateSelectedRows(self, tableWidget_selection, tableWidget_list):
         """ Updates a table widget with the rows selected in another table widget"""
         # selectionTable = self.tableWidget_selected
-        # listTable = self.tableWidget
-        selectionTable.setRowCount(len(listTable.selectionModel().selectedRows()))
-        rowCountSel = 0
+        # listTable = self.tableWidget_vector
+        tableWidget_selection.setRowCount(len(tableWidget_list.selectionModel().selectedRows()))
+        row_count_sel = 0
 
-        for row in range(listTable.rowCount()):
-            if listTable.item(row, 0).isSelected():
-                selectionTable.setItem(rowCountSel,
-                                       0,
-                                       QTableWidgetItem(listTable.item(row, 0)))
-                selectionTable.setItem(rowCountSel,
-                                       1,
-                                       QTableWidgetItem(listTable.item(row, 1)))
+        for row in range(tableWidget_list.rowCount()):
+            if tableWidget_list.item(row, 0).isSelected():
+                tableWidget_selection.setItem(row_count_sel,
+                                              0,
+                                              QTableWidgetItem(tableWidget_list.item(row, 0)))
+                tableWidget_selection.setItem(row_count_sel,
+                                              1,
+                                              QTableWidgetItem(tableWidget_list.item(row, 1)))
             else:
                 continue
-            rowCountSel += 1
+            row_count_sel += 1
+
+    def addNewTaxon(self):
+        """ Adds a new pollen taxon to the list of taxa by opening a pop-up in which the taxon short and full name,
+        fall speed and relative pollen productivity can be given"""
+        self.taxonPopup = MsaQgisAddTaxonPopup()
+        self.taxonPopup.show()
+        result = self.taxonPopup.exec_()
+        # runs when apply is clicked on the add new taxon popup
+        if result:
+            # Get filled in values
+            taxon_short_name = self.taxonPopup.lineEdit_taxonShortName.text()
+            taxon_full_name = self.taxonPopup.lineEdit_taxonFullName.text()
+            taxon_fall_speed = self.taxonPopup.doubleSpinBox_taxonFallSpeed.value()
+            taxon_rpp = self.taxonPopup.doubleSpinBox_taxonRPP.value()
+            # Check if entry is valid and add to table
+            if taxon_short_name and taxon_full_name and taxon_fall_speed and taxon_rpp:
+                row_count = self.tableWidget_taxa.rowCount()
+                self.tableWidget_taxa.setRowCount(row_count+1)
+                self.tableWidget_taxa.setItem(row_count, 0, QTableWidgetItem(taxon_short_name))
+                self.tableWidget_taxa.setItem(row_count, 1, QTableWidgetItem(taxon_full_name))
+                self.tableWidget_taxa.setItem(row_count, 2, QTableWidgetItem(str(taxon_fall_speed)))
+                self.tableWidget_taxa.setItem(row_count, 3, QTableWidgetItem(str(taxon_rpp)))
+            else:
+                iface.messageBar().pushMessage('Missing value in add new taxon, '
+                                                    'please try again', level=1)
+
+    def addNewVegCom(self):
+        """ Adds a new vegetation community to the list of communities by opening a pop-up in which a list of species
+         and their percentages, as well as a new community name can be given"""
+        #pass list of taxa to the popup and open it
+        tableWidget_taxa = self.tableWidget_taxa
+        item_list = [tableWidget_taxa.item(row,0).text() for row in range(tableWidget_taxa.rowCount())]
+        self.veg_com_popup = MsaQgisAddVegComPopup(item_list)
+        tableWidget_vegCom = self.tableWidget_vegCom
+
+        #add entries to table
+        result = self.veg_com_popup.exec_()
+        if result:
+            tableWidget_vegCom.setRowCount(tableWidget_vegCom.rowCount()+1)
+            tableWidget_vegCom.setItem(tableWidget_vegCom.rowCount() - 1, 0, QTableWidgetItem(
+                self.veg_com_popup.lineEdit_vegComName.text()))
+
+            #Check if a taxon already had a column, add new column only for a new taxon
+            #Create list of taxa that already have a column
+            header_list = [tableWidget_vegCom.horizontalHeaderItem(column).text() for column in range(1, tableWidget_vegCom.columnCount()-1)]
+            for taxon in range(len(self.veg_com_popup.vegcom_taxon_combo_list)):
+                if self.veg_com_popup.vegcom_taxon_combo_list[taxon].currentText() in header_list:
+                    # get column number of named column
+                    for column in range(tableWidget_vegCom.columnCount()-1):
+                        header_text = tableWidget_vegCom.horizontalHeaderItem(column).text()
+                        if header_text == self.veg_com_popup.vegcom_taxon_combo_list[taxon].currentText():
+                            tableWidget_vegCom.setItem(tableWidget_vegCom.rowCount() - 1, column, QTableWidgetItem(
+                                str(self.veg_com_popup.vegcom_taxon_double_list[taxon].value())))
+                    # add value at right location to that column
+                    pass
+                elif self.veg_com_popup.vegcom_taxon_combo_list[taxon] not in header_list:
+                    self.tableWidget_vegCom.setColumnCount(self.tableWidget_vegCom.columnCount() +1)
+                    # set header of new column
+                    tableWidget_vegCom.setHorizontalHeaderItem(self.tableWidget_vegCom.columnCount() - 1, QTableWidgetItem(
+                                self.veg_com_popup.vegcom_taxon_combo_list[taxon].currentText()))
+                    # add value to new column
+                    tableWidget_vegCom.setItem(tableWidget_vegCom.rowCount() - 1, self.tableWidget_vegCom.columnCount() - 1, QTableWidgetItem(
+                        str(self.veg_com_popup.vegcom_taxon_double_list[taxon].value())))
+                else:
+                    iface.messageBar().pushMessage('Error in creating vegetation community columns', level=1)
+
+    def removeTaxaEntry(self):
+        """ Removes selected entries from a table with a pop-up warning"""
+        # popup
+        pass #TODO create pop-up warning
+
+
+        #get selection
+        tableWidget_taxa = self.tableWidget_taxa
+        for row in tableWidget_taxa.selectionModel().selectedRows():
+            tableWidget_taxa.removeRow(row.row())
+
+    def removeVegComEntry(self):
+        """ Removes selected entries from a table with a pop-up warning"""
+        #Popup
+         #TODO create pop-up warning
+
+
+        #remove row
+        tableWidget_vegCom = self.tableWidget_vegCom
+        columns_to_remove = []
+
+        if tableWidget_vegCom.selectionModel().selectedRows():
+            for row in tableWidget_vegCom.selectionModel().selectedRows():
+                tableWidget_vegCom.removeRow(row.row())
+        #remove columns that no longer contain data after the row was removed
+        for column in range(1,tableWidget_vegCom.columnCount()):
+            item_list = []
+            for row in range(tableWidget_vegCom.rowCount()):
+                if tableWidget_vegCom.item(row,column):
+                    item_list.append(tableWidget_vegCom.item(row,column))
+            if not item_list:
+                columns_to_remove.append(column)
+            else:
+                continue
+        for list_item in columns_to_remove:
+            tableWidget_vegCom.removeColumn(list_item)
+            tableWidget_vegCom.setColumnCount(self.tableWidget_vegCom.columnCount()-1)
+
+    def loadHandbagFile(self):
+        """
+        Loads a HUMPOL handbag (.hum) file into the software. This fills in the data (if specified in the file) for:
+        Taxa
+        Communities
+        Sample points
+        Windroses
+        Metadata
+        Notes
+        Compatible with the HUMPOL suite (Bunting & Middleton 2005) and LandPolFlow (Bunting & Middleton 2009)
+        """
+        #TODO windrose data, metadata, notes
+        file_name = self.qgsFileWidget_importHandbag.filePath()
+        tableWidget_vegCom = self.tableWidget_vegCom
+        if not os.path.isfile(file_name):
+            iface.messageBar().pushMessage('File does not exist, please try again', level=1)
+        else:
+            with open(file_name) as file:
+                for line in file:
+                    if line[0] == '1':
+                        if int(line[:4]) >= 1100:
+                            line = line[5:]
+                            line_list = list(re.split('\t|\n', line))
+                            row_count = self.tableWidget_taxa.rowCount()
+                            self.tableWidget_taxa.setRowCount(row_count + 1)
+                            self.tableWidget_taxa.setItem(row_count, 0, QTableWidgetItem(line_list[0]))
+                            self.tableWidget_taxa.setItem(row_count, 1, QTableWidgetItem(line_list[1]))
+                            self.tableWidget_taxa.setItem(row_count, 2, QTableWidgetItem(str(line_list[2])))
+                            self.tableWidget_taxa.setItem(row_count, 3, QTableWidgetItem(str(line_list[3])))
+                    elif line[0] == '2': #communities
+                        # skip community names (TODO but what to do if a handbag file has multiple community files?)
+                        if 2200 <= int(line[:4]) < 2300:
+                            line = line[7:]
+                            line = line.replace('\n','')
+                            tableWidget_vegCom.setRowCount(self.tableWidget_vegCom.rowCount() +1)
+                            tableWidget_vegCom.setItem(self.tableWidget_vegCom.rowCount() - 1, 0, QTableWidgetItem(
+                                line))
+                        elif int(line[:4]) >= 2300:
+                            line = line[5:]
+                            line_list = list(re.split('\t|\n', line))
+                            # Only create a new column if the header does not yet exist note: this is a duplicate from addNewVegCom
+                            header_list = [tableWidget_vegCom.horizontalHeaderItem(column).text() for column in
+                                           range(1, tableWidget_vegCom.columnCount())]
+                            if line_list[0] in header_list:
+                                # get column number of named column
+                                for column in range(tableWidget_vegCom.columnCount()):
+                                    header_text = tableWidget_vegCom.horizontalHeaderItem(column).text()
+                                    if header_text == line_list[0]:
+                                        tableWidget_vegCom.setItem(self.tableWidget_vegCom.rowCount() - 1, column,
+                                                                   QTableWidgetItem(line_list[1]))
+                                # add value at right location to that column
+                                pass
+                            elif line_list[0] not in header_list:
+                                self.tableWidget_vegCom.setColumnCount(self.tableWidget_vegCom.columnCount()+1)
+                                # set header of new column
+                                tableWidget_vegCom.setHorizontalHeaderItem(self.tableWidget_vegCom.columnCount() - 1,
+                                                                           QTableWidgetItem(line_list[0]))
+                                # add value to new column
+                                tableWidget_vegCom.setItem(self.tableWidget_vegCom.rowCount() - 1, self.tableWidget_vegCom.columnCount() - 1,
+                                                           QTableWidgetItem(
+                                                               str(line_list[1])))
+                            else:
+                                iface.messageBar().pushMessage('Error in creating vegetation community columns', level=1)
+                    elif line[0] == '3': #sample points
+                        pass
+                        #TODO
+                file.close()
+
+    def addNewRule(self):
+        """ Allows the dynamic adding of new rules under the rules tab in the main dialog UI."""
+        #Determine rule number, takes the next number not yet taken
+        rule_in_list = False
+        if self.nest_dict_rules:
+            for counter in range(0,1000): # this means a max of 1000 rules is possible
+                for entry in self.nest_dict_rules:
+                    if counter == self.nest_dict_rules[entry][0]:
+                        rule_in_list = True
+                        rule_number = len(self.nest_dict_rules)
+                        break
+                if rule_in_list:
+                    rule_in_list = False
+                    continue
+                elif counter == 999:
+                    iface.messageBar().pushMessage('Max number of rules reached', level=1)
+                else:
+                    rule_number = counter
+                    break
+        else:
+            rule_number = 0
+
+        add_rule_popup = MsaQgisAddRulePopup(rule_number, self.tableWidget_vegCom,
+                                                  self.tableWidget_selected, self.tableWidget_selRaster)
+        add_rule_popup.show()
+
+        if add_rule_popup.exec_():
+            # add the rule to the dictionary and rule description to the rule listWidget
+            self.nest_dict_rules['Rule ' + str(rule_number)] = add_rule_popup.dict_rules_list
+            self.listWidget_rules.addItem(self.nest_dict_rules['Rule ' + str(rule_number)][1])
+
+    def deleteRule(self):
+        """ Deletes a rule from the rule list and dictionary"""
+        #check which rule(s) are selected
+        list_to_remove = []
+        for item in self.listWidget_rules.selectedItems():
+            description = item.text()
+            # description = self.listWidget_rules.findItems(item, 0)[0].text()
+            self.listWidget_rules.takeItem(self.listWidget_rules.row(item))
+            for key in self.nest_dict_rules:
+                if self.nest_dict_rules[key][1] == description:
+                    list_to_remove.append(key)
+        for entry in list_to_remove:
+            self.nest_dict_rules.pop(entry)
+
+    def viewRuleList(self):
+        """ Opens the list of rules in a separate window for quick reference when creating the rule tree"""
+        self.popup_rule_list = MsaQgisRuleListPopup(self.nest_dict_rules)
+        self.popup_rule_list.show()
+
+    def checkIfSelectedRule(self):
+        """ Checks if there are any selected rules.
+        If there are no rules in the dictionary, returns -2.
+        If there are rules, but none are selected, returns -1.
+        If there are rules in the dictionary, but no RuleTreeWidgets in self.dict_ruleTreeWidgets, returns 0.
+        If there is a selected RuleTreeWidget, returns its ID."""
+        selected_rule = -1
+        if self.nest_dict_rules: #check if there are any rules in the rule dictionary
+            if self.dict_ruleTreeWidgets: # check if there are any RuleTreeWidgets already placed
+                for key in self.dict_ruleTreeWidgets: #determine which of the rules in the rule tree is selected
+                    if self.dict_ruleTreeWidgets[key].isSelected:
+                        selected_rule = key
+            else: selected_rule = 0
+        else:
+            selected_rule = -2
+        return selected_rule
+
+    def addRuleToTree(self, selected_rule = None, rule_tree_type ='Insert Above'):
+        """ Adds a RuleTreeWidget to the RuleTreeFrame.
+        Based on a selected ruleTreeWidget, unless no ruleTreeWidgets exist."""
+        next_layout = QHBoxLayout()
+        own_layout = QVBoxLayout()
+        x_position_for_spoilerplate = self.scrollArea_ruleTree.x() + self.tab_top.x() + self.x()
+        y_position_for_spoilerplate = self.scrollArea_ruleTree.y() + self.tab_top.y() + self.y()
+        selected_rule = self.checkIfSelectedRule()
+        if selected_rule == -2:
+            iface.messageBar().pushMessage("Error", "There are no rules to add", level = 1)
+            return # request not valid, exit function
+        elif selected_rule == -1:
+            iface.messageBar().pushMessage("Error", "Select a rule to add a new rule to the rule tree",
+                                           level=1)
+            return  # request not valid, exit function
+        elif selected_rule == 0:
+            rule_id = 1
+            ruleTreeWidget = RuleTreeWidget(self.nest_dict_rules, rule_id, next_layout,
+                                            main_dialog_x=x_position_for_spoilerplate,
+                                            main_dialog_y=y_position_for_spoilerplate) # duplicate_ruletreewidget for mysterious reasons is not always empty despite never getting anything appended unless specified at creation
+            self.ruleTreeLayout.insertWidget(0, ruleTreeWidget) # insert itself
+            self.ruleTreeLayout.insertLayout(1, ruleTreeWidget.next_layout) # insert holder for next widgets
+            self.ruleTreeLayout.insertStretch(2, 1) # insert stretch to push to top
+        else:
+            if self.dict_ruleTreeWidgets[selected_rule].connection_type != 'normal':
+                iface.messageBar().pushMessage("Error", "Cannot add a rule to a rule in series or parallel. "
+                                                        "Use already connected rule instead or replace rule in series with a normal branch",
+                                               level=1)
+                return # request not valid, exit function
+            elif len(self.dict_ruleTreeWidgets[selected_rule].next_ruleTreeWidgets) >= 9:
+                iface.messageBar().pushMessage("Error", "Cannot add more than 9 rules to a branch",
+                                               level=1)
+                return # request not valid, exit function
+            else:
+                if self.dict_ruleTreeWidgets[
+                    selected_rule].next_ruleTreeWidgets:  # NOTE max number of branches possible is 10, but can adjust for higher by adding 00 or 000 in other option. Does need adjustment in making duplicates and other rules as well
+                    rule_id = max(self.dict_ruleTreeWidgets[selected_rule].next_ruleTreeWidgets) + 1
+                else:
+                    rule_id = int(str(self.dict_ruleTreeWidgets[selected_rule].order_id) + '0')
+                ruleTreeWidget = RuleTreeWidget(self.nest_dict_rules, rule_id, next_layout, own_layout,
+                                                main_dialog_x=x_position_for_spoilerplate,
+                                                main_dialog_y=y_position_for_spoilerplate)
+
+                #determine if selected rule already had a next rule and if yes remove from base group. Then append new rule
+                if len(self.dict_ruleTreeWidgets[selected_rule].next_ruleTreeWidgets) == 1 and self.dict_ruleTreeWidgets[selected_rule].isBaseGroup:
+                    self.dict_ruleTreeWidgets[selected_rule].toggleBaseGroup()
+                    iface.messageBar().pushMessage("Note", "Selected rule removed from base group",
+                                                   level=0)
+                self.dict_ruleTreeWidgets[selected_rule].next_ruleTreeWidgets.append(rule_id)
+                # create own layout and insert itself
+                self.dict_ruleTreeWidgets[selected_rule].next_layout.addLayout(own_layout)
+                own_layout.addWidget(ruleTreeWidget)
+                own_layout.addLayout(next_layout)
+                own_layout.insertStretch(2, 1)
+                #determine previous RuleTreeWidgets
+                ruleTreeWidget.prev_ruleTreeWidgets = self.dict_ruleTreeWidgets[selected_rule].prev_ruleTreeWidgets.copy()
+                ruleTreeWidget.prev_ruleTreeWidgets.append(selected_rule)
+
+                #check if selected rule has duplicates and if yes create a duplicate
+                if self.dict_ruleTreeWidgets[selected_rule].duplicate_ruleTreeWidgets:
+                    for duplicate in self.dict_ruleTreeWidgets[selected_rule].duplicate_ruleTreeWidgets:
+                        #determine rule id
+                        if self.dict_ruleTreeWidgets[duplicate].next_ruleTreeWidgets:
+                            rule_id_duplicate = max(self.dict_ruleTreeWidgets[duplicate].next_ruleTreeWidgets) + 1
+                        else:
+                            rule_id_duplicate = int(str(self.dict_ruleTreeWidgets[duplicate].order_id) + '0')
+                        #create widget
+                        ruleTreeWidget_duplicate = RuleTreeWidget(self.nest_dict_rules, rule_id_duplicate, None, None)
+                        #add to dictionary
+                        self.dict_ruleTreeWidgets[rule_id_duplicate] = ruleTreeWidget_duplicate
+                        #determine previous
+                        self.dict_ruleTreeWidgets[rule_id_duplicate].prev_ruleTreeWidgets = self.dict_ruleTreeWidgets[duplicate].prev_ruleTreeWidgets.copy()
+                        #add to next
+                        self.dict_ruleTreeWidgets[duplicate].next_ruleTreeWidgets.append(rule_id_duplicate)
+                        #add to duplicates
+                        ruleTreeWidget.duplicate_ruleTreeWidgets.append(rule_id_duplicate)
+                        self.dict_ruleTreeWidgets[rule_id_duplicate].duplicate_ruleTreeWidgets.append(rule_id)
+        # add ruleTreeWidget to dict and add prev to list
+        self.dict_ruleTreeWidgets[ruleTreeWidget.order_id] = ruleTreeWidget
+        # allow widget to remove selection from other widgets when selected
+        ruleTreeWidget.clicked.connect(
+            lambda *args, ruleTreeWidget_id=ruleTreeWidget.order_id, ruleTreeWidget=ruleTreeWidget:
+            self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
+        #update the frame
+        self.frame_ruleTree.update()
+
+    def addRuleToTreeSeries(self):
+        """ Adds multiple ruleTreeWidgets to the RuleTreeFrame for the placement of a series branch.
+        Cannot be placed as the first RuleTreeWidget."""
+        # Create the RuleTreeWidgets in series and set as previous 1 and previous 2
+        # Create the subsequent (duplicate) RuleTreeWidgets
+        # If no previous rule tree widgets give an error.
+        # set rule type to 'series'
+        next_layout_top = QVBoxLayout()
+        own_layout_top = QVBoxLayout()
+        next_layout_series = QVBoxLayout()
+        own_layout_series = QHBoxLayout()
+        own_layout_bottom = None
+        next_layout_bottom = QHBoxLayout()
+
+        x_position_for_spoilerplate = self.scrollArea_ruleTree.x() + self.tab_top.x() + self.x()
+        y_position_for_spoilerplate = self.scrollArea_ruleTree.y() + self.tab_top.y() + self.y()
+        selected_rule = self.checkIfSelectedRule()
+        if selected_rule == -2:
+            iface.messageBar().pushMessage("Error", "There are no rules to add", level = 1)
+            return # request not valid, exit function
+        elif selected_rule == -1:
+            iface.messageBar().pushMessage("Error", "Select a rule to add a new rule to the rule tree",
+                                           level=1)
+            return  # request not valid, exit function
+        elif selected_rule == 0:
+            iface.messageBar().pushMessage("Error", "First rule cannot be in series",
+                                           level=1)
+            return  # request not valid, exit function
+        else:
+            if len(self.dict_ruleTreeWidgets[selected_rule].next_ruleTreeWidgets) >= 9:
+                iface.messageBar().pushMessage("Error", "Cannot add more than 9 rules to a branch",
+                                               level=1)
+                return # request not valid, exit function
+            elif self.dict_ruleTreeWidgets[selected_rule].connection_type == 'normal':
+                # create new set of rules in series.
+                #determine rule_ids
+                if self.dict_ruleTreeWidgets[
+                    selected_rule].next_ruleTreeWidgets:  # NOTE max number of branches possible is 10, but can adjust for higher by adding 00 or 000 in other option.
+                    rule_id_top = max(self.dict_ruleTreeWidgets[selected_rule].next_ruleTreeWidgets) + 1
+                else:
+                    rule_id_top = int(str(self.dict_ruleTreeWidgets[selected_rule].order_id) + '0')
+                rule_id_series = int(str(rule_id_top)+'0')
+                rule_id_bottom = int(str(rule_id_series)+'0')
+                rule_id_series_two = rule_id_bottom+1
+                # create widgets
+                ruleTreeWidget_top = RuleTreeWidget(self.nest_dict_rules, rule_id_top, next_layout_top,own_layout_top, 'series start',
+                                                main_dialog_x=x_position_for_spoilerplate,
+                                                main_dialog_y=y_position_for_spoilerplate)
+                ruleTreeWidget_series = RuleTreeWidget(self.nest_dict_rules, rule_id_series, next_layout_series,own_layout_series, 'series',
+                                                main_dialog_x=x_position_for_spoilerplate,
+                                                main_dialog_y=y_position_for_spoilerplate)
+                ruleTreeWidget_series_two = RuleTreeWidget(self.nest_dict_rules, rule_id_series_two, next_layout_series,own_layout_series, 'series',
+                                                main_dialog_x=x_position_for_spoilerplate,
+                                                main_dialog_y=y_position_for_spoilerplate)
+                ruleTreeWidget_bottom = RuleTreeWidget(self.nest_dict_rules, rule_id_bottom, next_layout_bottom,own_layout_bottom, 'normal',
+                                                main_dialog_x=x_position_for_spoilerplate,
+                                                main_dialog_y=y_position_for_spoilerplate)
+                # place widgets
+                self.dict_ruleTreeWidgets[selected_rule].next_layout.addLayout(ruleTreeWidget_top.own_layout)
+                ruleTreeWidget_top.own_layout.addWidget(ruleTreeWidget_top)
+                ruleTreeWidget_top.own_layout.addLayout(ruleTreeWidget_top.next_layout)
+                ruleTreeWidget_top.next_layout.addLayout(ruleTreeWidget_series.own_layout)
+                ruleTreeWidget_top.next_layout.addLayout(ruleTreeWidget_series.next_layout)
+                ruleTreeWidget_series.own_layout.addWidget(ruleTreeWidget_series)
+                ruleTreeWidget_series.own_layout.addWidget(ruleTreeWidget_series_two)
+                ruleTreeWidget_series.own_layout.addStretch()
+                ruleTreeWidget_series.next_layout.addWidget(ruleTreeWidget_bottom)
+                ruleTreeWidget_series.next_layout.addLayout(ruleTreeWidget_bottom.next_layout)
+
+                # create the duplicate, which is NOT added to the UI
+                rule_id_duplicate = int(str(rule_id_series_two) + str(0))
+                ruleTreeWidget_duplicate = RuleTreeWidget(self.nest_dict_rules, rule_id_duplicate, None, None, 'duplicate')
+
+                # add all relevant id's to relevant dictionaries and lists.
+                # add to rule dictionary
+                self.dict_ruleTreeWidgets[ruleTreeWidget_top.order_id] = ruleTreeWidget_top
+                self.dict_ruleTreeWidgets[ruleTreeWidget_series.order_id] = ruleTreeWidget_series
+                self.dict_ruleTreeWidgets[ruleTreeWidget_bottom.order_id] = ruleTreeWidget_bottom
+                self.dict_ruleTreeWidgets[ruleTreeWidget_series_two.order_id] = ruleTreeWidget_series_two
+                self.dict_ruleTreeWidgets[ruleTreeWidget_duplicate.order_id] = ruleTreeWidget_duplicate
+
+                # add to duplicates
+                ruleTreeWidget_duplicate.duplicate_ruleTreeWidgets.append(ruleTreeWidget_bottom.order_id)
+                ruleTreeWidget_bottom.duplicate_ruleTreeWidgets.append(ruleTreeWidget_duplicate.order_id)
+
+                # add to next widgets
+                self.dict_ruleTreeWidgets[selected_rule].next_ruleTreeWidgets.append(ruleTreeWidget_top.order_id)
+                ruleTreeWidget_top.next_ruleTreeWidgets.append(ruleTreeWidget_series.order_id)
+                ruleTreeWidget_series.next_ruleTreeWidgets.append(ruleTreeWidget_bottom.order_id)
+                ruleTreeWidget_series.next_ruleTreeWidgets.append(ruleTreeWidget_series_two.order_id)
+                ruleTreeWidget_series_two.next_ruleTreeWidgets.append(ruleTreeWidget_duplicate.order_id)
+
+                # add to previous widgets
+                ruleTreeWidget_top.prev_ruleTreeWidgets = self.dict_ruleTreeWidgets[selected_rule].prev_ruleTreeWidgets.copy()
+                ruleTreeWidget_top.prev_ruleTreeWidgets.append(selected_rule)
+                ruleTreeWidget_series.prev_ruleTreeWidgets = ruleTreeWidget_top.prev_ruleTreeWidgets.copy()
+                ruleTreeWidget_series.prev_ruleTreeWidgets.append(ruleTreeWidget_top.order_id)
+                ruleTreeWidget_bottom.prev_ruleTreeWidgets = ruleTreeWidget_series.prev_ruleTreeWidgets.copy()
+                ruleTreeWidget_series_two.prev_ruleTreeWidgets = ruleTreeWidget_series.prev_ruleTreeWidgets.copy()
+                ruleTreeWidget_bottom.prev_ruleTreeWidgets.append(ruleTreeWidget_series.order_id)
+                ruleTreeWidget_series_two.prev_ruleTreeWidgets.append(ruleTreeWidget_series.order_id)
+                ruleTreeWidget_duplicate.prev_ruleTreeWidgets = ruleTreeWidget_series_two.prev_ruleTreeWidgets.copy()
+                ruleTreeWidget_duplicate.prev_ruleTreeWidgets.append(ruleTreeWidget_series_two.order_id)
+
+
+                # connect all the widgets to the selection
+                ruleTreeWidget_top.clicked.connect(
+                    lambda *args, ruleTreeWidget_id = ruleTreeWidget_top.order_id, ruleTreeWidget = ruleTreeWidget_top:
+                    self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
+                ruleTreeWidget_series.clicked.connect(
+                    lambda *args, ruleTreeWidget_id=ruleTreeWidget_series.order_id, ruleTreeWidget=ruleTreeWidget_series:
+                    self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
+                ruleTreeWidget_series_two.clicked.connect(
+                    lambda *args, ruleTreeWidget_id=ruleTreeWidget_series_two.order_id, ruleTreeWidget=ruleTreeWidget_series_two:
+                    self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
+                ruleTreeWidget_bottom.clicked.connect(
+                    lambda *args, ruleTreeWidget_id=ruleTreeWidget_bottom.order_id, ruleTreeWidget=ruleTreeWidget_bottom:
+                    self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
+
+                # if selected_rule has duplicates, create duplicates for all
+
+                if self.dict_ruleTreeWidgets[selected_rule].duplicate_ruleTreeWidgets:
+                    for duplicate in self.dict_ruleTreeWidgets[selected_rule].duplicate_ruleTreeWidgets:
+                        # determine rule id
+                        if self.dict_ruleTreeWidgets[
+                            duplicate].next_ruleTreeWidgets:  # NOTE max number of branches possible is 10, but can adjust for higher by adding 00 or 000 in other option.
+                            rule_id_top_duplicate = max(self.dict_ruleTreeWidgets[duplicate].next_ruleTreeWidgets) + 1
+                        else:
+                            rule_id_top_duplicate = int(str(self.dict_ruleTreeWidgets[duplicate].order_id) + '0')
+                        rule_id_series_duplicate = int(str(rule_id_top_duplicate) + '0')
+                        rule_id_bottom_duplicate = int(str(rule_id_series_duplicate) + '0')
+                        rule_id_series_two_duplicate = rule_id_bottom_duplicate + 1
+                        rule_id_bottom_duplicate_two = int(str(rule_id_series_two_duplicate)+ '0')
+                        # create widget
+                        ruleTreeWidget_top_duplicate = RuleTreeWidget(self.nest_dict_rules, rule_id_top_duplicate, None, None, 'duplicate')
+                        ruleTreeWidget_series_duplicate = RuleTreeWidget(self.nest_dict_rules, rule_id_series_duplicate, None, None, 'duplicate')
+                        ruleTreeWidget_series_two_duplicate = RuleTreeWidget(self.nest_dict_rules, rule_id_series_two_duplicate, None, None, 'duplicate')
+                        ruleTreeWidget_bottom_duplicate = RuleTreeWidget(self.nest_dict_rules, rule_id_bottom_duplicate, None, None, 'duplicate')
+                        ruleTreeWidget_bottom_duplicate_two = RuleTreeWidget(self.nest_dict_rules, rule_id_bottom_duplicate_two, None, None, 'duplicate')
+                        # add to dictionary
+                        self.dict_ruleTreeWidgets[ruleTreeWidget_top_duplicate.order_id] = ruleTreeWidget_top_duplicate
+                        self.dict_ruleTreeWidgets[ruleTreeWidget_series_duplicate.order_id] = ruleTreeWidget_series_duplicate
+                        self.dict_ruleTreeWidgets[ruleTreeWidget_series_two_duplicate.order_id] = ruleTreeWidget_series_two_duplicate
+                        self.dict_ruleTreeWidgets[ruleTreeWidget_bottom_duplicate.order_id] = ruleTreeWidget_bottom_duplicate
+                        self.dict_ruleTreeWidgets[ruleTreeWidget_bottom_duplicate_two.order_id] = ruleTreeWidget_bottom_duplicate_two
+                        # determine previous
+                        ruleTreeWidget_top_duplicate.prev_ruleTreeWidgets = \
+                            self.dict_ruleTreeWidgets[duplicate].prev_ruleTreeWidgets.copy()
+                        ruleTreeWidget_top_duplicate.prev_ruleTreeWidgets.append(duplicate)
+                        ruleTreeWidget_series_duplicate.prev_ruleTreeWidgets = \
+                            ruleTreeWidget_top_duplicate.prev_ruleTreeWidgets.copy()
+                        ruleTreeWidget_series_duplicate.prev_ruleTreeWidgets.append(rule_id_top_duplicate)
+                        ruleTreeWidget_series_two_duplicate.prev_ruleTreeWidgets = \
+                            ruleTreeWidget_series_duplicate.prev_ruleTreeWidgets.copy()
+                        ruleTreeWidget_series_two_duplicate.prev_ruleTreeWidgets.append(rule_id_series_duplicate)
+                        ruleTreeWidget_bottom_duplicate.prev_ruleTreeWidgets = \
+                            ruleTreeWidget_series.prev_ruleTreeWidgets.copy()
+                        ruleTreeWidget_bottom_duplicate.prev_ruleTreeWidgets.append(rule_id_series_duplicate)
+                        ruleTreeWidget_bottom_duplicate_two.prev_ruleTreeWidgets = \
+                            ruleTreeWidget_series_two.prev_ruleTreeWidgets.copy()
+                        ruleTreeWidget_bottom_duplicate_two.prev_ruleTreeWidgets.append(rule_id_series_two_duplicate)
+                        # add to next
+                        self.dict_ruleTreeWidgets[duplicate].next_ruleTreeWidgets.append(rule_id_top_duplicate)
+                        ruleTreeWidget_top_duplicate.next_ruleTreeWidgets.append(rule_id_series_duplicate)
+                        ruleTreeWidget_series_duplicate.next_ruleTreeWidgets.append(rule_id_series_two_duplicate)
+                        ruleTreeWidget_series_duplicate.next_ruleTreeWidgets.append(rule_id_bottom_duplicate)
+                        ruleTreeWidget_series_two_duplicate.next_ruleTreeWidgets.append(rule_id_bottom_duplicate_two)
+                        # add to duplicates
+                        ruleTreeWidget_top.duplicate_ruleTreeWidgets.append(rule_id_top_duplicate)
+                        ruleTreeWidget_top_duplicate.duplicate_ruleTreeWidgets.append(rule_id_top)
+                        ruleTreeWidget_series.duplicate_ruleTreeWidgets.append(rule_id_series_duplicate)
+                        ruleTreeWidget_series_duplicate.duplicate_ruleTreeWidgets.append(rule_id_series)
+                        ruleTreeWidget_series_two.duplicate_ruleTreeWidgets.append(rule_id_series_two_duplicate)
+                        ruleTreeWidget_series_two_duplicate.duplicate_ruleTreeWidgets.append(rule_id_series_two)
+                        ruleTreeWidget_bottom.duplicate_ruleTreeWidgets.append(rule_id_bottom_duplicate)
+                        ruleTreeWidget_bottom_duplicate.duplicate_ruleTreeWidgets.append(rule_id_bottom)
+                        ruleTreeWidget_duplicate.duplicate_ruleTreeWidgets.append(rule_id_bottom_duplicate)
+                        ruleTreeWidget_bottom_duplicate.duplicate_ruleTreeWidgets.append(rule_id_duplicate)
+                        ruleTreeWidget_bottom.duplicate_ruleTreeWidgets.append(rule_id_bottom_duplicate_two)
+                        ruleTreeWidget_bottom_duplicate_two.duplicate_ruleTreeWidgets.append(rule_id_bottom)
+                        ruleTreeWidget_duplicate.duplicate_ruleTreeWidgets.append(rule_id_bottom_duplicate_two)
+                        ruleTreeWidget_bottom_duplicate_two.duplicate_ruleTreeWidgets.append(rule_id_duplicate)
+
+            elif self.dict_ruleTreeWidgets[selected_rule].connection_type == 'series start' or self.dict_ruleTreeWidgets[selected_rule].connection_type == 'series':
+                # add a rule in series to an already existing set of rules in series.
+                if self.dict_ruleTreeWidgets[selected_rule].connection_type == 'series':
+                    #find series start and set as selected_rule
+                    partial_id_to_rm = '0'
+                    for number in reversed(str(selected_rule)):
+                        if number != '0':
+                            partial_id_to_rm += number
+                        else:
+                            break
+
+                    len_to_keep = len(str(selected_rule))-len(partial_id_to_rm)
+                    rule_id_series_top = str(selected_rule)[:len_to_keep]
+                    selected_rule = int(rule_id_series_top)
+                #find id of first in and first after series
+                first_in_series = str(selected_rule) + '0'
+                first_after_series = first_in_series + '0'
+                own_layout_series = self.dict_ruleTreeWidgets[int(first_in_series)].own_layout
+                #find id of last in series
+                list_ids_to_check = []
+                contains_only_1 = False
+                length_first_in_series = len(first_in_series)
+                length_first_after_series = len(first_after_series)
+                for key in self.dict_ruleTreeWidgets:
+                    if first_in_series == str(self.dict_ruleTreeWidgets[key].order_id)[:length_first_in_series]:
+
+                        for digit in str(self.dict_ruleTreeWidgets[key].order_id)[length_first_in_series:]:
+                            if digit != '1':
+                                contains_only_1 = False
+                                break
+                            elif digit == '1':
+                                contains_only_1 = True
+                    if contains_only_1 == True:
+                        list_ids_to_check.append(self.dict_ruleTreeWidgets[key].order_id)
+                prev_rule_series = max(list_ids_to_check)
+                rule_id = int(str(prev_rule_series) + '1')
+
+                #create the widget
+                ruleTreeWidget = RuleTreeWidget(self.nest_dict_rules, rule_id, next_layout= None,
+                                                connection_type='series')
+                #place the widget
+                own_layout_series.addWidget(ruleTreeWidget)
+                own_layout_series.addStretch()
+                #add to dictionary
+                self.dict_ruleTreeWidgets[ruleTreeWidget.order_id] = ruleTreeWidget
+                #add to previous widgets
+                self.dict_ruleTreeWidgets[rule_id].prev_ruleTreeWidgets = self.dict_ruleTreeWidgets[prev_rule_series].prev_ruleTreeWidgets.copy()
+                ruleTreeWidget.prev_ruleTreeWidgets.append(prev_rule_series)
+                #add to next widgets of previous widgets
+                self.dict_ruleTreeWidgets[prev_rule_series].next_ruleTreeWidgets.append(rule_id)
+                #connect visible widgets to selection
+                ruleTreeWidget.clicked.connect(
+                    lambda *args, ruleTreeWidget_id=ruleTreeWidget.order_id, ruleTreeWidget=ruleTreeWidget:
+                    self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
+                #find all of the next rules after the first series rule and give them duplicates.
+                list_ids_to_check = []
+                for key in self.dict_ruleTreeWidgets:
+                    if first_after_series in str(self.dict_ruleTreeWidgets[key].order_id)[:length_first_after_series]:
+                        if len(str(self.dict_ruleTreeWidgets[key].order_id)) > length_first_in_series:
+                            list_ids_to_check.append(self.dict_ruleTreeWidgets[key].order_id)
+                for id in list_ids_to_check:
+                    rule_id_duplicate = int(str(rule_id) + str(id)[length_first_in_series:])
+                    ruleTreeWidget_duplicate = RuleTreeWidget(self.nest_dict_rules, rule_id_duplicate, None, None,
+                                                              'duplicate')
+                    #add to dictionary
+                    self.dict_ruleTreeWidgets[ruleTreeWidget_duplicate.order_id] = ruleTreeWidget_duplicate
+                    #add to previous widgets
+                    prev_rule_id = int(str(rule_id_duplicate)[:len(str(rule_id_duplicate))-1])
+                    self.dict_ruleTreeWidgets[rule_id_duplicate].prev_ruleTreeWidgets = self.dict_ruleTreeWidgets[
+                        prev_rule_id].prev_ruleTreeWidgets.copy()
+
+                    #add to next widgets
+                    self.dict_ruleTreeWidgets[prev_rule_id].next_ruleTreeWidgets.append(rule_id_duplicate)
+                    #add to duplicates
+                    for duplicate in self.dict_ruleTreeWidgets[id].duplicate_ruleTreeWidgets:
+                        self.dict_ruleTreeWidgets[duplicate].duplicate_ruleTreeWidgets.append(rule_id_duplicate)
+                        self.dict_ruleTreeWidgets[rule_id_duplicate].duplicate_ruleTreeWidgets.append(self.dict_ruleTreeWidgets[duplicate].order_id)
+                    self.dict_ruleTreeWidgets[rule_id_duplicate].duplicate_ruleTreeWidgets.append(id)
+                    self.dict_ruleTreeWidgets[id].duplicate_ruleTreeWidgets.append(rule_id_duplicate)
+        #test whether created rules and relations are okay
+        # for entries in self.dict_ruleTreeWidgets:
+        #     if self.dict_ruleTreeWidgets[entries].duplicate_ruleTreeWidgets:
+        #         for next in self.dict_ruleTreeWidgets[entries].duplicate_ruleTreeWidgets:
+        #             print(str(entries), ' duplicate', str(next))
+        #     for next in self.dict_ruleTreeWidgets[entries].next_ruleTreeWidgets:
+        #         print(str(entries), ' next rtw ', str(next))
+
+        self.frame_ruleTree.update()
+
+    def changeRuleTreeSelection(self, ruleTreeWidget_id, ruleTreeWidget):
+        """ (De-)Select a ruleTreeWidget. If a new ruleTreeWidget is selected, all previously selected ruleTreeWidgets
+        are deselected"""
+        dict_for_remove_selection = self.dict_ruleTreeWidgets.copy()
+        dict_for_remove_selection.pop(ruleTreeWidget_id)
+
+        if ruleTreeWidget.isSelected == True:
+            ruleTreeWidget.isSelected = False
+            if ruleTreeWidget.isBaseGroup == True:
+                ruleTreeWidget.setStyleSheet("background-color: #c37676;"
+                                   "border: 3px outset #5b3737;")
+            else:
+                ruleTreeWidget.setStyleSheet("background-color: #c3c3c3;"
+                                   "border: 3px outset #5b5b5b;")
+        elif ruleTreeWidget.isSelected == False:
+            for key in dict_for_remove_selection:
+                if dict_for_remove_selection[key].isSelected == True:
+                    dict_for_remove_selection[key].isSelected = False
+                    if dict_for_remove_selection[key].isBaseGroup == True:
+                        dict_for_remove_selection[key].setStyleSheet("background-color: #c37676;"
+                                                                     "border: 3px outset #5b3737;")
+                    else:
+                        dict_for_remove_selection[key].setStyleSheet("background-color: #c3c3c3;"
+                                                                     "border: 3px outset #5b5b5b;")
+            ruleTreeWidget.isSelected = True
+            ruleTreeWidget.setStyleSheet("background-color: #7dc376;"
+                                         "border: 3px inset #3a5b37;")
+
+    def addAndRemoveFromBaseGroup(self):
+        """Adds or removes a ruleTreeWidget from the basegroup"""
+        for ruleTreeWidget in self.dict_ruleTreeWidgets:
+                if self.dict_ruleTreeWidgets[ruleTreeWidget].isSelected == True:
+                    if len(self.dict_ruleTreeWidgets[ruleTreeWidget].prev_ruleTreeWidgets) >0:
+                        for previous in self.dict_ruleTreeWidgets[ruleTreeWidget].prev_ruleTreeWidgets:
+                            if len(self.dict_ruleTreeWidgets[previous].next_ruleTreeWidgets) <= 1:
+                                pass
+                            else:
+                                iface.messageBar().pushMessage("Error", "branched rules cannot be base group",
+                                                               level=1)  # TODO replace with popup once I have the energy
+                                return #exit function
+                        self.dict_ruleTreeWidgets[ruleTreeWidget].toggleBaseGroup()
+                    else:
+                        self.dict_ruleTreeWidgets[ruleTreeWidget].toggleBaseGroup()
+
+    def removeRuleFromRuleTree(self):
+        """ Removes a ruleTreeWidget and its next_ruleTreeWidgets from the rule tree, and the IDs of those
+        ruleTreeWidgets from any lists and dicts in which they occur"""
+        list_to_delete = []
+        selected_rule = self.checkIfSelectedRule()
+        if selected_rule < 1:
+            return
+        else:
+            if self.dict_ruleTreeWidgets[selected_rule].connection_type == 'series':
+                iface.messageBar().pushMessage("Error", "Cannot remove rule from middle of series, "
+                                                        "select rule above series instead", level=1)
+
+            elif selected_rule == 1: # first rule needs seperate process because otherwise the max() statement in the next elif will fail. Ugly but I'm tired and ctrl-v is my friend. WIll remove when implemeting proper removal of series
+                self.clearLayout(self.ruleTreeLayout)
+                self.dict_ruleTreeWidgets = {}
+
+            elif self.dict_ruleTreeWidgets[max(self.dict_ruleTreeWidgets[selected_rule].prev_ruleTreeWidgets)].connection_type == 'series':
+                iface.messageBar().pushMessage("Error", "Cannot remove rule from middle of series, "
+                                                        "select rule above series instead", level=1)
+
+            else:
+                for key in self.dict_ruleTreeWidgets:
+                    #check if selected rule is a previous rule, if yes delete that rule and its layouts
+                    if selected_rule in self.dict_ruleTreeWidgets[key].prev_ruleTreeWidgets:
+                        if self.dict_ruleTreeWidgets[key].own_layout:
+                            self.dict_ruleTreeWidgets[key].own_layout.deleteLater()
+                        if self.dict_ruleTreeWidgets[key].next_layout:
+                            self.dict_ruleTreeWidgets[key].next_layout.deleteLater()
+                        self.dict_ruleTreeWidgets[key].deleteLater()
+                        list_to_delete.append(key)
+                    #check if rule is duplicate of selected rule, if yes delete that rule
+                    elif selected_rule in self.dict_ruleTreeWidgets[key].duplicate_ruleTreeWidgets:
+                        if self.dict_ruleTreeWidgets[key].own_layout:
+                            self.dict_ruleTreeWidgets[key].own_layout.deleteLater()
+                        if self.dict_ruleTreeWidgets[key].next_layout:
+                            self.dict_ruleTreeWidgets[key].next_layout.deleteLater()
+                        self.dict_ruleTreeWidgets[key].deleteLater()
+                        list_to_delete.append(key)
+                #then delete the selected rule and its layouts itself
+                if self.dict_ruleTreeWidgets[selected_rule].own_layout:
+                    self.dict_ruleTreeWidgets[selected_rule].own_layout.deleteLater()
+                if self.dict_ruleTreeWidgets[selected_rule].next_layout:
+                    self.dict_ruleTreeWidgets[selected_rule].next_layout.deleteLater()
+                self.dict_ruleTreeWidgets[selected_rule].deleteLater()
+                list_to_delete.append(selected_rule)
+
+            #remove entries from dictionary
+            for entry in list_to_delete:
+                self.dict_ruleTreeWidgets.pop(entry)
+            #remove selected rule from next_ruletreewidgets of its previous rule
+            for key in self.dict_ruleTreeWidgets:
+                for item in list_to_delete:
+                    if item in self.dict_ruleTreeWidgets[key].next_ruleTreeWidgets:
+                        self.dict_ruleTreeWidgets[key].next_ruleTreeWidgets.remove(item)
+            #update the UI
+            self.frame_ruleTree.update()
+
+    def saveRuleDict(self, file_name_rule_dict):
+        """ Pickles/serializes the rules dictionary for later retrieval"""
+        with open(file_name_rule_dict,'wb') as pkl_file:
+            pickle.dump(self.nest_dict_rules, pkl_file)
+
+    def loadRuleDict(self,file_name_rule_dict):
+        """ Loads the pickled dictionary of the nest_dict_rule"""
+        with open (file_name_rule_dict, 'rb') as pkl_file:
+            self.nest_dict_rules = pickle.load(pkl_file)
+            self.listWidget_rules.clear()
+            self.rule_number = 0
+            for key in self.nest_dict_rules:
+                self.listWidget_rules.addItem(self.nest_dict_rules[key][1])
+                self.rule_number += 1
+
+    def saveHandbagFile(self):
+        """ Saves all of the input data that is backwards compatible with HUMPOL/LandPolFlow into a single text file (.hum)"""
+        #TODO
+        pass
+
+    def saveRuleTree(self,  file_name_rule_tree):
+        """ Pickles/serializes the dictionary containing all entries into the rule tree"""
+        picklable_dict_ruleTreeWidgets = {}
+        for key in self.dict_ruleTreeWidgets:
+            list_ruleTreeWidgets_variables = []
+            #append selected rule, next rule tree widgets, prev rule tree widgets, duplicate rule tree widgets, connection type, isbasegroup
+            list_ruleTreeWidgets_variables.append(self.dict_ruleTreeWidgets[key].comboBox_name.currentText())
+            list_ruleTreeWidgets_variables.append(self.dict_ruleTreeWidgets[key].connection_type)
+            list_ruleTreeWidgets_variables.append(self.dict_ruleTreeWidgets[key].isBaseGroup)
+            list_ruleTreeWidgets_variables.append(self.dict_ruleTreeWidgets[key].prev_ruleTreeWidgets)
+            list_ruleTreeWidgets_variables.append(self.dict_ruleTreeWidgets[key].next_ruleTreeWidgets)
+            list_ruleTreeWidgets_variables.append(self.dict_ruleTreeWidgets[key].duplicate_ruleTreeWidgets)
+            picklable_dict_ruleTreeWidgets[key] = list_ruleTreeWidgets_variables
+        with open (file_name_rule_tree, 'wb') as pkl_file:
+            pickle.dump(picklable_dict_ruleTreeWidgets, pkl_file)
+
+    def loadRuleTree(self, file_name_rule_tree):
+        with open (file_name_rule_tree, 'rb') as pkl_file:
+            pickleable_dict_ruleTreeWidgets = pickle.load(pkl_file)
+
+        #Empty the layout and dict
+        self.clearLayout(self.ruleTreeLayout)
+        self.dict_ruleTreeWidgets = {}
+
+
+        #reconstruct the rule tree and ruletreedict
+        x_position_for_spoilerplate = self.scrollArea_ruleTree.x() + self.tab_top.x() + self.x()
+        y_position_for_spoilerplate = self.scrollArea_ruleTree.y() + self.tab_top.y() + self.y()
+        for key in pickleable_dict_ruleTreeWidgets:
+            #build upper rule tree widget
+            if key == 1:
+                next_layout = QHBoxLayout()
+                ruleTreeWidget_base = RuleTreeWidget(self.nest_dict_rules, key, next_layout, None,
+                                                     pickleable_dict_ruleTreeWidgets[key][1],
+                                                     main_dialog_x=x_position_for_spoilerplate, main_dialog_y=y_position_for_spoilerplate)
+                ruleTreeWidget_base.prev_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][3] # TODO no idea why I couldn't just give these in the constructor, it's being difficult. For now, this works
+                ruleTreeWidget_base.next_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][4]
+                ruleTreeWidget_base.duplicate_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][5]
+                #place widget
+                self.ruleTreeLayout.insertWidget(0, ruleTreeWidget_base)
+                self.ruleTreeLayout.insertLayout(1, ruleTreeWidget_base.next_layout)
+                self.ruleTreeLayout.insertStretch(2, 1)
+                #add to dictionary
+                self.dict_ruleTreeWidgets[key] = ruleTreeWidget_base
+                #set basegroup and selected rule
+                if pickleable_dict_ruleTreeWidgets[key][2]:
+                    ruleTreeWidget_base.isSelected = True
+                    ruleTreeWidget_base.toggleBaseGroup()
+                    ruleTreeWidget_base.isSelected = False
+                self.dict_ruleTreeWidgets[key].comboBox_name.setCurrentText(pickleable_dict_ruleTreeWidgets[key][0])
+                #make selectable
+                ruleTreeWidget_base.clicked.connect(
+                    lambda *args, ruleTreeWidget_id=ruleTreeWidget_base.order_id, ruleTreeWidget=ruleTreeWidget_base:
+                    self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
+            if key >1:
+                #check if rule is a duplicate
+                if pickleable_dict_ruleTreeWidgets[key][5]:
+                    if min(pickleable_dict_ruleTreeWidgets[key][5]) > key:#is the main duplicate, add to UI
+                        #check connection type
+                        if pickleable_dict_ruleTreeWidgets[key][1] == 'normal':
+                            previous_id = max(pickleable_dict_ruleTreeWidgets[key][3])
+                            next_layout = QHBoxLayout()
+                            own_layout = QVBoxLayout()
+                            ruleTreeWidget_normal = RuleTreeWidget(self.nest_dict_rules, key, next_layout, own_layout,
+                                                                   pickleable_dict_ruleTreeWidgets[key][1],
+                                                                   main_dialog_x=x_position_for_spoilerplate,
+                                                                   main_dialog_y=y_position_for_spoilerplate)
+                            ruleTreeWidget_normal.prev_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][
+                                3]  # TODO no idea why I couldn't just give these in the constructor, it's being difficult. For now, this works
+                            ruleTreeWidget_normal.next_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][4]
+                            ruleTreeWidget_normal.duplicate_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][5]
+                            # place widget
+                            # check if this widget follows directly from a widget in series # Todo this would never happen and should be under the version that deals with duplicates
+                            if self.dict_ruleTreeWidgets[previous_id].connection_type == 'series':
+                                self.dict_ruleTreeWidgets[previous_id].next_layout.addWidget(ruleTreeWidget_normal)
+                                self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(
+                                    ruleTreeWidget_normal.next_layout)
+                                ruleTreeWidget_normal.own_layout = []
+                                pass
+                            else:
+                                self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(own_layout)
+                                own_layout.addWidget(ruleTreeWidget_normal)
+                                own_layout.addLayout(next_layout)
+                                own_layout.addStretch()
+                            # add to dictionary
+                            self.dict_ruleTreeWidgets[key] = ruleTreeWidget_normal
+                            # set basegroup and selected rule
+                            if pickleable_dict_ruleTreeWidgets[key][2]:
+                                ruleTreeWidget_normal.isSelected = True
+                                ruleTreeWidget_normal.toggleBaseGroup()
+                                ruleTreeWidget_normal.isSelected = False
+                            self.dict_ruleTreeWidgets[key].comboBox_name.setCurrentText(
+                                pickleable_dict_ruleTreeWidgets[key][0])
+                            ruleTreeWidget_normal.clicked.connect(
+                                lambda *args, ruleTreeWidget_id=ruleTreeWidget_normal.order_id,
+                                       ruleTreeWidget=ruleTreeWidget_normal:
+                                self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
+                        elif pickleable_dict_ruleTreeWidgets[key][1] == 'series start':
+                            if min(pickleable_dict_ruleTreeWidgets[key][5]) > key:  # is the main duplicate, add to UI
+                                next_layout = QVBoxLayout()
+                                own_layout = QVBoxLayout()
+                                ruleTreeWidget_start = RuleTreeWidget(self.nest_dict_rules, key, next_layout,
+                                                                      own_layout,
+                                                                      pickleable_dict_ruleTreeWidgets[key][1],
+                                                                      main_dialog_x=x_position_for_spoilerplate,
+                                                                      main_dialog_y=y_position_for_spoilerplate)
+                                ruleTreeWidget_start.prev_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][3]  # TODO no idea why I couldn't just give these in the constructor, it's being difficult. For now, this works
+                                ruleTreeWidget_start.next_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][4]
+                                ruleTreeWidget_start.duplicate_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][5]
+                                # place widget
+                                previous_id = max(ruleTreeWidget_start.prev_ruleTreeWidgets)
+                                self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(
+                                    ruleTreeWidget_start.own_layout)
+                                ruleTreeWidget_start.own_layout.addWidget(ruleTreeWidget_start)
+                                ruleTreeWidget_start.own_layout.addLayout(ruleTreeWidget_start.next_layout)
+
+                                # add to dictionary
+                                self.dict_ruleTreeWidgets[key] = ruleTreeWidget_start
+                                # set basegroup and selected rule
+                                self.dict_ruleTreeWidgets[key].isBaseGroup = pickleable_dict_ruleTreeWidgets[key][2]
+                                self.dict_ruleTreeWidgets[key].comboBox_name.setCurrentText(
+                                    pickleable_dict_ruleTreeWidgets[key][0])
+                                # connect to selection
+                                ruleTreeWidget_start.clicked.connect(
+                                    lambda *args, ruleTreeWidget_id=ruleTreeWidget_start.order_id,
+                                           ruleTreeWidget=ruleTreeWidget_start:
+                                    self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
+
+                        elif pickleable_dict_ruleTreeWidgets[key][1] == 'series':
+                            if min(pickleable_dict_ruleTreeWidgets[key][5]) > key:  # is the main duplicate, add to UI
+                                # layouts
+                                next_layout = QVBoxLayout()
+                                own_layout = QHBoxLayout()
+                                # create widget
+                                ruleTreeWidget_series = RuleTreeWidget(self.nest_dict_rules, key, next_layout,
+                                                                       own_layout,
+                                                                       pickleable_dict_ruleTreeWidgets[key][1],
+                                                                       main_dialog_x=x_position_for_spoilerplate,
+                                                                       main_dialog_y=y_position_for_spoilerplate)
+                                ruleTreeWidget_series.prev_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][3]  # TODO no idea why I couldn't just give these in the constructor, it's being difficult. For now, this works
+                                ruleTreeWidget_series.next_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][4]
+                                ruleTreeWidget_series.duplicate_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][5]
+                                # place widget
+                                # find which layout it should be added to, either its own in case the previous widget was series top, or to the series layout if previous is series
+                                list_prev_widgets = []
+                                if str(key)[-1] == '0':
+                                    key_without_last_0 = str(key)[:len(str(key)) - 1]
+                                else:
+                                    key_without_last_0 = False
+                                for id in reversed(ruleTreeWidget_series.prev_ruleTreeWidgets):
+                                    if str(id)[-1] == '0' or str(id) == key_without_last_0 or id == 1:
+                                        list_prev_widgets.append(id)
+                                previous_id = max(list_prev_widgets)
+                                if self.dict_ruleTreeWidgets[previous_id].connection_type == 'series start':
+                                    self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(own_layout)
+                                    self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(
+                                        ruleTreeWidget_series.next_layout)
+                                    ruleTreeWidget_series.own_layout.addWidget(ruleTreeWidget_series)
+                                    ruleTreeWidget_series.own_layout.addStretch()
+                                elif self.dict_ruleTreeWidgets[previous_id].connection_type == 'series':
+                                    ruleTreeWidget_series.own_layout = self.dict_ruleTreeWidgets[previous_id].own_layout
+                                    ruleTreeWidget_series.next_layout = self.dict_ruleTreeWidgets[previous_id].next_layout
+                                    self.dict_ruleTreeWidgets[previous_id].own_layout.addWidget(ruleTreeWidget_series)
+                                    self.dict_ruleTreeWidgets[previous_id].own_layout.addStretch()
+
+
+                                # add to dictionary
+                                self.dict_ruleTreeWidgets[key] = ruleTreeWidget_series
+
+                                # set basegroup and selected rule
+                                self.dict_ruleTreeWidgets[key].isBaseGroup = pickleable_dict_ruleTreeWidgets[key][2]
+                                self.dict_ruleTreeWidgets[key].comboBox_name.setCurrentText(
+                                    pickleable_dict_ruleTreeWidgets[key][0])
+                                # connect to selection
+                                ruleTreeWidget_series.clicked.connect(
+                                    lambda *args, ruleTreeWidget_id=ruleTreeWidget_series.order_id,
+                                           ruleTreeWidget=ruleTreeWidget_series:
+                                    self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
+
+                    else: # is not the main duplicate. Create but do not add to UI
+
+                        ruleTreeWidget_duplicate = RuleTreeWidget(self.nest_dict_rules,key,None,None,
+                                                                  pickleable_dict_ruleTreeWidgets[key][1])
+                        ruleTreeWidget_duplicate.prev_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][3]  # TODO no idea why I couldn't just give these in the constructor, it's being difficult. For now, this works
+                        ruleTreeWidget_duplicate.next_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][4]
+                        ruleTreeWidget_duplicate.duplicate_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][5]
+                        #add to dictionary
+                        self.dict_ruleTreeWidgets[key] = ruleTreeWidget_duplicate
+                        continue
+                else: #is not a duplicate, add to UI
+                    if pickleable_dict_ruleTreeWidgets[key][1] == 'normal':
+                        previous_id = max(pickleable_dict_ruleTreeWidgets[key][3])
+                        next_layout = QHBoxLayout()
+                        own_layout = QVBoxLayout()
+                        ruleTreeWidget_normal = RuleTreeWidget(self.nest_dict_rules, key, next_layout, own_layout,
+                                                               pickleable_dict_ruleTreeWidgets[key][1],
+                                                               main_dialog_x=x_position_for_spoilerplate,
+                                                               main_dialog_y=y_position_for_spoilerplate)
+                        ruleTreeWidget_normal.prev_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][3]  # TODO no idea why I couldn't just give these in the constructor, it's being difficult. For now, this works
+                        ruleTreeWidget_normal.next_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][4]
+                        ruleTreeWidget_normal.duplicate_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][5]
+                        # place widget
+                        self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(own_layout)
+                        own_layout.addWidget(ruleTreeWidget_normal)
+                        own_layout.addLayout(next_layout)
+                        own_layout.addStretch()
+                        # add to dictionary
+                        self.dict_ruleTreeWidgets[key] = ruleTreeWidget_normal
+                        # set basegroup and selected rule
+                        if pickleable_dict_ruleTreeWidgets[key][2]:
+                            ruleTreeWidget_normal.isSelected = True
+                            ruleTreeWidget_normal.toggleBaseGroup()
+                            ruleTreeWidget_normal.isSelected = False
+                        self.dict_ruleTreeWidgets[key].comboBox_name.setCurrentText(
+                            pickleable_dict_ruleTreeWidgets[key][0])
+                        ruleTreeWidget_normal.clicked.connect(
+                            lambda *args, ruleTreeWidget_id=ruleTreeWidget_normal.order_id,
+                                   ruleTreeWidget=ruleTreeWidget_normal:
+                            self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
+
+                    elif pickleable_dict_ruleTreeWidgets[key][1] == 'series start':
+                        next_layout = QVBoxLayout()
+                        own_layout = QVBoxLayout()
+                        ruleTreeWidget_start = RuleTreeWidget(self.nest_dict_rules, key, next_layout, own_layout,
+                                                               pickleable_dict_ruleTreeWidgets[key][1],
+                                                               main_dialog_x=x_position_for_spoilerplate,
+                                                               main_dialog_y=y_position_for_spoilerplate)
+                        ruleTreeWidget_start.prev_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][3]  # TODO no idea why I couldn't just give these in the constructor, it's being difficult. For now, this works
+                        ruleTreeWidget_start.next_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][4]
+                        ruleTreeWidget_start.duplicate_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][5]
+                        # place widget
+                        previous_id = max(ruleTreeWidget_start.prev_ruleTreeWidgets)
+                        self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(ruleTreeWidget_start.own_layout)
+                        ruleTreeWidget_start.own_layout.addWidget(ruleTreeWidget_start)
+                        ruleTreeWidget_start.own_layout.addLayout(ruleTreeWidget_start.next_layout)
+
+                        # add to dictionary
+                        self.dict_ruleTreeWidgets[key] = ruleTreeWidget_start
+                        # set basegroup and selected rule
+                        self.dict_ruleTreeWidgets[key].isBaseGroup = pickleable_dict_ruleTreeWidgets[key][2]
+                        self.dict_ruleTreeWidgets[key].comboBox_name.setCurrentText(
+                            pickleable_dict_ruleTreeWidgets[key][0])
+                        #connect to selection
+                        ruleTreeWidget_start.clicked.connect(
+                            lambda *args, ruleTreeWidget_id=ruleTreeWidget_start.order_id,
+                                   ruleTreeWidget=ruleTreeWidget_start:
+                            self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
+
+                    elif pickleable_dict_ruleTreeWidgets[key][1] == 'series':
+                        #layouts
+                        next_layout = QVBoxLayout()
+                        own_layout = QHBoxLayout()
+                        #create widget
+                        ruleTreeWidget_series = RuleTreeWidget(self.nest_dict_rules, key, next_layout, own_layout,
+                                                               pickleable_dict_ruleTreeWidgets[key][1],
+                                                               main_dialog_x=x_position_for_spoilerplate,
+                                                               main_dialog_y=y_position_for_spoilerplate)
+                        ruleTreeWidget_series.prev_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][3]  # TODO no idea why I couldn't just give these in the constructor, it's being difficult. For now, this works
+                        ruleTreeWidget_series.next_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][4]
+                        ruleTreeWidget_series.duplicate_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][5]
+                        #place widget
+                        #find which layout it should be added to, either its own in case the previous widget was series top, or to the series layout if previous is series
+                        list_prev_widgets = []
+                        if str(key)[-1] == '0':
+                            key_without_last_0 = str(key)[:len(str(key))-1]
+                        else:
+                            key_without_last_0 = False
+                        for id in reversed(ruleTreeWidget_series.prev_ruleTreeWidgets):
+                            if str(id)[-1] == '0' or str(id) == key_without_last_0 or id == 1:
+                                list_prev_widgets.append(id)
+                        previous_id = max(list_prev_widgets)
+                        if self.dict_ruleTreeWidgets[previous_id].connection_type == 'series start':
+                            self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(own_layout)
+                            self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(ruleTreeWidget_series.next_layout)
+                            ruleTreeWidget_series.own_layout.addWidget(ruleTreeWidget_series)
+                            ruleTreeWidget_series.own_layout.addStretch()
+                        elif self.dict_ruleTreeWidgets[previous_id].connection_type == 'series':
+                            ruleTreeWidget_series.own_layout = self.dict_ruleTreeWidgets[previous_id].own_layout
+                            ruleTreeWidget_series.next_layout = self.dict_ruleTreeWidgets[previous_id].next_layout
+                            self.dict_ruleTreeWidgets[previous_id].own_layout.addWidget(ruleTreeWidget_series)
+                            self.dict_ruleTreeWidgets[previous_id].own_layout.addStretch()
+
+                        #add to dictionary
+                        self.dict_ruleTreeWidgets[key] = ruleTreeWidget_series
+
+                        #set basegroup and selected rule
+                        self.dict_ruleTreeWidgets[key].isBaseGroup = pickleable_dict_ruleTreeWidgets[key][2]
+                        self.dict_ruleTreeWidgets[key].comboBox_name.setCurrentText(
+                            pickleable_dict_ruleTreeWidgets[key][0])
+                        #connect to selection
+                        ruleTreeWidget_series.clicked.connect(
+                            lambda *args, ruleTreeWidget_id=ruleTreeWidget_series.order_id,
+                                   ruleTreeWidget=ruleTreeWidget_series:
+                            self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
+        # print(self.dict_ruleTreeWidgets)
+        # for key in self.dict_ruleTreeWidgets:
+        #     print('self ',key ,'prev ', self.dict_ruleTreeWidgets[key].prev_ruleTreeWidgets, ', next ',
+        #           self.dict_ruleTreeWidgets[key].next_ruleTreeWidgets, ', duplicate ',
+        #           self.dict_ruleTreeWidgets[key].duplicate_ruleTreeWidgets)
+
+    def saveInput(self, file_name_input, project_name):
+        """ Saves all of the input data, including input that is NOT backwards compatible with HUMPOL/LandPolFlow into a single text file (.msa)"""
+        ### write a .csv file with all the data
+        with open(file_name_input, 'w', newline= '') as csv_file:
+            iface.messageBar().pushMessage('Writing file', level=3)
+            writer = csv.writer(csv_file)
+            writer.writerow(['Project name', project_name])
+            #saved settings
+            writer.writerow(['Saved settings'])
+            crs = QgsProject.instance().crs().authid()
+            writer.writerow(['CRS', crs])
+            if self.extent:
+                x_min = self.extent.xMinimum()
+                x_max = self.extent.xMaximum()
+                y_min = self.extent.yMinimum()
+                y_max = self.extent.yMaximum()
+            else:
+                x_min = 'No extent set'
+                x_max = 'No extent set'
+                y_min = 'No extent set'
+                y_max = 'No extent set'
+            writer.writerow(['x_min', x_min])
+            writer.writerow(['x_max', x_max])
+            writer.writerow(['y_min', y_min])
+            writer.writerow(['y_max', y_max])
+            spacing = self.spinBox_resolution.value()
+            writer.writerow(['spacing', spacing])
+            n_of_iter = self.spinBox_iter.value()
+            writer.writerow(['n of iterations',  n_of_iter])
+            #model parameters
+            dispersal_model = self.comboBox_dispModel.currentText()
+            writer.writerow(['Model parameters'])
+            writer.writerow(['dispersal model', dispersal_model]) ###TODO rest of model parameters
+            #selected fields and bands
+            writer.writerow(['selected fields'])
+            for row in range(self.tableWidget_selected.rowCount()):
+                writer.writerow(['field',row, self.tableWidget_selected.item(row, 0).text(), self.tableWidget_selected.item(row,1).text()])
+            #selected bands
+            writer.writerow(['selected bands'])
+            for row in range(self.tableWidget_selRaster.rowCount()):
+                writer.writerow(['band',row, self.tableWidget_selRaster.item(row, 0).text(), self.tableWidget_selRaster.item(row,1).text()])
+            #taxa
+            writer.writerow(['Taxa'])
+            writer.writerow([None, 'row', 'short name', 'full name', 'fall speed', 'relative pollen productivity'])
+            for row in range(self.tableWidget_taxa.rowCount()):
+                writer.writerow(['taxon',row, self.tableWidget_taxa.item(row, 0).text(), self.tableWidget_taxa.item(row, 1).text(),
+                                 self.tableWidget_taxa.item(row, 2).text(), self.tableWidget_taxa.item(row, 3).text()])
+            #communities
+            writer.writerow(['Communities'])
+            list_veg_com_headers = ['community headers','row']
+            for column in range (self.tableWidget_vegCom.columnCount()):
+                list_veg_com_headers.append(self.tableWidget_vegCom.horizontalHeaderItem(column).text())
+            writer.writerow(list_veg_com_headers)
+            list_veg_com_species= []
+            for row in range(self.tableWidget_vegCom.rowCount()):
+                list_veg_com_species.append('community')
+                list_veg_com_species.append(row)
+                for column in range (self.tableWidget_vegCom.columnCount()):
+                    if self.tableWidget_vegCom.item(row,column):
+                        list_veg_com_species.append(self.tableWidget_vegCom.item(row,column).text())
+                    else:
+                        list_veg_com_species.append(None)
+                writer.writerow(list_veg_com_species)
+                list_veg_com_species = []
+            #samples
+            writer.writerow(['Sampling Sites'])
+            list_samples_header= [None, 'site-name', 'sample_x', 'sample_y', 'Lake_or_point']
+            writer.writerow(list_samples_header)
+            for row in range(self.tableWidget_sites.rowCount()):
+                list_samples =['sampling site', self.tableWidget_sites.item(row,0).text(), self.tableWidget_sites.item(row,1).text(), self.tableWidget_sites.item(row, 2).text(), self.tableWidget_sites.item(row, 3).text()]
+                writer.writerow(list_samples)
+            writer.writerow(['Sampling Paths'])
+            list_samples_paths_headers = [None, 'site_name', 'file_path']
+            writer.writerow(list_samples_paths_headers)
+            for row in range(self.tableWidget_pollenFile.rowCount()):
+                list_sample_file_path =['file path', self.tableWidget_pollenFile.item(row, 0).text(),  self.tableWidget_pollenFile.item(row,1).text()]
+                writer.writerow(list_sample_file_path)
+            #rules
+            writer.writerow(['Rule list', 'not used in loading file, open pickled file instead'])
+            for key in self.nest_dict_rules:
+                writer.writerow([key, self.nest_dict_rules[key][1]])
+            #order ids rule tree widget
+            writer.writerow(['RuleTreeWidget order id list', 'not used in loading file, open pickled file instead'])
+            for key in self.dict_ruleTreeWidgets:
+                writer.writerow([key,self.dict_ruleTreeWidgets[key].connection_type,
+                                 self.dict_ruleTreeWidgets[key].comboBox_name.currentText()])
+
+
+    def saveImageRuleTree(self,  file_name_input):
+        """ Saves an image of the rule tree that can be used for reference outside of the programme"""
+        file_name = file_name_input
+        self.frame_ruleTree.grab().save(file_name)
+
+    def loadInput(self, file_name_input):
+        file_name = file_name_input
+        with open(file_name, 'r', newline= '') as csv_file:
+            reader = csv.reader(csv_file)
+            for row in reader:
+
+                if row[0] == 'x_min':
+                    x_min = float(row[1])
+                elif row[0] == 'x_max':
+                    x_max = float(row[1])
+                elif row[0] == 'y_min':
+                    y_min = float(row[1])
+                elif row[0] == 'y_max':
+                    y_max = float(row[1])
+                elif row[0] == 'CRS':
+                    crs_string = row[1]
+                    crs= QgsCoordinateReferenceSystem(crs_string)
+                elif row[0] == 'spacing':
+                    self.spinBox_resolution.setValue(int(row[1]))
+                elif row[0] == 'n of iterations':
+                    self.spinBox_iter.setValue(int(row[1]))
+                elif row[0] == 'dispersal model':
+                    self.comboBox_dispModel.setCurrentText(row[1])
+                elif row[0] == 'field':
+                    for table_row in range(self.tableWidget_vector.rowCount()):
+                        if row[2] == self.tableWidget_vector.item(table_row,0).text() and \
+                                row[3] == self.tableWidget_vector.item(table_row,1).text():
+                            self.tableWidget_vector.selectRow(table_row)
+                elif row[0] == 'band':
+                    for table_row in range(self.tableWidget_raster.rowCount()):
+                        if row[2] == self.tableWidget_raster.item(table_row, 0).text() and \
+                                row[3] == self.tableWidget_raster.item(table_row, 1).text():
+                            self.tableWidget_raster.selectRow(table_row)
+                elif row[0] == 'taxon':
+                    rows = self.tableWidget_taxa.rowCount()
+                    self.tableWidget_taxa.setRowCount(rows+1)
+                    self.tableWidget_taxa.setItem(rows, 0, QTableWidgetItem(row[2]))
+                    self.tableWidget_taxa.setItem(rows, 1, QTableWidgetItem(row[3]))
+                    self.tableWidget_taxa.setItem(rows, 2, QTableWidgetItem(row[4]))
+                    self.tableWidget_taxa.setItem(rows, 3, QTableWidgetItem(row[5]))
+                elif row[0] == 'community headers':
+                    self.tableWidget_vegCom.setColumnCount(len(row)-2)
+                    for item in range(2,len(row)):
+                        self.tableWidget_vegCom.setHorizontalHeaderItem(item-2, QTableWidgetItem(row[item]))
+                elif row[0] == 'community':
+                    self.tableWidget_vegCom.setRowCount(self.tableWidget_vegCom.rowCount()+1)
+                    for item in range(2,len(row)):
+                        self.tableWidget_vegCom.setItem(self.tableWidget_vegCom.rowCount()-1, item-2, QTableWidgetItem(row[item]))
+                elif row[0] == 'sampling site':
+                    rows = self.tableWidget_sites.rowCount()
+                    self.tableWidget_sites.setRowCount(rows+1)
+                    self.tableWidget_sites.setItem(rows, 0, QTableWidgetItem(row[1]))
+                    self.tableWidget_sites.setItem(rows, 1, QTableWidgetItem(row[2]))
+                    self.tableWidget_sites.setItem(rows, 2, QTableWidgetItem(row[3]))
+                    self.tableWidget_sites.setItem(rows, 3, QTableWidgetItem(row[4]))
+                elif row[0] == 'file path':
+                    selected_sample = row[1]
+                    sample_file_path = row[2]
+                    #load into table
+                    rows = self.tableWidget_pollenFile.rowCount()
+                    self.tableWidget_pollenFile.setRowCount(rows+1)
+                    self.tableWidget_pollenFile.setItem(rows, 0, QTableWidgetItem(row[1]))
+                    self.tableWidget_pollenFile.setItem(rows, 1, QTableWidgetItem(row[2]))
+                    # load into dict
+                    self.dict_pollen_percent_files[selected_sample] = sample_file_path
+                    # load into excerpts
+                    self.addPollenExcerpt(selected_sample, sample_file_path)
+                else:
+                    pass
+
+            rectangle = QgsRectangle(x_min,y_min,x_max,y_max)
+            self.mExtentGroupBox.setOutputExtentFromUser(rectangle, crs)
+
+        pass
+
+    def saveFiles(self):
+        popup_save_file = MsaQgisSaveLoadDialog('save')
+        popup_save_file.show()
+        if popup_save_file.exec_():
+            file_dialog = QFileDialog()
+            file_directory = file_dialog.getExistingDirectory(self, "Choose a directory to load your files from")
+            if not file_directory:
+                iface.messageBar().pushMessage('Operation cancelled by user', level=1)
+                return
+            file_name_input = file_directory + '/inputstate.csv'
+            file_name_rule_dict = file_directory + '/ruledict.pkl'
+            file_name_rule_tree = file_directory + '/ruletree.pkl'
+            file_name_hum_file = file_directory + '/backwardsHUMPOL.hum'
+            file_name_image_rule_tree = file_directory + '/ruletreeimage.jpg'
+            project_name = file_dialog.directory().dirName()
+            if popup_save_file.checkBox_input.isChecked():
+                self.saveInput(file_name_input, project_name)
+            if popup_save_file.checkBox_ruleDict.isChecked():
+                self.saveRuleDict(file_name_rule_dict)
+            if popup_save_file.checkBox_ruleTree.isChecked():
+                self.saveRuleTree(file_name_rule_tree)
+            if popup_save_file.checkBox_humFile.isChecked():
+                self.saveHandbagFile(file_name_hum_file)
+                #add save image of ruletree TODO
+            if popup_save_file.checkBox_loadImageRuleTree.isChecked():
+                self.saveImageRuleTree(file_name_image_rule_tree)
+
+
+    def loadFiles(self):
+        popup_load_file = MsaQgisSaveLoadDialog('load')
+        popup_load_file.show()
+        if popup_load_file.exec_():
+            file_dialog = QFileDialog()
+            file_directory = file_dialog.getExistingDirectory(self, "Choose a directory to load your files from")
+            if not file_directory:
+                iface.messageBar().pushMessage('Operation cancelled by user', level=1)
+                return
+            file_name_input = file_directory + '/inputstate.csv'
+            file_name_rule_dict = file_directory + '/ruledict.pkl'
+            file_name_rule_tree = file_directory + '/ruletree.pkl'
+            if popup_load_file.checkBox_input.isChecked():
+                self.loadInput(file_name_input)
+            if popup_load_file.checkBox_ruleDict.isChecked():
+                self.loadRuleDict(file_name_rule_dict)
+            if popup_load_file.checkBox_ruleTree.isChecked():
+                self.loadRuleTree(file_name_rule_tree)
+
+        else:
+            iface.messageBar().pushMessage('Cancelled operation, no files saved', level=1)
+
+    def clearLayout(self, layout):
+        """ Recurively clears a layout of all its widgets and layouts."""
+        while layout.count():
+            child = layout.takeAt(0)
+            if child.widget() is not None:
+                child.widget().deleteLater()
+            elif child.layout() is not None:
+                self.clearLayout(child.layout())
+                child.layout().setParent(None)
+
+    def addSamplingSite(self):
+        """ Opens a popup in which the user can give the location, name and type of a sampling site"""
+        add_sampling_site_popup = MsaQgisAddSite()
+        add_sampling_site_popup.show()
+        if add_sampling_site_popup.exec_():
+            row_count = self.tableWidget_sites.rowCount()
+            self.tableWidget_sites.setRowCount(row_count+1)
+
+            self.tableWidget_sites.setItem(row_count, 0, QTableWidgetItem(add_sampling_site_popup.lineEdit_siteName.text()))
+            self.tableWidget_sites.setItem(row_count, 1, QTableWidgetItem(str(add_sampling_site_popup.doubleSpin_x.value())))
+            self.tableWidget_sites.setItem(row_count, 2, QTableWidgetItem(str(add_sampling_site_popup.doubleSpin_y.value())))
+            if add_sampling_site_popup.radioButton_lake.isChecked():
+                self.tableWidget_sites.setItem(row_count, 3, QTableWidgetItem("yes"))
+            else:
+                self.tableWidget_sites.setItem(row_count, 3, QTableWidgetItem("no"))
+
+    def removeSamplingSite(self):
+        """ Removes a sampling site from the table of sites"""
+        #TODO cannot remove sampling site if it has associated pollen counts OR also remove associated pollen counts
+        if self.tableWidget_sites.selectionModel().selectedRows():
+            for row in self.tableWidget_sites.selectionModel().selectedRows():
+                selected_sample = self.tableWidget_sites.itemAt(row.row(), 0).text()
+
+                #get name of selected row
+                #check if sample site name is also in pollen file paths table. If yes, also delete.
+                #set selection to associated row in pollen file table, then run removal
+                for row_file in range(self.tableWidget_pollenFile.rowCount()):
+                    if self.tableWidget_pollenFile.itemAt(row_file, 0).text() == selected_sample:
+                        self.tableWidget_pollenFile.setCurrentCell(row_file, 0)
+                        self.removePollenCountsFilePath()
+                self.tableWidget_sites.removeRow(row.row())
+
+    def addPollenCountsFilePath(self):
+        """ Opens a popup in which the user can a link to a .csv file containing pollen counts. The path is added to a list and can be consulted by
+        other parts of the UI from a dictionary. A pollen dataset can only be added to a sampling site that already exists in the sampling
+        site table, and no duplicates are allowed"""
+        if self.tableWidget_sites.rowCount() == 0:
+            iface.messageBar().pushMessage('There are no sampling points to connect to.', level=1)
+            return
+        add_pollen_percentage_popup = MsaQgisAddPercentPopup(self.tableWidget_sites)
+        add_pollen_percentage_popup.show()
+        if add_pollen_percentage_popup.exec_():
+            selected_sample = add_pollen_percentage_popup.comboBox_samplingPoint.currentText()
+            sample_file_path = add_pollen_percentage_popup.mQgsFileWidget_PollenPercent.filePath()
+            #make sure entry is not a duplicate
+            for entry in range(self.tableWidget_pollenFile.rowCount()):
+                if self.tableWidget_pollenFile.itemAt(entry, 0).text() == selected_sample:
+                    iface.messageBar().pushMessage('Sampling site already has an associated file.', level=1)
+                    return
+            #add file path to UI, dictionary and show excerpt of pollen in the pollen table/tabs
+            if sample_file_path:
+                row_count = self.tableWidget_pollenFile.rowCount()
+                self.tableWidget_pollenFile.setRowCount(row_count + 1)
+                self.dict_pollen_percent_files[selected_sample] = sample_file_path
+                self.tableWidget_pollenFile.setItem(row_count, 0, QTableWidgetItem(selected_sample))
+                self.tableWidget_pollenFile.setItem(row_count, 1, QTableWidgetItem(sample_file_path))
+                self.addPollenExcerpt(selected_sample, sample_file_path)
+
+            else:
+                iface.messageBar().pushMessage('No file was chosen.', level=1)
+                return
+
+                #create signals to delete later- not sure yet if necessary as tabs should be deletable by name
+
+    def addPollenExcerpt(self, selected_sample, sample_file_path):
+        """ Creates a new tab in tabWidget_countSheets and new table therein that shows an excepts of the contents of
+        the pollen file, or indicates that the file or file path is incorrect"""
+        # create QtableWidget
+        tableWidget_percentages = QTableWidget()
+        self.tabWidget_countSheets.addTab(tableWidget_percentages, selected_sample)
+        # remove the dummy tab, if it is not already removed
+        dummy_page = self.tabWidget_countSheets.findChild(QWidget, 'tab_dummySample')
+        if dummy_page:
+            index = self.tabWidget_countSheets.indexOf(dummy_page)
+            self.tabWidget_countSheets.removeTab(index)
+        # fill tablewidget percentages with file entry
+        ##TODO create option for no file found (for if the file moved and the path changed)
+        if sample_file_path[-4:] == '.csv':
+            table_row_count = tableWidget_percentages.rowCount()
+            tableWidget_percentages.setColumnCount(3)
+            tableWidget_percentages.setHorizontalHeaderItem(0, QTableWidgetItem('Code'))
+            tableWidget_percentages.setHorizontalHeaderItem(1, QTableWidgetItem('Full Name'))
+            tableWidget_percentages.setHorizontalHeaderItem(2, QTableWidgetItem(selected_sample + '%'))
+
+            with open(sample_file_path, mode='r') as file:
+                pollen_counts_csv = csv.reader(file)
+                next(pollen_counts_csv)  # skip first line
+                for index, line in enumerate(pollen_counts_csv):
+                    if index >= 10:  # only compute the first 10 lines
+                        break
+                    if line[0] == 'Code' and line[1] == 'Name':  # find the line with sample names
+                        for column in line:
+                            if column == selected_sample:
+                                sample_column = line.index(column)
+                    else:
+                        table_row_count = table_row_count + 1
+                        tableWidget_percentages.setRowCount(table_row_count)
+                        tableWidget_percentages.setItem(table_row_count - 1, 0, QTableWidgetItem(line[0]))
+                        tableWidget_percentages.setItem(table_row_count - 1, 1, QTableWidgetItem(line[1]))
+                        tableWidget_percentages.setItem(table_row_count - 1, 2,
+                                                        QTableWidgetItem(line[sample_column]))
+
+                pass
+        elif sample_file_path[:4] == '.til' \
+                or sample_file_path[:4] == '.txl':
+            # TODO read the tilia files
+            pass
+        else:
+            tableWidget_percentages.setRowCount(1)
+            tableWidget_percentages.setColumnCount(1)
+            tableWidget_percentages.horizontalHeader().setStretchLastSection(True)
+            tableWidget_percentages.setItem(0, 0, QTableWidgetItem('Cannot read file type'))
+
+    def removePollenCountsFilePath(self):
+        """ Removes the file path of a sample site from table, as well as the entry into the table with pollen counts"""
+        if self.tableWidget_pollenFile.selectionModel().selectedRows():
+            for row in self.tableWidget_pollenFile.selectionModel().selectedRows():
+                #get index row
+                row_index = row.row()
+                selected_sample = self.tableWidget_pollenFile.item(row_index, 0).text()
+                #find related and delete tab
+                for index in range(self.tabWidget_countSheets.count()):
+                    if self.tabWidget_countSheets.tabText(index) == selected_sample:
+                        selected_tab_index = index
+                self.tabWidget_countSheets.removeTab(selected_tab_index)
+                #find related and delete dictionary entry
+                self.dict_pollen_percent_files.pop(selected_sample)
+                #find and delete table entry
+                self.tableWidget_pollenFile.removeRow(row_index)
+
+class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
+    def __init__(self, rule_number, tableWidget_vegCom, tableWidget_selected, tableWidget_selRaster, parent = None):
+        """Popup Constructor"""
+        super(MsaQgisAddRulePopup, self).__init__(parent)
+        self.setupUi(self)
+
+        # Class variables
+        self.rule_number = rule_number
+        self.tableWidget_vegCom = tableWidget_vegCom
+        self.tableWidget_selected = tableWidget_selected
+        self.tableWidget_selRaster = tableWidget_selRaster
+        self.n_of_vegcom = 1
+        self.n_of_envvar = 1
+
+        # Dictionaries & lists
+        self.list_prevVegCom = []
+        self.dict_envVar = {}
+        self.dict_rules_list = []
+
+        # Set (in)visible
+        self.label_rangeMinMax.hide()
+        self.doubleSpin_rangeMin.hide()
+        self.doubleSpin_rangeMax.hide()
+        self.label_category.hide()
+        self.comboBox_category.hide()
+        self.label_nOfPoints.hide()
+        self.spinBox_nOfPoints.hide()
+        self.label_condTypePrevVeg.hide()
+        self.label_condTypeEnvVar.hide()
+
+        # Events
+        self.pushButton_condVegCom.clicked.connect(self.addConditionalPrevVegCom)
+        self.pushButton_condEnvVar.clicked.connect(self.addConditionalEnvVar)
+        self.comboBox_envVar.currentTextChanged.connect(lambda: self.addRangeOrCatToEnvVar(self.comboBox_envVar,
+                                                                                   self.label_rangeMinMax,
+                                                                                   self.doubleSpin_rangeMin,
+                                                                                   self.doubleSpin_rangeMax,
+                                                                                   self.label_selectEnvVar,
+                                                                                   self.label_category,
+                                                                                   self.comboBox_category))
+        self.comboBox_rule.currentTextChanged.connect(self.addNofPointsToRule)
+        self.accepted.connect(self.updateDictionary)
+        self.pushButton_checkRule.clicked.connect(lambda: self.updateRuleDescription(self.label_writtenRule))
+        #TODO give warnings for empty boxes
+        self.buttonBox.accepted.connect(self.checkIfLegit)
+
+        # Fill comboBoxes
+        for row in range(self.tableWidget_vegCom.rowCount()):
+            self.comboBox_ruleVegCom.addItem(self.tableWidget_vegCom.item(row, 0).text())
+            self.comboBox_prevVegCom.addItem(self.tableWidget_vegCom.item(row, 0).text())
+        for row in range(self.tableWidget_selected.rowCount()):
+            self.comboBox_envVar.addItem(self.tableWidget_selected.item(row, 0).text()+' - '+self.tableWidget_selected.item(row,1).text())
+        for row in range(self.tableWidget_selRaster.rowCount()):
+            self.comboBox_envVar.addItem(self.tableWidget_selRaster.item(row, 0).text()+' - '+self.tableWidget_selRaster.item(row,1).text())
+        #set min & max size for comboBox envVar
+        self.label_writtenRule.setText('Rule '+str(rule_number))
+
+
+    def addRangeOrCatToEnvVar(self, env_var, label_range, rangeMin, rangeMax,label_noChoice, label_category, category):
+        """ An option to fill in range for the environmental variable appears if the variable is numerical"""
+        #get layer associated with current item
+        category.clear()
+        rangeMin.clear()
+        rangeMax.clear()
+        if env_var.currentText() == 'Empty':
+            label_range.hide()
+            rangeMin.hide()
+            rangeMax.hide()
+            label_noChoice.show()
+            label_category.hide()
+            category.hide()
+        else:
+            layer_name = list(re.split(' - ', env_var.currentText()))[0]
+            field_or_band = list(re.split(' - |:', env_var.currentText()))[1]
+            layer = QgsProject.instance().mapLayersByName(layer_name)[0]
+            data_provider = layer.dataProvider()
+            if (layer.type() == layer.VectorLayer):
+                field_index = data_provider.fieldNameIndex(field_or_band)
+                field = data_provider.fields().at(field_index)
+                if field.type() == 10 or field.type() == 1: # 10 is str, 1 is bool TODO check if these and int & double are the only options
+                    label_range.hide()
+                    rangeMin.hide()
+                    rangeMax.hide()
+                    label_noChoice.hide()
+                    label_category.show()
+                    category.show()
+                    #get categories from fields
+                    list_items_combobox = []
+                    for feat in data_provider.getFeatures():
+                        feat_field = feat.attribute(field.name())
+                        if str(feat_field) in list_items_combobox:
+                            pass
+                        else:
+                            list_items_combobox.append(str(feat_field))
+                            category.addItem(str(feat_field))
+
+                else:
+                    label_range.show()
+                    rangeMin.show()
+                    rangeMax.show()
+                    label_noChoice.hide()
+                    label_category.hide()
+                    category.hide()
+                    #get range from fields
+                    rangeMin.setMinimum(data_provider.minimumValue(field_index))
+                    rangeMin.setMaximum(data_provider.maximumValue(field_index))
+                    rangeMax.setMinimum(data_provider.minimumValue(field_index))
+                    rangeMax.setMaximum(data_provider.maximumValue(field_index))
+                pass
+            elif layer.type() == layer.RasterLayer:
+                band_nr = int(list(re.split(' ',field_or_band))[1]) #TODO check if the format 'band [number]:' is consistent for all raster layers!
+                if data_provider.dataType(band_nr) != 0: # Checks if band contains numerical data
+                    label_range.show()
+                    rangeMin.show()
+                    rangeMax.show()
+                    label_noChoice.hide()
+                    label_category.hide()
+                    category.hide()
+                    #get range from bands
+                    stats = data_provider.bandStatistics(band_nr, QgsRasterBandStats.All)
+                    minimum_value = stats.minimumValue
+                    maximum_value = stats.maximumValue
+                    rangeMin.setMinimum(minimum_value)
+                    rangeMin.setMaximum(maximum_value)
+                    rangeMax.setMinimum(minimum_value)
+                    rangeMax.setMaximum(maximum_value)
+                else: #NOTE honestly, currently not necessary, unless there is a way to find out if a raster layer is actually categorical...
+                    label_range.hide()
+                    rangeMin.hide()
+                    rangeMax.hide()
+                    label_noChoice.hide()
+                    label_category.show()
+                    category.show()
+                    #get categories from band TODO don't think there is currently a way to do this
+        pass
+
+
+    def addNofPointsToRule(self):
+        """ Makes a spin box appear when adjacent or encroach is selected under choose rule type"""
+        if self.comboBox_rule.currentText() == 'Encroach' or self.comboBox_rule.currentText() == 'Adjacent':
+            self.label_nOfPoints.show()
+            self.spinBox_nOfPoints.show()
+        else:
+            self.label_nOfPoints.hide()
+            self.spinBox_nOfPoints.hide()
+        pass
+
+    def addConditionalPrevVegCom(self):
+        """ A comboBox appears from which the user can choose whether they want to apply OR or AND rules, and an
+        extra row where an additional previous vegetation community can be chosen appears """
+        self.label_condTypePrevVeg.show()
+        self.radioButton_all.hide()
+        self.radioButton_all.setChecked(False)
+        # create new widgets
+        comboBox_prevVegCom = QComboBox()
+        label_prevVegCom = QLabel()
+        pushButton_rmPrevVegCom = QPushButton('Remove conditional')
+
+        #fill combobox
+        comboBox_prevVegCom.addItem('Empty')
+        for row in range(self.tableWidget_vegCom.rowCount()):
+            comboBox_prevVegCom.addItem(self.tableWidget_vegCom.item(row, 0).text())
+        #create layouts
+        vLayout_prevVegCom = QVBoxLayout()
+        vLayout_removeButton = QVBoxLayout()
+        hLayout_prevVegCom = QHBoxLayout()
+        widget_total = QWidget()
+        #fill layouts
+        vLayout_prevVegCom.addWidget(label_prevVegCom)
+        vLayout_prevVegCom.addWidget(comboBox_prevVegCom)
+        vLayout_removeButton.addWidget(pushButton_rmPrevVegCom)
+        vLayout_removeButton.insertStretch(0)
+        hLayout_prevVegCom.addLayout(vLayout_prevVegCom)
+        hLayout_prevVegCom.addLayout(vLayout_removeButton)
+        widget_total.setLayout(hLayout_prevVegCom)
+
+        self.vLayout_total.insertWidget(self.n_of_vegcom + 1, widget_total)
+        #event for subsequent remove
+        pushButton_rmPrevVegCom.clicked.connect(lambda *args, widget = widget_total:
+                                                self.removeConditionalPrevVegCom(widget_total))
+
+        self.n_of_vegcom +=1
+        self.list_prevVegCom.append(comboBox_prevVegCom)
+
+        pass
+
+    def removeConditionalPrevVegCom(self, widget_to_remove):
+        """ Removes selected conditionals that were added to the UI. If all but the start prev veg com are gone, the all
+         radioButton reappears and choose condition type comboBox disappears"""
+        widget_to_remove.deleteLater()
+        self.n_of_vegcom -=1
+
+        # TODO make it delete from list
+
+        if self.n_of_vegcom == 1:
+            self.label_condTypePrevVeg.hide()
+            self.radioButton_all.show()
+
+    def addConditionalEnvVar(self):
+        """ A comboBox appears from which the user can choose whether the want to apply OR or AND rules, and an
+        extra row where an additional environmental variable can be chosen appears"""
+        self.label_condTypeEnvVar.show()
+
+        # create new widgets
+        label_envVar = QLabel()
+        comboBox_envVar = QComboBox()
+        label_range = QLabel('Range')
+        doubleSpin_rangeMin = QDoubleSpinBox()
+        doubleSpin_rangeMax = QDoubleSpinBox()
+        label_noChoice = QLabel('[No environmental variable selected]')
+        label_chooseCategory = QLabel('Category')
+        comboBox_category = QComboBox()
+        pushButton_rmPrevVegCom = QPushButton('Remove conditional')
+
+        # fill combobox
+        comboBox_envVar.addItem('Empty')
+        for row in range(self.tableWidget_selected.rowCount()):
+            comboBox_envVar.addItem(self.tableWidget_selected.item(row, 0).text()+' - '+self.tableWidget_selected.item(row,1).text())
+        for row in range(self.tableWidget_selRaster.rowCount()):
+            comboBox_envVar.addItem(self.tableWidget_selRaster.item(row, 0).text()+' - '+self.tableWidget_selRaster.item(row,1).text())
+
+        # create layouts
+        vLayout_envVar = QVBoxLayout()
+        vLayout_rangeOrCat = QVBoxLayout()
+        hLayout_range = QHBoxLayout()
+        vLayout_removeButton = QVBoxLayout()
+        hLayout_envVar = QHBoxLayout()
+        widget_total = QWidget()
+
+        # fill layouts
+        vLayout_envVar.addWidget(label_envVar)
+        vLayout_envVar.addWidget(comboBox_envVar)
+        vLayout_rangeOrCat.addWidget(label_range)
+        hLayout_range.addWidget(doubleSpin_rangeMin)
+        hLayout_range.addWidget(doubleSpin_rangeMax)
+        vLayout_rangeOrCat.addLayout(hLayout_range)
+        vLayout_rangeOrCat.addWidget(label_noChoice)
+        vLayout_rangeOrCat.addWidget(label_chooseCategory)
+        vLayout_rangeOrCat.addWidget(comboBox_category)
+        vLayout_removeButton.addWidget(pushButton_rmPrevVegCom)
+        vLayout_removeButton.insertStretch(0)
+        hLayout_envVar.addLayout(vLayout_envVar)
+        hLayout_envVar.addLayout(vLayout_rangeOrCat)
+        hLayout_envVar.addLayout(vLayout_removeButton)
+        widget_total.setLayout(hLayout_envVar)
+        self.vLayout_total.insertWidget(self.n_of_envvar+2 + self.n_of_vegcom, widget_total)
+
+        # hide
+        label_range.hide()
+        doubleSpin_rangeMin.hide()
+        doubleSpin_rangeMax.hide()
+        label_chooseCategory.hide()
+        comboBox_category.hide()
+
+        # create signals (to hide/show range/category and to remove later
+        comboBox_envVar.currentTextChanged.connect(lambda *args, env_var = comboBox_envVar, label_range = label_range, rangeMin =doubleSpin_rangeMin,
+                                                          rangeMax = doubleSpin_rangeMax, label_noChoice = label_noChoice,
+                                                          label_category = label_chooseCategory,category = comboBox_category:
+                                                   self.addRangeOrCatToEnvVar(env_var, label_range, rangeMin, rangeMax,
+                                                                              label_noChoice, label_category, category))
+        pushButton_rmPrevVegCom.clicked.connect(lambda *args, widget = widget_total:
+                                                self.removeConditionalEnvVar(widget))
+        #pass stuff on along to list
+
+
+        self.n_of_envvar += 1
+        self.dict_envVar[comboBox_envVar] = [doubleSpin_rangeMin, doubleSpin_rangeMax, comboBox_category] # cat_range_none(str), rangeMin, rangeMax, category
+        pass
+
+    def removeConditionalEnvVar(self, widget):
+        """ Removes selected conditionals that were added to the UI. If all but the start env var are gone,
+        the choose conditional type comboBox disappears"""
+        for child in widget.children():
+            if isinstance(child, QComboBox):
+                self.dict_envVar.pop(child)
+                break
+
+        widget.deleteLater()
+        self.n_of_envvar -= 1
+
+        if self.n_of_envvar == 1:
+            self.label_condTypeEnvVar.hide()
+            pass
+
+    def updateDictionary(self):
+        """ Fills in all of the parameters the user has given in the UI in a list to be added to the dictionary in the
+        main dialog"""
+        self.dict_rules_list.clear()
+        #lists and dicts
+        list_prevVegCom = []
+        dict_envVar = {}
+        # insert from static objects
+        self.dict_rules_list.append(self.rule_number)
+        self.dict_rules_list.append(self.updateRuleDescription())
+        self.dict_rules_list.append(self.comboBox_ruleVegCom.currentText())
+        self.dict_rules_list.append(self.comboBox_rule.currentText())
+        self.dict_rules_list.append(self.doubleSpin_chance.value())
+        self.dict_rules_list.append(self.spinBox_nOfPoints.value())
+        self.dict_rules_list.append(self.n_of_vegcom)
+        self.dict_rules_list.append(self.n_of_envvar)
+        self.dict_rules_list.append(self.radioButton_all.isChecked())
+
+        # insert from dynamically added widgets
+        # previous vegetation communities
+        list_prevVegCom.append(self.comboBox_prevVegCom.currentText())
+        for vegcoms in self.list_prevVegCom:
+            list_prevVegCom.append(vegcoms.currentText())
+        self.dict_rules_list.append(list_prevVegCom)
+        # environmental variables
+        # add the static env var to the dict
+        if self.comboBox_category.currentText() == '':
+            dict_envVar[self.comboBox_envVar.currentText()] = [self.doubleSpin_rangeMin.value(), self.doubleSpin_rangeMax.value()]
+        else:
+            dict_envVar[self.comboBox_envVar.currentText()] = self.comboBox_category.currentText()
+        #add the non-static env var to the dict
+        #generate dictionary based on input, add the value or category to the key to make a unique key in case the key is already in use
+        for key in self.dict_envVar:
+            if self.dict_envVar[key][2].currentText() == '':
+                if key.currentText() in dict_envVar:
+                    dict_envVar[key.currentText() + ' - ' + str(self.dict_envVar[key][0].value()) + str(self.dict_envVar[key][1].value())] = [self.dict_envVar[key][0].value(), self.dict_envVar[key][1].value()]
+                else:
+                    dict_envVar[key.currentText()] = [self.dict_envVar[key][0].value(), self.dict_envVar[key][1].value()]
+            else:
+                if key.currentText() in dict_envVar:
+                    dict_envVar[key.currentText() + ' - '+self.dict_envVar[key][2].currentText()] = self.dict_envVar[key][2].currentText()
+                else:
+                    dict_envVar[key.currentText()] = self.dict_envVar[key][2].currentText()
+        self.dict_rules_list.append(dict_envVar)
+
+
+    def updateRuleDescription(self, writtenRule = None): #TODO get the description to be gramatically correct
+        """ Writes a common language description string of the rule and either returns it or fills it in for a QLabel"""
+        #rule type
+        rule_type_string = ' [no rule type selected] '
+        if self.comboBox_rule.currentText() == '(Re)place':
+            rule_type_string = ' to be placed on '
+        elif self.comboBox_rule.currentText() == 'Encroach':
+            rule_type_string = ' to encroach by ' + str(self.spinBox_nOfPoints.value()) + ' points on '
+        elif self.comboBox_rule.currentText() == 'Adjacent':
+            rule_type_string = ' to be placed ' + str(self.spinBox_nOfPoints.value()) + ' points adjacent to '
+        elif self.comboBox_rule.currentText() == 'Extent':
+            rule_type_string = ' to be placed on '
+        #vegetation community/ies
+        prev_veg_com_string = ' [no prev veg com selected] '
+        if self.radioButton_all.isChecked():
+            prev_veg_com_string = 'any vegetation community'
+        elif not self.list_prevVegCom:
+            if self.comboBox_prevVegCom.currentText() == 'Empty':
+                prev_veg_com_string = 'only points with no previously assigned vegetation community'
+            else:
+                prev_veg_com_string = self.comboBox_prevVegCom.currentText() + ' '
+        else:
+            prev_veg_com_string = self.comboBox_prevVegCom.currentText()
+            for index in range(len(self.list_prevVegCom)):
+                if index != len(self.list_prevVegCom)-1:
+                    prev_veg_com_string += ', ' + self.list_prevVegCom[index].currentText()
+                if index == len(self.list_prevVegCom)-1:
+                    prev_veg_com_string += ' and ' + self.list_prevVegCom[index].currentText()
+        #environmental variables
+        env_var_string = '[no environmental variable selected]'
+        if len(self.dict_envVar) == 0:
+            if self.comboBox_envVar.currentText() == 'Empty':
+                env_var_string = ' regardless of environmental variables'
+            elif self.comboBox_category.currentText() == '':
+                env_var_string = ', where ' + self.comboBox_envVar.currentText() + ' is between ' + \
+                str(self.doubleSpin_rangeMin.value()) + ' and ' +str(self.doubleSpin_rangeMax.value()) + ' '
+            else:
+                env_var_string = ', where ' + self.comboBox_envVar.currentText() + ' is '+ self.comboBox_category.currentText() + ', '
+        else:
+            if self.comboBox_category.currentText() == '':
+                env_var_string = ', where ' + self.comboBox_envVar.currentText() + ' is between ' + \
+                str(self.doubleSpin_rangeMin.value()) + ' and ' +str(self.doubleSpin_rangeMax.value()) + ' '
+            else:
+                env_var_string = ', where ' + self.comboBox_envVar.currentText() + ' is '+ self.comboBox_category.currentText()+ ', '
+            counter = 1
+            for key in self.dict_envVar:
+                if counter != len(self.dict_envVar):
+                    if self.dict_envVar[key][2].currentText() != '':
+                        env_var_string += key.currentText() + ' is ' + self.dict_envVar[key][2].currentText() + ', '
+                        counter += 1
+                    else:
+                        env_var_string += key.currentText() + ' is between ' + str(self.dict_envVar[key][0].value()) + \
+                                            ' and ' + str(self.dict_envVar[key][1].value()) + ', '
+                        counter += 1
+
+                else:
+                    if self.dict_envVar[key][2].currentText() != '':
+                        env_var_string += 'and ' + key.currentText() + ' is ' +\
+                                          self.dict_envVar[key][2].currentText()
+                    else:
+                        env_var_string += 'and ' + key.currentText() + ' is between ' \
+                                          + str(self.dict_envVar[key][0].value()) + ' and ' + str(self.dict_envVar[key][1].value())
+
+
+
+        rule_string = 'Rule ' + str(self.rule_number) + ': ' + self.comboBox_ruleVegCom.currentText() + ' has ' + \
+                      str(self.doubleSpin_chance.value()) + '% chance'+ rule_type_string + prev_veg_com_string + \
+                      env_var_string + '.'
+
+        if isinstance(writtenRule, QLabel):
+            writtenRule.setText(rule_string)
+        else:
+            return rule_string
+        pass
+
+    def checkIfLegit(self): # TODO not yet functional
+        """ Checks whether the all boxes have been filled in the correct way, otherwise aborts making the rule and
+        gives a warning popup"""
+        messageBox = QMessageBox()
+        comboBoxes = [self.comboBox_ruleVegCom.currentIndex(),self.comboBox_rule.currentIndex(),self.comboBox_rule.currentIndex(),
+                      self.comboBox_envVar.currentIndex()]
+        if all(index ==0 for index in comboBoxes)and self.doubleSpin_chance.value() == 100 and self.n_of_envvar ==1 and self.n_of_vegcom ==1:
+            messageBox.setWindowTitle('Warning')
+            messageBox.setText('No changes were detected, are you sure you want to use this rule?')
+        if self.comboBox_envVar.count() == 1:
+            messageBox.setWindowTitle("Warning")
+            messageBox.setText('No environmental variables were detected as input, are you sure you want to use this rule?')
+            messageBox.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
+        #TODO Can probably think of more warnings
+
+
+class MsaQgisAddTaxonPopup (QtWidgets.QDialog, FORM_CLASS_TAXA):
+    def __init__(self, parent=None):
+        """Popup Constructor."""
+        super(MsaQgisAddTaxonPopup, self).__init__(parent)
+        self.setupUi(self)
+
+
+class MsaQgisAddVegComPopup (QtWidgets.QDialog, FORM_CLASS_VEGCOM):
+    def __init__(self, taxonlist, parent=None):
+        """Popup Constructor."""
+        super(MsaQgisAddVegComPopup, self).__init__(parent)
+        self.setupUi(self)
+        #events
+        self.pushButton_vegComAddSpecies.clicked.connect(self.addVegComTaxonRow)
+
+        #class variables
+        self.previous = 0
+        self.taxon_list = taxonlist
+        self.vegcom_taxon_double_list = []
+        self.vegcom_taxon_combo_list = []
+
+
+        #add gridlayout to scrollarea
+        self.frameWidget_scroll = QFrame(self.scrollArea)
+        self.frameWidget_scroll.setLayout(self.gridLayout)
+        self.scrollArea.setWidget(self.frameWidget_scroll)
+
+        #set locations of original widgets in grid (because Qt designer won't bloody work with me)
+
+        self.gridLayout.addWidget(self.label_Title, 0, 0, 1, 4)
+        self.gridLayout.addWidget(self.label_Name, 1, 0)
+        self.gridLayout.addWidget(self.lineEdit_vegComName, 1, 1, 1, 4)
+        self.gridLayout.setRowStretch(2, 100) #stretch middle row to maximum possible size
+        self.gridLayout.addWidget(self.pushButton_vegComAddSpecies, 3, 0, 1, 4)
+        self.gridLayout.addWidget(self.buttonBox_2, 4, 1, 1, 3)
+        self.gridLayout.addWidget(self.buttonBox_2, 5, 0, 1, 4)
+
+    def addVegComTaxonRow(self):
+        """ Adds a new comboBox and doubleSpinBox to be able to add a new taxon to a vegetation community"""
+        label = QLabel('Taxon ' + str(int((self.previous * 0.5)+1)), self)
+        self.comboBox = QComboBox()
+        self.doubleSpin = QDoubleSpinBox()
+        # insert the new widgets
+        self.gridLayout.addWidget(label, self.previous+2, 0, 1, 4)
+        self.gridLayout.addWidget(self.comboBox, self.previous+3, 0, 1, 3)
+        self.gridLayout.addWidget(self.doubleSpin, self.previous+3, 3, 1, 2)
+        self.gridLayout.setRowStretch(self.previous + 2, 0)  # reset stretch of previously stretched row
+        self.gridLayout.setRowStretch(self.previous + 4, 100)  # set new middle row to maximum stretch
+        # move the widgets below to new location
+        self.gridLayout.addWidget(self.pushButton_vegComAddSpecies, self.previous + 5, 0, 1, 4)
+        self.gridLayout.addWidget(self.buttonBox_2, self.previous + 6, 0, 1, 4)
+        self.previous += 2
+        # Fill the comboBox
+        self.comboBox.addItems(self.taxon_list)
+        # Create list of items to pass to the main dialog
+        self.vegcom_taxon_combo_list.append(self.comboBox)
+        self.vegcom_taxon_double_list.append(self.doubleSpin)
+
+
+class MsaQgisSaveLoadDialog(QtWidgets.QDialog,FORM_CLASS_SAVELOAD):
+    def __init__(self, save_or_load, parent=None):
+        """Popup Constructor."""
+        super(MsaQgisSaveLoadDialog, self).__init__(parent)
+        self.setupUi(self)
+        self.save_or_load = save_or_load
+        self.setSaveOrLoadText()
+
+    def setSaveOrLoadText(self):
+        if self.save_or_load == 'save':
+            self.setWindowTitle('MSA QGIS save dialog')
+            self.label_title.setText('Which files would you like to save?')
+        if self.save_or_load == 'load':
+            self.setWindowTitle('MSA QGIS load dialog')
+            self.label_title.setText('Which files would you like to load?')
+            self.checkBox_humFile.hide()
+            self.checkBox_humFile.setChecked(False)
+            self.checkBox_loadImageRuleTree.hide()
+            self.checkBox_loadImageRuleTree.setChecked(False)
+
+
+class MsaQgisRuleListPopup(QtWidgets.QDialog,FORM_CLASS_RULELIST):
+    def __init__(self, nest_dict_rules, parent=None):
+        """Popup Constructor."""
+        super(MsaQgisRuleListPopup, self).__init__(parent)
+        self.setupUi(self)
+        for key in nest_dict_rules:
+            self.listWidget_rules.addItem(nest_dict_rules[key][1])
+
+class MsaQgisAddSite(QtWidgets.QDialog,FORM_CLASS_SAMPLESITE):
+    def __init__(self, parent=None):
+        """Popup Constructor."""
+        super(MsaQgisAddSite, self).__init__(parent)
+        self.setupUi(self)
+
+class MsaQgisAddPercentPopup(QtWidgets.QDialog,FORM_CLASS_PERCENT):
+    def __init__(self,tableWidget_sampleSites, parent=None):
+        """Popup Constructor."""
+        super(MsaQgisAddPercentPopup, self).__init__(parent)
+        self.setupUi(self)
+        for row in range(tableWidget_sampleSites.rowCount()):
+            sampling_site = tableWidget_sampleSites.item(row, 0).text()
+            self.comboBox_samplingPoint.addItem(sampling_site)
+
+class MsaQgisSuccesDialog(QtWidgets.QDialog,FORM_CLASS_SUCCES):
+    def __init__(self, parent=None):
+        """Popup Constructor."""
+        super(MsaQgisSuccesDialog, self).__init__(parent)
+        self.setupUi(self)
+        self.radioButton_loadX.clicked.connect(self.enableMapsToLoad)
+        self.radioButton_loadBest.clicked.connect(self.disableMapsToLoad)
+        self.radioButton_loadFitted.clicked.connect(self.disableMapsToLoad)
+        self.radioButton_loadAll.clicked.connect(self.disableMapsToLoad)
+        self.radioButton_doNotLoad.clicked.connect(self.disableMapsToLoad)
+
+    def enableMapsToLoad(self):
+        self.spinBox_loadX.setEnabled(True)
+    def disableMapsToLoad(self):
+        self.spinBox_loadX.setEnabled(False)
 
