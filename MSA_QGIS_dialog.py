@@ -59,13 +59,14 @@ FORM_CLASS_SAMPLESITE, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'MSA_QGIS_popup_add_sampling_site.ui'))
 FORM_CLASS_PERCENT, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'MSA_QGIS_popup_add_pollen_percentages.ui'))
+FORM_CLASS_SUCCES, _ = uic.loadUiType(os.path.join(
+    os.path.dirname(__file__), 'MSA_QGIS_succes_dialog.ui'))
 
 ### Main dialog window
 
 
 class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
     def __init__(self, parent=None):
-        # TODO replace messages with popup boxes
         """Constructor."""
         super(MsaQgisDialog, self).__init__(parent)
         # Set up the user interface from Designer through FORM_CLASS.
@@ -262,7 +263,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                     tableWidget_vegCom.setItem(tableWidget_vegCom.rowCount() - 1, self.tableWidget_vegCom.columnCount() - 1, QTableWidgetItem(
                         str(self.veg_com_popup.vegcom_taxon_double_list[taxon].value())))
                 else:
-                    print('error in creating veg com columns')
+                    iface.messageBar().pushMessage('Error in creating vegetation community columns', level=1)
 
     def removeTaxaEntry(self):
         """ Removes selected entries from a table with a pop-up warning"""
@@ -313,11 +314,11 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         Notes
         Compatible with the HUMPOL suite (Bunting & Middleton 2005) and LandPolFlow (Bunting & Middleton 2009)
         """
-        #TODO sample points, windrose data, metadata, notes
+        #TODO windrose data, metadata, notes
         file_name = self.qgsFileWidget_importHandbag.filePath()
         tableWidget_vegCom = self.tableWidget_vegCom
         if not os.path.isfile(file_name):
-            print('file does not exist')
+            iface.messageBar().pushMessage('File does not exist, please try again', level=1)
         else:
             with open(file_name) as file:
                 for line in file:
@@ -364,25 +365,20 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                                                            QTableWidgetItem(
                                                                str(line_list[1])))
                             else:
-                                print('error in creating veg com columns')
-
-                        pass
+                                iface.messageBar().pushMessage('Error in creating vegetation community columns', level=1)
                     elif line[0] == '3': #sample points
                         pass
-
+                        #TODO
                 file.close()
 
     def addNewRule(self):
         """ Allows the dynamic adding of new rules under the rules tab in the main dialog UI."""
-        ### TODO update rule lists in ruletreewidgets
         #Determine rule number, takes the next number not yet taken
         rule_in_list = False
         if self.nest_dict_rules:
             for counter in range(0,1000): # this means a max of 1000 rules is possible
-                print(counter)
                 for entry in self.nest_dict_rules:
                     if counter == self.nest_dict_rules[entry][0]:
-                        print('counter is in list ', counter)
                         rule_in_list = True
                         rule_number = len(self.nest_dict_rules)
                         break
@@ -390,7 +386,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                     rule_in_list = False
                     continue
                 elif counter == 999:
-                    print('max number of rules reached') #TODO change to messagebox
+                    iface.messageBar().pushMessage('Max number of rules reached', level=1)
                 else:
                     rule_number = counter
                     break
@@ -445,8 +441,6 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
     def addRuleToTree(self, selected_rule = None, rule_tree_type ='Insert Above'):
         """ Adds a RuleTreeWidget to the RuleTreeFrame.
         Based on a selected ruleTreeWidget, unless no ruleTreeWidgets exist."""
-        # TODO if selected rule has a duplicate, also create the same number of duplicates (which do not need to be added to the UI, but do need to be added to the dict.)
-
         next_layout = QHBoxLayout()
         own_layout = QVBoxLayout()
         x_position_for_spoilerplate = self.scrollArea_ruleTree.x() + self.tab_top.x() + self.x()
@@ -849,7 +843,6 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
     def removeRuleFromRuleTree(self):
         """ Removes a ruleTreeWidget and its next_ruleTreeWidgets from the rule tree, and the IDs of those
         ruleTreeWidgets from any lists and dicts in which they occur"""
-        ### TODO atm have to remove entire series, make it possible to delete 1 out of a series
         list_to_delete = []
         selected_rule = self.checkIfSelectedRule()
         if selected_rule < 1:
@@ -969,7 +962,6 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 #add to dictionary
                 self.dict_ruleTreeWidgets[key] = ruleTreeWidget_base
                 #set basegroup and selected rule
-                print(pickleable_dict_ruleTreeWidgets[key][2])
                 if pickleable_dict_ruleTreeWidgets[key][2]:
                     ruleTreeWidget_base.isSelected = True
                     ruleTreeWidget_base.toggleBaseGroup()
@@ -1012,7 +1004,6 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                             # add to dictionary
                             self.dict_ruleTreeWidgets[key] = ruleTreeWidget_normal
                             # set basegroup and selected rule
-                            print(pickleable_dict_ruleTreeWidgets[key][2])
                             if pickleable_dict_ruleTreeWidgets[key][2]:
                                 ruleTreeWidget_normal.isSelected = True
                                 ruleTreeWidget_normal.toggleBaseGroup()
@@ -1135,7 +1126,6 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                         # add to dictionary
                         self.dict_ruleTreeWidgets[key] = ruleTreeWidget_normal
                         # set basegroup and selected rule
-                        print(pickleable_dict_ruleTreeWidgets[key][2])
                         if pickleable_dict_ruleTreeWidgets[key][2]:
                             ruleTreeWidget_normal.isSelected = True
                             ruleTreeWidget_normal.toggleBaseGroup()
@@ -1231,7 +1221,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         """ Saves all of the input data, including input that is NOT backwards compatible with HUMPOL/LandPolFlow into a single text file (.msa)"""
         ### write a .csv file with all the data
         with open(file_name_input, 'w', newline= '') as csv_file:
-            print('writing file')
+            iface.messageBar().pushMessage('Writing file', level=3)
             writer = csv.writer(csv_file)
             writer.writerow(['Project name', project_name])
             #saved settings
@@ -1313,6 +1303,12 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             for key in self.dict_ruleTreeWidgets:
                 writer.writerow([key,self.dict_ruleTreeWidgets[key].connection_type,
                                  self.dict_ruleTreeWidgets[key].comboBox_name.currentText()])
+
+
+    def saveImageRuleTree(self,  file_name_input):
+        """ Saves an image of the rule tree that can be used for reference outside of the programme"""
+        file_name = file_name_input
+        self.frame_ruleTree.grab().save(file_name)
 
     def loadInput(self, file_name_input):
         file_name = file_name_input
@@ -1396,12 +1392,13 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             file_dialog = QFileDialog()
             file_directory = file_dialog.getExistingDirectory(self, "Choose a directory to load your files from")
             if not file_directory:
-                print('operation cancelled by user')
+                iface.messageBar().pushMessage('Operation cancelled by user', level=1)
                 return
             file_name_input = file_directory + '/inputstate.csv'
             file_name_rule_dict = file_directory + '/ruledict.pkl'
             file_name_rule_tree = file_directory + '/ruletree.pkl'
             file_name_hum_file = file_directory + '/backwardsHUMPOL.hum'
+            file_name_image_rule_tree = file_directory + '/ruletreeimage.jpg'
             project_name = file_dialog.directory().dirName()
             if popup_save_file.checkBox_input.isChecked():
                 self.saveInput(file_name_input, project_name)
@@ -1411,6 +1408,10 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 self.saveRuleTree(file_name_rule_tree)
             if popup_save_file.checkBox_humFile.isChecked():
                 self.saveHandbagFile(file_name_hum_file)
+                #add save image of ruletree TODO
+            if popup_save_file.checkBox_loadImageRuleTree.isChecked():
+                self.saveImageRuleTree(file_name_image_rule_tree)
+
 
     def loadFiles(self):
         popup_load_file = MsaQgisSaveLoadDialog('load')
@@ -1419,7 +1420,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             file_dialog = QFileDialog()
             file_directory = file_dialog.getExistingDirectory(self, "Choose a directory to load your files from")
             if not file_directory:
-                print('operation cancelled by user')
+                iface.messageBar().pushMessage('Operation cancelled by user', level=1)
                 return
             file_name_input = file_directory + '/inputstate.csv'
             file_name_rule_dict = file_directory + '/ruledict.pkl'
@@ -1432,7 +1433,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 self.loadRuleTree(file_name_rule_tree)
 
         else:
-            print('cancel operation, no files saved')
+            iface.messageBar().pushMessage('Cancelled operation, no files saved', level=1)
 
     def clearLayout(self, layout):
         """ Recurively clears a layout of all its widgets and layouts."""
@@ -1563,9 +1564,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             for row in self.tableWidget_pollenFile.selectionModel().selectedRows():
                 #get index row
                 row_index = row.row()
-                print(row_index)
                 selected_sample = self.tableWidget_pollenFile.item(row_index, 0).text()
-                print('selected sample ', selected_sample)
                 #find related and delete tab
                 for index in range(self.tabWidget_countSheets.count()):
                     if self.tabWidget_countSheets.tabText(index) == selected_sample:
@@ -1853,9 +1852,6 @@ class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
                 self.dict_envVar.pop(child)
                 break
 
-        for key in self.dict_envVar:
-            print('keys of dict env_var after deleting', key)
-
         widget.deleteLater()
         self.n_of_envvar -= 1
 
@@ -2076,6 +2072,8 @@ class MsaQgisSaveLoadDialog(QtWidgets.QDialog,FORM_CLASS_SAVELOAD):
             self.label_title.setText('Which files would you like to load?')
             self.checkBox_humFile.hide()
             self.checkBox_humFile.setChecked(False)
+            self.checkBox_loadImageRuleTree.hide()
+            self.checkBox_loadImageRuleTree.setChecked(False)
 
 
 class MsaQgisRuleListPopup(QtWidgets.QDialog,FORM_CLASS_RULELIST):
@@ -2100,3 +2098,20 @@ class MsaQgisAddPercentPopup(QtWidgets.QDialog,FORM_CLASS_PERCENT):
         for row in range(tableWidget_sampleSites.rowCount()):
             sampling_site = tableWidget_sampleSites.item(row, 0).text()
             self.comboBox_samplingPoint.addItem(sampling_site)
+
+class MsaQgisSuccesDialog(QtWidgets.QDialog,FORM_CLASS_SUCCES):
+    def __init__(self, parent=None):
+        """Popup Constructor."""
+        super(MsaQgisSuccesDialog, self).__init__(parent)
+        self.setupUi(self)
+        self.radioButton_loadX.clicked.connect(self.enableMapsToLoad)
+        self.radioButton_loadBest.clicked.connect(self.disableMapsToLoad)
+        self.radioButton_loadFitted.clicked.connect(self.disableMapsToLoad)
+        self.radioButton_loadAll.clicked.connect(self.disableMapsToLoad)
+        self.radioButton_doNotLoad.clicked.connect(self.disableMapsToLoad)
+
+    def enableMapsToLoad(self):
+        self.spinBox_loadX.setEnabled(True)
+    def disableMapsToLoad(self):
+        self.spinBox_loadX.setEnabled(False)
+

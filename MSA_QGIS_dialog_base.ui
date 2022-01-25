@@ -115,7 +115,7 @@
               <x>0</x>
               <y>0</y>
               <width>588</width>
-              <height>633</height>
+              <height>630</height>
              </rect>
             </property>
             <layout class="QGridLayout" name="gridLayout">
@@ -403,7 +403,7 @@
               <x>0</x>
               <y>0</y>
               <width>588</width>
-              <height>633</height>
+              <height>630</height>
              </rect>
             </property>
             <layout class="QGridLayout" name="gridLayout_2">
@@ -767,8 +767,8 @@
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>412</width>
-                <height>594</height>
+                <width>390</width>
+                <height>591</height>
                </rect>
               </property>
               <layout class="QHBoxLayout" name="horizontalLayout_18">
@@ -875,7 +875,7 @@
                <item>
                 <widget class="QLabel" name="label_numberOfMaps">
                  <property name="text">
-                  <string>Will result in generating [6] maps</string>
+                  <string>Will result in generating [x] maps</string>
                  </property>
                  <property name="wordWrap">
                   <bool>true</bool>
@@ -940,7 +940,7 @@
               <x>0</x>
               <y>0</y>
               <width>588</width>
-              <height>633</height>
+              <height>630</height>
              </rect>
             </property>
             <layout class="QGridLayout" name="gridLayout_3" rowstretch="0,0,0,0,0">
@@ -1187,7 +1187,7 @@
              <item>
               <widget class="QLineEdit" name="lineEdit_east">
                <property name="text">
-                <string>0</string>
+                <string>10</string>
                </property>
               </widget>
              </item>
@@ -1499,7 +1499,7 @@
             <double>200.000000000000000</double>
            </property>
            <property name="value">
-            <double>100.000000000000000</double>
+            <double>200.000000000000000</double>
            </property>
           </widget>
          </item>
@@ -1519,7 +1519,7 @@
             <double>999999999.000000000000000</double>
            </property>
            <property name="value">
-            <double>300.000000000000000</double>
+            <double>400.000000000000000</double>
            </property>
           </widget>
          </item>
@@ -1550,8 +1550,8 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>594</width>
-        <height>218</height>
+        <width>577</width>
+        <height>226</height>
        </rect>
       </property>
       <layout class="QHBoxLayout" name="horizontalLayout_20" stretch="0">
