@@ -1,5 +1,16 @@
 # MSA-QGIS
-A plugin that allows the use of the Multi Scenario Approach in QGIS
+A plugin that allows the use of the Multiple Scenario Approach in QGIS.
+
+![visual_abstract](https://raw.githubusercontent.com/ThyavdBerg/MSA-QGIS/fdf76fc4f7c7b3e67c0e73bb8cfd56e50770dd14/Relevant%20Info/MSA%20figure.svg?token=ASNU5XQMJU6W6NO4D4745MDB6AYT4)
+
+## Read more about the MSA
+### Papers
+[Bunting & Middleton, 2009](https://journals.sagepub.com/doi/abs/10.1177/0959683609105304)
+
+### Websites
+
+### Contributors
+
 
 ## Naming conventions
 When participating in this open source project, please keep to the following naming conventions of variables, functions & classes
