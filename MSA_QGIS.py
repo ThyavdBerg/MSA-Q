@@ -203,11 +203,14 @@ class MsaQgis:
                 action)
             self.iface.removeToolBarIcon(action)
 
-    def writeLogMessage(self, message, tag, level):
+    def writeLogMessage(self, message, tag, level): # currently triggers on all log messages, should only trigger at runtime
         """ Writes all log messages received during runtime to a file"""
-        file_name = self.dlg.qgsFileWidget_vectorPoint.filePath() + '/MSA_QGIS_log.txt'
-        with open(file_name, 'a') as logfile:
-            logfile.write(f'{time.strftime("D[%Y-%m-%d] T[%H:%M:%S]", time.localtime())} {tag}({level}): {message}\n')
+        if tag == 'MSA_QGIS':
+            file_name = self.dlg.qgsFileWidget_vectorPoint.filePath() + '/MSA_QGIS_log.txt'
+            with open(file_name, 'a') as logfile:
+                logfile.write(f'{time.strftime("D[%Y-%m-%d] T[%H:%M:%S]", time.localtime())} {tag}({level}): {message}\n')
+        else:
+            pass
 
     def createPointLayer(self, crs, spacing):
         """Returns a vector point layer based on the specifications given by the user in the UI"""
@@ -243,18 +246,19 @@ class MsaQgis:
             #     y_min = self.dlg.spinBox_south.value()
             #     y_max = self.dlg.spinBox_north.value() - inset
 
-            # Create the coordinates of the points in the grid
 
-            # for y in numpy.arange(y_min, y_max, spacing, dtype = float): # arguments are floats so use numpy.  #TODO test if faster on large datasets. is slightly slower than while on small datasets
-            #     points=[]
-            #     for x in numpy.arange(x_min, x_max, spacing, dtype = float):
-            #         geom = QgsGeometry.fromPointXY((QgsPointXY(x,y-spacing)))
-            #         feat = QgsFeature()
-            #         feat.setGeometry(geom)
-            #         points.append(feat)
-            #     data_provider.addFeatures(points)
-            #     vector_point_base.updateExtents()
+        ## Create fields
             QgsMessageLog.logMessage("Initiate point creation", 'MSA_QGIS', Qgis.Info)
+            ### Add fields with x and y geometry and the feature id
+            data_provider.addAttributes([QgsField('geom_X', QVariant.Double, 'double', 20, 5),
+                                         QgsField('geom_Y', QVariant.Double, 'double', 20, 5),
+                                         QgsField('veg_com', QVariant.String),
+                                         QgsField('chance_to_happen', QVariant.Double, 'double', 3, 2)])
+            if self.dlg.radioButton_qgis_native.isChecked():  # only necessary for the native algorithm as non-native method
+                # will assign row id as msa_id instead
+                data_provider.addAttributes([QgsField('msa_id', QVariant.Int)])
+
+            # Create the point features and immediately fill with coordinates and default values.
             y = y_max
             while y >= y_min:
                 x = x_min
@@ -262,36 +266,24 @@ class MsaQgis:
                     geom = QgsGeometry.fromPointXY(QgsPointXY(x, y))
                     feat = QgsFeature()
                     feat.setGeometry(geom)
+                    if self.dlg.radioButton_qgis_native.isChecked():
+                        feat.initAttributes(5)
+                    else:
+                        feat.initAttributes(4)
+                    feat.setAttribute(0, geom.asPoint().x())
+                    feat.setAttribute(1, geom.asPoint().y())
+                    feat.setAttribute(2, 'Empty')
+                    feat.setAttribute(3, 100.0)
+                    if self.dlg.radioButton_qgis_native.isChecked():
+                        feat.setAttribute(4, feat.id())
                     del geom
                     x += spacing
                     data_provider.addFeature(feat)
                     del feat
-                    vector_point_base.updateExtents()
                 y = y - spacing
+                vector_point_base.updateExtents()
+                vector_point_base.updateFields()
 
-
-
-        ### Add fields with x and y geometry and the feature id
-        data_provider.addAttributes([QgsField('geom_X', QVariant.Double, 'double', 20, 5),
-                                     QgsField('geom_Y', QVariant.Double, 'double', 20, 5),
-                                     QgsField('veg_com', QVariant.String),
-                                     QgsField('chance_to_happen', QVariant.Double, 'double', 3, 2)])
-        if self.dlg.radioButton_qgis_native.isChecked():# only necessary for the native algorithm as non-native method
-                                                        # will assign row id as msa_id instead
-            data_provider.addAttributes([QgsField('msa_id', QVariant.Int)])
-
-        vector_point_base.updateFields()
-        vector_point_base.startEditing()
-        for feat in vector_point_base.getFeatures():
-            geom = feat.geometry()
-            feat['geom_X'] = geom.asPoint().x()
-            feat['geom_Y'] = geom.asPoint().y()
-            feat['veg_com'] = 'Empty'
-            feat['chance_to_happen'] = 100
-            if self.dlg.radioButton_qgis_native.isChecked():
-                feat['msa_id'] = feat.id()
-            vector_point_base.updateFeature(feat)
-        vector_point_base.commitChanges()
         QgsMessageLog.logMessage("All points created", 'MSA_QGIS', Qgis.Info)
         return vector_point_base
 
@@ -1711,236 +1703,225 @@ pseudo_id IS NOT NULL """
 
 
     def run(self):
-            """Run method that performs all the real work"""
+        """Run method that performs all the real work"""
+        # Create the dialog with elements (after translation) and keep reference
+        # Only create GUI ONCE in callback, so that it will only load when the plugin is started
+        if self.first_start == True:
+            self.first_start = False
+            self.dlg = MsaQgisDialog()
+            self.succesdlg = MsaQgisSuccesDialog()
 
-            # Create the dialog with elements (after translation) and keep reference
-            # Only create GUI ONCE in callback, so that it will only load when the plugin is started
-            if self.first_start == True:
-                self.first_start = False
-                self.dlg = MsaQgisDialog()
-                self.succesdlg = MsaQgisSuccesDialog()
 
-
-            # show the dialog
-            self.dlg.show()
-            # Run the dialog event loop
-            result = self.dlg.exec_() #TODO change so that window stays open while running main analysis
-            # See if OK was pressed
-            if result:
-                QgsMessageLog.logMessage("MSA_QGIS started", 'MSA_QGIS',
-                                         Qgis.Info)
-                startTime = time.time()
+        # show the dialog
+        self.dlg.show()
+        # Run the dialog event loop
+        result = self.dlg.exec_() #TODO change so that window stays open while running main analysis
+        # See if OK was pressed
+        if result:
+            QgsMessageLog.logMessage("MSA_QGIS started", 'MSA_QGIS',
+                                     Qgis.Info)
+            startTime = time.time()
 
     ### Create the base point layer with resolution and extent given by user
-                self.crs = iface.activeLayer().crs()
-                spacing = self.dlg.spinBox_resolution.value()  # Takes input from user in "resolution" to set spacing
+            self.crs = iface.activeLayer().crs()
+            spacing = self.dlg.spinBox_resolution.value()  # Takes input from user in "resolution" to set spacing
 
-                vector_point_base = self.createPointLayer(self.crs, spacing)
+            vector_point_base = self.createPointLayer(self.crs, spacing)
 
-                #timer
-                create_points_time = (time.time() - startTime)
-                create_points_time_end = time.time()
-                QgsMessageLog.logMessage('Vector point creation, Execution time in seconds: ' + str(create_points_time), 'MSA_QGIS',
+            #timer
+            create_points_time = (time.time() - startTime)
+            create_points_time_end = time.time()
+            QgsMessageLog.logMessage('Vector point creation, Execution time in seconds: ' + str(create_points_time), 'MSA_QGIS',
+                                     Qgis.Info)
+    #return #limit code for testing
+
+    ### Point sample natively and convert to sql, or create sql directly
+
+            if self.dlg.radioButton_qgis_native.isChecked():
+                self.pointSampleNative(vector_point_base)
+                self.convertToSQL()
+                # timer
+                point_sample_time = (time.time() - create_points_time_end)
+                point_sample_time_end = time.time()
+                QgsMessageLog.logMessage('point sampling native, Execution time in seconds: ' + str(point_sample_time),
+                                         'MSA_QGIS',
                                          Qgis.Info)
-
-    #### Point sample natively and convert to sql, or create sql directly
-
-                if self.dlg.radioButton_qgis_native.isChecked():
-                    self.pointSampleNative(vector_point_base)
-                    self.convertToSQL()
-                    # timer
-                    point_sample_time = (time.time() - create_points_time_end)
-                    point_sample_time_end = time.time()
-                    QgsMessageLog.logMessage('point sampling native, Execution time in seconds: ' + str(point_sample_time),
-                                             'MSA_QGIS',
-                                             Qgis.Info)
-                else:
-                    self.pointSampleSQL(vector_point_base,self.crs)
-                    # timer
-                    point_sample_time = (time.time() - create_points_time_end)
-                    point_sample_time_end = time.time()
-                    QgsMessageLog.logMessage('point sampling, Execution time in seconds: ' + str(point_sample_time),
-                                             'MSA_QGIS',
-                                             Qgis.Info)
+            else:
+                self.pointSampleSQL(vector_point_base,self.crs)
+                # timer
+                point_sample_time = (time.time() - create_points_time_end)
+                point_sample_time_end = time.time()
+                QgsMessageLog.logMessage('point sampling, Execution time in seconds: ' + str(point_sample_time),
+                                         'MSA_QGIS',
+                                         Qgis.Info)
 
 
     ### Processing the rules (this is in sql, but not necessarily in spatialite. Since the maps has both the csv version
         # of the coordinates and the spatialite coordinates if spatialite was used, this difference should not matter.
 
 
-                list_base_group_ids = []
-                list_final_rule_ids = []
-                number_of_iters = self.dlg.spinBox_iter.value()
-                dict_of_rules_widgets = self.dlg.dict_ruleTreeWidgets.copy() # copy so original is still available at save
-                #process rulestreewidgets that are in the basegroup
-                #create the list of basegroups
-                for key in dict_of_rules_widgets:
-                    if dict_of_rules_widgets[key].isBaseGroup:
-                        list_base_group_ids.append(key)
-                list_base_group_ids.sort()
-                #create the map with basegroup
-                list_to_remove = []
+            list_base_group_ids = []
+            list_final_rule_ids = []
+            number_of_iters = self.dlg.spinBox_iter.value()
+            dict_of_rules_widgets = self.dlg.dict_ruleTreeWidgets.copy() # copy so original is still available at save
+            #process rulestreewidgets that are in the basegroup
+            #create the list of basegroups
+            for key in dict_of_rules_widgets:
+                if dict_of_rules_widgets[key].isBaseGroup:
+                    list_base_group_ids.append(key)
+            list_base_group_ids.sort()
+            #create the map with basegroup
+            list_to_remove = []
 
 
-                #create conn and cursor for memory
-                conn = sqlite3.connect(":memory:")
-                cursor = conn.cursor()
-                #create first map ( = copy of empty basemap)
-                string_attach_empty_basemap = 'ATTACH DATABASE "' + self.dlg.qgsFileWidget_vectorPoint.filePath()+\
-                                              '\pointsampled_basemap.sqlite" AS "empty_basemap";'
-                string_copy_empty_basemap = 'CREATE TABLE basemap AS SELECT * FROM "empty_basemap";' #TODO if possible recreate this with primary and foreign keys
-                string_drop_empty_basemap = 'DROP TABLE IF EXISTS "empty_basemap";'
-                string_detach_empty_basemap = 'DETACH DATABASE "empty_basemap"'
-                cursor.execute(string_attach_empty_basemap)
-                cursor.execute(string_copy_empty_basemap)
-                cursor.execute(string_drop_empty_basemap)
-                cursor.execute(string_detach_empty_basemap)
-                conn.commit()
+            #create conn and cursor for memory
+            conn = sqlite3.connect(":memory:")
+            cursor = conn.cursor()
+            #create first map ( = copy of empty basemap)
+            string_attach_empty_basemap = 'ATTACH DATABASE "' + self.dlg.qgsFileWidget_vectorPoint.filePath()+\
+                                          '\pointsampled_basemap.sqlite" AS "empty_basemap";'
+            string_copy_empty_basemap = 'CREATE TABLE basemap AS SELECT * FROM "empty_basemap";'
+            string_drop_empty_basemap = 'DROP TABLE IF EXISTS "empty_basemap";'
+            string_detach_empty_basemap = 'DETACH DATABASE "empty_basemap"'
+            cursor.execute(string_attach_empty_basemap)
+            cursor.execute(string_copy_empty_basemap)
+            cursor.execute(string_drop_empty_basemap)
+            cursor.execute(string_detach_empty_basemap)
+            conn.commit()
 
-                #get number of entries (necessary for processing chance)
-                cursor.execute('SELECT * FROM "basemap"')
-                number_of_entries = len(cursor.fetchall())
-                QgsMessageLog.logMessage('number of points is: '+ str(number_of_entries),
-                                         'MSA_QGIS',
-                                         Qgis.Info)
+            #get number of entries (necessary for processing chance)
+            cursor.execute('SELECT * FROM "basemap"')
+            number_of_entries = len(cursor.fetchall())
+            QgsMessageLog.logMessage('number of points is: '+ str(number_of_entries),
+                                     'MSA_QGIS',
+                                     Qgis.Info)
+            self.createSiteTables(conn, cursor, spacing) # creates both table with site and tables with pollen counts
+            self.createTaxonTables(conn,cursor)
+            self.createTableDistanceToSite(conn,cursor, number_of_entries)
+            self.createTablePseudoPoints(conn,cursor, spacing)
+            self.createTableOfMaps(conn,cursor)
+            self.createTablePollenLookupBasin(conn, cursor)
+            self.createTableWindrose(conn,cursor)
+            # TODO create a table with lakes
 
-                self.createSiteTables(conn, cursor, spacing) # creates both table with site and tables with pollen counts
-                self.createTaxonTables(conn,cursor)
-                self.createTableDistanceToSite(conn,cursor, number_of_entries)
-                self.createTablePseudoPoints(conn,cursor, spacing)
-                self.createTableOfMaps(conn,cursor)
-                self.createTablePollenLookupBasin(conn, cursor)
-                self.createTableWindrose(conn,cursor)
-                # TODO create a table with lakes
 
+            #process the base rules and save it, if there is no base group, set basemap_table to 0
+            basemap_table = 0
+            for widget in list_base_group_ids:
+                basemap_table = self.assignVegetationSQL(widget, 'basemap', 'basemap', conn, cursor, 0, number_of_entries) # what is returned is actually the name of the table
+                list_to_remove.append(widget)
 
-                #process the base rules and save it, if there is no base group, set basemap_table to 0
-                basemap_table = 0
-                for widget in list_base_group_ids:
-                    basemap_table = self.assignVegetationSQL(widget, 'basemap', 'basemap', conn, cursor, 0, number_of_entries) # what is returned is actually the name of the table
-                    list_to_remove.append(widget)
-
-                #remove rules in basegroup from rule list so they are not computed again in the main loop.
-                for widget in list_to_remove:
-                    dict_of_rules_widgets.pop(widget)
+            #remove rules in basegroup from rule list so they are not computed again in the main loop.
+            for widget in list_to_remove:
+                dict_of_rules_widgets.pop(widget)
 
                 #timer
-                basemap_time = (time.time() - point_sample_time_end)
-                basemap_time_end = time.time()
-                QgsMessageLog.logMessage('empty basemap to filled basemap in sql, Execution time in seconds: ' + str(basemap_time),
-                                         'MSA_QGIS',
-                                         Qgis.Info)
+            basemap_time = (time.time() - point_sample_time_end)
+            basemap_time_end = time.time()
+            QgsMessageLog.logMessage('empty basemap to filled basemap in sql, Execution time in seconds: ' + str(basemap_time),
+                                     'MSA_QGIS',
+                                     Qgis.Info)
 
-                #process the main rules
-                #make a list of all the end-points in the rule tree
+            #process the main rules
+            #make a list of all the end-points in the rule tree
+            for key in dict_of_rules_widgets:
+                if dict_of_rules_widgets[key].next_ruleTreeWidgets == []:
+                    list_final_rule_ids.append(key)
+
+            ##iteration for loop
+            for iteration in range(number_of_iters):
+                start_time = (time.time())
+                #create list of branch points
+                list_branchpoints = []
                 for key in dict_of_rules_widgets:
-                    if dict_of_rules_widgets[key].next_ruleTreeWidgets == []:
-                        list_final_rule_ids.append(key)
+                    if len(dict_of_rules_widgets[key].next_ruleTreeWidgets) > 1:
+                        list_branchpoints.append(str(dict_of_rules_widgets[key]))
+                ##final points in rule tree for loop
+                for final_id in list_final_rule_ids:
+                    prev_ruleTreeWidgets = dict_of_rules_widgets[final_id].prev_ruleTreeWidgets.copy()
+                    #check if prev_ruleTreeWidget is in list_branchpoints AND the map in question exists. If yes, set the map as a starting point and take all > than that map out of the list of previous ruleTreeWidgets
+                    save_point = 1
+                    for prev_id in prev_ruleTreeWidgets:
+                        if prev_id in list_branchpoints:
+                            string_check_map_existence = 'SELECT 1 FROM sqlite_master WHERE type = "table" AND name = "'+str(prev_id)+'run'+str(iteration)+'"'
+                            if cursor.execute(string_check_map_existence) == 1:
+                                if prev_id > save_point:
+                                    save_point = prev_id # ensures that the highest/most recent out of the branchpoint order ids is chosen
 
-                ##iteration for loop
-                for iteration in range(number_of_iters):
-                    start_time = (time.time())
-                    #create list of branch points
-                    list_branchpoints = []
-                    for key in dict_of_rules_widgets:
-                        if len(dict_of_rules_widgets[key].next_ruleTreeWidgets) > 1:
-                            list_branchpoints.append(str(dict_of_rules_widgets[key]))
-                    ##final points in rule tree for loop
-                    for final_id in list_final_rule_ids:
-                        prev_ruleTreeWidgets = dict_of_rules_widgets[final_id].prev_ruleTreeWidgets.copy()
-                        #check if prev_ruleTreeWidget is in list_branchpoints AND the map in question exists. If yes, set the map as a starting point and take all > than that map out of the list of previous ruleTreeWidgets
-                        save_point = 1
-                        for prev_id in prev_ruleTreeWidgets:
-                            if prev_id in list_branchpoints:
-                                string_check_map_existence = 'SELECT 1 FROM sqlite_master WHERE type = "table" AND name = "'+str(prev_id)+'run'+str(iteration)+'"'
-                                if cursor.execute(string_check_map_existence) == 1:
-                                    if prev_id > save_point:
-                                        save_point = prev_id # ensures that the highest/most recent out of the branchpoint order ids is chosen
+                    # if there is a branch point, remove all prev_id < branch point
+                    prev_ruleTreeWidgets[:] = [prev_id for prev_id in prev_ruleTreeWidgets if prev_id >= save_point] # should delete nothing if no save_point was made
+                    # remove all the basemap prev_id from the list
+                    prev_ruleTreeWidgets[:] = [prev_id for prev_id in prev_ruleTreeWidgets if prev_id not in list_base_group_ids]
 
-                        # if there is a branch point, remove all prev_id < branch point
-                        prev_ruleTreeWidgets[:] = [prev_id for prev_id in prev_ruleTreeWidgets if prev_id >= save_point] # should delete nothing if no save_point was made
-                        # remove all the basemap prev_id from the list
-                        prev_ruleTreeWidgets[:] = [prev_id for prev_id in prev_ruleTreeWidgets if prev_id not in list_base_group_ids]
-
-                        #determine start input map
-                        if save_point > 1:
-                            input_map = str(save_point) + 'run'+str(iteration-1)
-                            QgsMessageLog.logMessage(
-                                'input map is branch point ' + save_point,
-                                'MSA_QGIS',
-                                Qgis.Info)
-                        elif basemap_table != 0:
-                            input_map = basemap_table
-                            QgsMessageLog.logMessage(
-                                'input map is basemap',
-                                'MSA_QGIS',
-                                Qgis.Info)
-                        else:
-                            input_map = self.assignVegetationSQL(final_id, 1, 1, conn, cursor, iteration, number_of_entries)
-                            QgsMessageLog.logMessage(
-                                'input map is first in tree',
-                                'MSA_QGIS',
-                                Qgis.Info)
-                        ## previous rule tree widgets of final_id for loop
-                        for running_id in prev_ruleTreeWidgets:
-                            #assign vegetation
-                            output_map = self.assignVegetationSQL(running_id, input_map, running_id, conn, cursor,
-                                                                  iteration, number_of_entries)
-                            input_map = output_map
-                        # assign vegetation final rule
-                        output_map = self.assignVegetationSQL(final_id, input_map, final_id, conn, cursor, iteration, number_of_entries)
-                        # drop all maps that are not the final rule or a saved rule
-                        for prev_id in prev_ruleTreeWidgets:
-                            if prev_id not in list_branchpoints and prev_id not in list_final_rule_ids:
-                                string_drop_table = 'DROP TABLE "' + str(prev_id) + 'run' + str(iteration) + '";'
-                                cursor.execute(string_drop_table)
-                                conn.commit()
-                        self.simulatePollen(output_map,iteration, conn, cursor)
-
-                    #drop all maps made as branchpoints
-                    for key in dict_of_rules_widgets:
-                        if key not in list_final_rule_ids:
-                            string_drop_table = 'DROP TABLE IF EXISTS "' + str(key) + 'run' + str(iteration) + '";'
+                    #determine start input map
+                    if save_point > 1:
+                        input_map = str(save_point) + 'run'+str(iteration-1)
+                        QgsMessageLog.logMessage(
+                            'input map is branch point ' + save_point,
+                            'MSA_QGIS',
+                            Qgis.Info)
+                    elif basemap_table != 0:
+                        input_map = basemap_table
+                        QgsMessageLog.logMessage(
+                            'input map is basemap',
+                            'MSA_QGIS',
+                            Qgis.Info)
+                    else:
+                        input_map = self.assignVegetationSQL(final_id, 1, 1, conn, cursor, iteration, number_of_entries)
+                        QgsMessageLog.logMessage(
+                            'input map is first in tree',
+                            'MSA_QGIS',
+                            Qgis.Info)
+                    ## previous rule tree widgets of final_id for loop
+                    for running_id in prev_ruleTreeWidgets:
+                        #assign vegetation
+                        output_map = self.assignVegetationSQL(running_id, input_map, running_id, conn, cursor,
+                                                              iteration, number_of_entries)
+                        input_map = output_map
+                    # assign vegetation final rule
+                    output_map = self.assignVegetationSQL(final_id, input_map, final_id, conn, cursor, iteration, number_of_entries)
+                    # drop all maps that are not the final rule or a saved rule
+                    for prev_id in prev_ruleTreeWidgets:
+                        if prev_id not in list_branchpoints and prev_id not in list_final_rule_ids:
+                            string_drop_table = 'DROP TABLE "' + str(prev_id) + 'run' + str(iteration) + '";'
                             cursor.execute(string_drop_table)
                             conn.commit()
+                    self.simulatePollen(output_map,iteration, conn, cursor)
+
+                #drop all maps made as branchpoints
+                for key in dict_of_rules_widgets:
+                    if key not in list_final_rule_ids:
+                        string_drop_table = 'DROP TABLE IF EXISTS "' + str(key) + 'run' + str(iteration) + '";'
+                        cursor.execute(string_drop_table)
+                        conn.commit()
 
 
-                    iteration_time = (time.time() - start_time)
-                    QgsMessageLog.logMessage(
-                        'iteration '+ str(iteration)+ ' took '+ str(iteration_time)+ ' to run',
-                        'MSA_QGIS',
-                        Qgis.Info)
+                iteration_time = (time.time() - start_time)
+                QgsMessageLog.logMessage(
+                    'iteration '+ str(iteration)+ ' took '+ str(iteration_time)+ ' to run','MSA_QGIS', Qgis.Info)
 
-                #vacuum memory database to disk database
-                string_vacuum_into = 'VACUUM INTO "'+ self.dlg.qgsFileWidget_vectorPoint.filePath()+ '//outcome.sqlite";'
-                cursor.execute(string_vacuum_into)
-                conn.commit()
+            #vacuum memory database to disk database
+            string_vacuum_into = 'VACUUM INTO "'+ self.dlg.qgsFileWidget_vectorPoint.filePath()+ '//outcome.sqlite";'
+            cursor.execute(string_vacuum_into)
+            conn.commit()
 
-                #alternatively, if not run succesfully, report exception with a popup and show log #TODO
-                self.succesdlg.show()
-                self.reportStatsOnSucces(conn, cursor)
-                if self.succesdlg.exec_():
+            #alternatively, if not run succesfully, report exception with a popup and show log #TODO
+            self.succesdlg.show()
+            self.reportStatsOnSucces(conn, cursor)
+            if self.succesdlg.exec_():
                     self.loadMapsToQGIS(cursor)
 
+            conn.close()
 
-                #Save log to file #TODO
+            final_time = (time.time() - basemap_time_end)
+            final_time_end = time.time()
+            QgsMessageLog.logMessage(
+                'all iterations completed, Execution time in seconds: ' + str(final_time),'MSA_QGIS', Qgis.Info)
 
-                conn.close()
+            #...
+            executionTime = (time.time() - startTime)
+            QgsMessageLog.logMessage(
+                'Total execution time in seconds: ' + str(executionTime),'MSA_QGIS',Qgis.Info)
+            QgsMessageLog.logMessage("MSA_QGIS finished sucessfully", 'MSA_QGIS', Qgis.Info)
 
-                final_time = (time.time() - basemap_time_end)
-                final_time_end = time.time()
-                QgsMessageLog.logMessage(
-                    'all iterations completed, Execution time in seconds: ' + str(final_time),
-                    'MSA_QGIS',
-                    Qgis.Info)
-
-                #...
-                executionTime = (time.time() - startTime)
-                QgsMessageLog.logMessage(
-                    'Total execution time in seconds: ' + str(executionTime),
-                    'MSA_QGIS',
-                    Qgis.Info)
-                QgsMessageLog.logMessage("MSA_QGIS finished sucessfully", 'MSA_QGIS',
-                                         Qgis.Info)
-                pass
 

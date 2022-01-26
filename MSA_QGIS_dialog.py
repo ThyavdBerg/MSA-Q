@@ -103,6 +103,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
 
 
         # events
+        self.rejected.connect(self.closeAll)
         self.mExtentGroupBox.setMapCanvas(iface.mapCanvas())
         #self.mExtentGroupBox.setOutputExtentFromDrawOnCanvas() #for some reason causes really weird behaviour.
         # Q asked on GIS stackexchange
@@ -132,8 +133,22 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.pushButton_removePollenFile.clicked.connect(self.removePollenCountsFilePath)
         #TODO disable model parameters when other than prentice sugita is selected, and enable load lookup if use lookup table is selected.
         #TODO update turbulence constant when atmospheric constant is changed
-        #TODO close all assocated windows when main dialog is closed
 
+    def closeAll(self):
+        """Closes all associated windows when main dialog is closed"""
+        try: self.veg_com_popup.close()
+        except: pass
+        try:self.taxonPopup.close()
+        except: pass
+        try: self.popup_rule_list.close()
+        except: pass
+        try: self.add_rule_popup.close()
+        except: pass
+        try: self.popup_save_file.close()
+        except: pass
+        try: self.popup_load_file.close()
+        except: pass
+        pass
 
     def setExtent(self):
         """Attaches the extent given by the user to a variable, and updates the 'current extent'
@@ -393,13 +408,13 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         else:
             rule_number = 0
 
-        add_rule_popup = MsaQgisAddRulePopup(rule_number, self.tableWidget_vegCom,
+        self.add_rule_popup = MsaQgisAddRulePopup(rule_number, self.tableWidget_vegCom,
                                                   self.tableWidget_selected, self.tableWidget_selRaster)
-        add_rule_popup.show()
+        self.add_rule_popup.show()
 
-        if add_rule_popup.exec_():
+        if self.add_rule_popup.exec_():
             # add the rule to the dictionary and rule description to the rule listWidget
-            self.nest_dict_rules['Rule ' + str(rule_number)] = add_rule_popup.dict_rules_list
+            self.nest_dict_rules['Rule ' + str(rule_number)] = self.add_rule_popup.dict_rules_list
             self.listWidget_rules.addItem(self.nest_dict_rules['Rule ' + str(rule_number)][1])
 
     def deleteRule(self):
@@ -1386,9 +1401,9 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         pass
 
     def saveFiles(self):
-        popup_save_file = MsaQgisSaveLoadDialog('save')
-        popup_save_file.show()
-        if popup_save_file.exec_():
+        self.popup_save_file = MsaQgisSaveLoadDialog('save')
+        self.popup_save_file.show()
+        if self.popup_save_file.exec_():
             file_dialog = QFileDialog()
             file_directory = file_dialog.getExistingDirectory(self, "Choose a directory to load your files from")
             if not file_directory:
@@ -1400,23 +1415,22 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             file_name_hum_file = file_directory + '/backwardsHUMPOL.hum'
             file_name_image_rule_tree = file_directory + '/ruletreeimage.jpg'
             project_name = file_dialog.directory().dirName()
-            if popup_save_file.checkBox_input.isChecked():
+            if self.popup_save_file.checkBox_input.isChecked():
                 self.saveInput(file_name_input, project_name)
-            if popup_save_file.checkBox_ruleDict.isChecked():
+            if self.popup_save_file.checkBox_ruleDict.isChecked():
                 self.saveRuleDict(file_name_rule_dict)
-            if popup_save_file.checkBox_ruleTree.isChecked():
+            if self.popup_save_file.checkBox_ruleTree.isChecked():
                 self.saveRuleTree(file_name_rule_tree)
-            if popup_save_file.checkBox_humFile.isChecked():
+            if self.popup_save_file.checkBox_humFile.isChecked():
                 self.saveHandbagFile(file_name_hum_file)
-                #add save image of ruletree TODO
-            if popup_save_file.checkBox_loadImageRuleTree.isChecked():
+            if self.popup_save_file.checkBox_loadImageRuleTree.isChecked():
                 self.saveImageRuleTree(file_name_image_rule_tree)
 
 
     def loadFiles(self):
-        popup_load_file = MsaQgisSaveLoadDialog('load')
-        popup_load_file.show()
-        if popup_load_file.exec_():
+        self.popup_load_file = MsaQgisSaveLoadDialog('load')
+        self.popup_load_file.show()
+        if self.popup_load_file.exec_():
             file_dialog = QFileDialog()
             file_directory = file_dialog.getExistingDirectory(self, "Choose a directory to load your files from")
             if not file_directory:
@@ -1425,11 +1439,11 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             file_name_input = file_directory + '/inputstate.csv'
             file_name_rule_dict = file_directory + '/ruledict.pkl'
             file_name_rule_tree = file_directory + '/ruletree.pkl'
-            if popup_load_file.checkBox_input.isChecked():
+            if self.popup_load_file.checkBox_input.isChecked():
                 self.loadInput(file_name_input)
-            if popup_load_file.checkBox_ruleDict.isChecked():
+            if self.popup_load_file.checkBox_ruleDict.isChecked():
                 self.loadRuleDict(file_name_rule_dict)
-            if popup_load_file.checkBox_ruleTree.isChecked():
+            if self.popup_load_file.checkBox_ruleTree.isChecked():
                 self.loadRuleTree(file_name_rule_tree)
 
         else:
@@ -1606,6 +1620,7 @@ class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
         self.label_condTypeEnvVar.hide()
 
         # Events
+        self.rejected.connect(self.closeAll)
         self.pushButton_condVegCom.clicked.connect(self.addConditionalPrevVegCom)
         self.pushButton_condEnvVar.clicked.connect(self.addConditionalEnvVar)
         self.comboBox_envVar.currentTextChanged.connect(lambda: self.addRangeOrCatToEnvVar(self.comboBox_envVar,
@@ -1632,6 +1647,10 @@ class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
         #set min & max size for comboBox envVar
         self.label_writtenRule.setText('Rule '+str(rule_number))
 
+    def closeAll(self):
+        """ Closes all associated popups when rule dialog is closed"""
+        try: self.messageBox.close()
+        except: pass
 
     def addRangeOrCatToEnvVar(self, env_var, label_range, rangeMin, rangeMax,label_noChoice, label_category, category):
         """ An option to fill in range for the environmental variable appears if the variable is numerical"""
@@ -1710,7 +1729,6 @@ class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
                     category.show()
                     #get categories from band TODO don't think there is currently a way to do this
         pass
-
 
     def addNofPointsToRule(self):
         """ Makes a spin box appear when adjacent or encroach is selected under choose rule type"""
@@ -1983,16 +2001,16 @@ class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
     def checkIfLegit(self): # TODO not yet functional
         """ Checks whether the all boxes have been filled in the correct way, otherwise aborts making the rule and
         gives a warning popup"""
-        messageBox = QMessageBox()
+        self.messageBox = QMessageBox()
         comboBoxes = [self.comboBox_ruleVegCom.currentIndex(),self.comboBox_rule.currentIndex(),self.comboBox_rule.currentIndex(),
                       self.comboBox_envVar.currentIndex()]
         if all(index ==0 for index in comboBoxes)and self.doubleSpin_chance.value() == 100 and self.n_of_envvar ==1 and self.n_of_vegcom ==1:
-            messageBox.setWindowTitle('Warning')
-            messageBox.setText('No changes were detected, are you sure you want to use this rule?')
+            self.messageBox.setWindowTitle('Warning')
+            self.messageBox.setText('No changes were detected, are you sure you want to use this rule?')
         if self.comboBox_envVar.count() == 1:
-            messageBox.setWindowTitle("Warning")
-            messageBox.setText('No environmental variables were detected as input, are you sure you want to use this rule?')
-            messageBox.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
+            self.messageBox.setWindowTitle("Warning")
+            self.messageBox.setText('No environmental variables were detected as input, are you sure you want to use this rule?')
+            self.messageBox.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
         #TODO Can probably think of more warnings
 
 
