@@ -70,7 +70,7 @@
         <string notr="true">tab_rules {background-color: rgb(240, 240, 240)};</string>
        </property>
        <property name="currentIndex">
-        <number>5</number>
+        <number>3</number>
        </property>
        <widget class="QWidget" name="tab_envAndSpatial">
         <attribute name="title">
@@ -1293,7 +1293,7 @@
          <item row="7" column="0">
           <widget class="QLabel" name="label_importLookup">
            <property name="toolTip">
-            <string>If a lookup table is imported, no lookup table will be generated. </string>
+            <string>CURRENTLY DISABLED If a lookup table is imported, no lookup table will be generated. </string>
            </property>
            <property name="text">
             <string>Import Lookup Table</string>
@@ -1875,22 +1875,6 @@ background-color: rgb(199, 199, 199);</string>
    <signal>accepted()</signal>
    <receiver>MsaQgisDialogBase</receiver>
    <slot>accept()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>20</x>
-     <y>20</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>20</x>
-     <y>20</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>button_box</sender>
-   <signal>rejected()</signal>
-   <receiver>MsaQgisDialogBase</receiver>
-   <slot>reject()</slot>
    <hints>
     <hint type="sourcelabel">
      <x>20</x>
