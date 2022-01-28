@@ -21,11 +21,13 @@
  *                                                                         *
  ***************************************************************************/
 """
-
+import datetime
 import os
 import pickle
 import re
 import csv
+import time
+from os.path import exists
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QTableWidgetItem, QWidget, QLineEdit, QLabel, QVBoxLayout, QComboBox, QGridLayout, \
@@ -131,6 +133,8 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.pushButton_removeSite.clicked.connect(self.removeSamplingSite)
         self.pushButton_importPollen.clicked.connect(self.addPollenCountsFilePath)
         self.pushButton_removePollenFile.clicked.connect(self.removePollenCountsFilePath)
+        self.pushButton_addChangeLog.clicked.connect(self.addToChangeLog)
+        self.pushButton_removeChangeLog.clicked.connect(self.removeFromChangeLog)
         #TODO disable model parameters when other than prentice sugita is selected, and enable load lookup if use lookup table is selected.
         #TODO update turbulence constant when atmospheric constant is changed
 
@@ -1232,13 +1236,18 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         #           self.dict_ruleTreeWidgets[key].next_ruleTreeWidgets, ', duplicate ',
         #           self.dict_ruleTreeWidgets[key].duplicate_ruleTreeWidgets)
 
-    def saveInput(self, file_name_input, project_name):
+    def saveInput(self, file_name_input, directory_name):
         """ Saves all of the input data, including input that is NOT backwards compatible with HUMPOL/LandPolFlow into a single text file (.msa)"""
         ### write a .csv file with all the data
         with open(file_name_input, 'w', newline= '') as csv_file:
             iface.messageBar().pushMessage('Writing file', level=3)
             writer = csv.writer(csv_file)
-            writer.writerow(['Project name', project_name])
+            #metadata
+            writer.writerow(['Metadata'])
+            writer.writerow(['Save directory', directory_name])
+            writer.writerow(['Project name', self.lineEdit_projectName.text()])
+            writer.writerow(['Author(s)', self.lineEdit_author.text()])
+            writer.writerow(['Description', self.plainTextEdit_description.toPlainText()])
             #saved settings
             writer.writerow(['Saved settings'])
             crs = QgsProject.instance().crs().authid()
@@ -1263,8 +1272,40 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             writer.writerow(['n of iterations',  n_of_iter])
             #model parameters
             dispersal_model = self.comboBox_dispModel.currentText()
+            atmostpheric_constant = self.doubleSpin_atmosConstant.value()
+            diffusion_constant = self.doubleSpin_diffConstant.value()
+            windrose_enabled = self.checkBox_enableWindrose.isChecked()
+            wr_north = self.doubleSpin_north.value()
+            wr_northEast = self.doubleSpin_northEast.value()
+            wr_east = self.doubleSpin_east.value()
+            wr_southeast = self.doubleSpin_southEast.value()
+            wr_south = self.doubleSpin_south.value()
+            wr_southwest = self.doubleSpin_southWest.value()
+            wr_west = self.doubleSpin_west.value()
+            wr_northwest = self.doubleSpin_northWest.value()
+            fit_model = self.comboBox_fit.currentText()
+            fit_site = self.doubleSpinBox_fit.value()
+            fit_cumul = self.doubleSpinBox_cumulFit.value()
+
             writer.writerow(['Model parameters'])
+
             writer.writerow(['dispersal model', dispersal_model]) ###TODO rest of model parameters
+            writer.writerow(['atmospheric constant', atmostpheric_constant ])
+            writer.writerow(['diffusion constant', diffusion_constant])
+            writer.writerow(['Windrose enabled', windrose_enabled])
+            if windrose_enabled:
+                writer.writerow(['','north', 'northeast', 'east', 'southeast', 'south', 'southwest', 'west', 'northwest'])
+                writer.writerow(['windrose', wr_north, wr_northEast, wr_east, wr_southeast, wr_south, wr_southwest, wr_west, wr_northwest])
+            writer.writerow(['','fit model', 'desired fit per site', 'desired cumulative fit'])
+            writer.writerow(['fit', fit_model, fit_site, fit_cumul])
+            if self.radioButton_keepFitted.isChecked():
+                writer.writerow(['maps', 'Keep fitted'])
+            elif self.radioButton_keepAll.isChecked():
+                writer.writerow(['maps', 'Keep all + loadings'])
+            elif self.radioButton_keepTwo.isChecked():
+                writer.writerow(['maps', 'keep all - loadings'])
+
+
             #selected fields and bands
             writer.writerow(['selected fields'])
             for row in range(self.tableWidget_selected.rowCount()):
@@ -1318,6 +1359,14 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             for key in self.dict_ruleTreeWidgets:
                 writer.writerow([key,self.dict_ruleTreeWidgets[key].connection_type,
                                  self.dict_ruleTreeWidgets[key].comboBox_name.currentText()])
+            #changelog
+            writer.writerow(['Changelog'])
+            writer.writerow(['Changelog start'])
+            for line in range(self.listWidget_changeLog.count()):
+                writer.writerow(['changelog', self.listWidget_changeLog.item(line).text()])
+            writer.writerow(['Changelog end'])
+            #notes
+            writer.writerow(['Notes:', self.plainTextEdit_notes.toPlainText()])
 
 
     def saveImageRuleTree(self,  file_name_input):
@@ -1383,15 +1432,69 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 elif row[0] == 'file path':
                     selected_sample = row[1]
                     sample_file_path = row[2]
-                    #load into table
-                    rows = self.tableWidget_pollenFile.rowCount()
-                    self.tableWidget_pollenFile.setRowCount(rows+1)
-                    self.tableWidget_pollenFile.setItem(rows, 0, QTableWidgetItem(row[1]))
-                    self.tableWidget_pollenFile.setItem(rows, 1, QTableWidgetItem(row[2]))
-                    # load into dict
-                    self.dict_pollen_percent_files[selected_sample] = sample_file_path
-                    # load into excerpts
-                    self.addPollenExcerpt(selected_sample, sample_file_path)
+                    if exists(sample_file_path):
+                        #load into table
+                        rows = self.tableWidget_pollenFile.rowCount()
+                        self.tableWidget_pollenFile.setRowCount(rows+1)
+                        self.tableWidget_pollenFile.setItem(rows, 0, QTableWidgetItem(row[1]))
+                        self.tableWidget_pollenFile.setItem(rows, 1, QTableWidgetItem(row[2]))
+                        # load into dict
+                        self.dict_pollen_percent_files[selected_sample] = sample_file_path
+                        # load into excerpts
+                        self.addPollenExcerpt(selected_sample, sample_file_path)
+                    else:
+                        #path to file not found (likely because it is a different computer)
+                        self.addPollenCountsFilePath('Reload')
+                        pass
+                elif row[0] == 'Dispersal model':
+                    self.comboBox_dispModel.setCurrentText(row[1])
+                elif row[0] == 'Atmospheric constant':
+                    self.doubleSpin_atmosConstant.setValue(float(row[1]))
+                elif row[0] == 'Diffusion constant':
+                    self.doubleSpin_diffConstant.setValue(float(row[1]))
+                elif row[0] == 'Windspeed':
+                    self.doubleSpin_windSpeed.setValue(float(row[1]))
+                elif row[0] == 'Windrose enabled':
+                    self.checkBox_enableWindrose.setChecked(bool(row[1]))
+                elif row[0] == 'windrose':
+                    if self.checkBox_enableWindrose.isChecked:
+                        self.doubleSpin_north.setValue(float(row[1]))
+                        self.doubleSpin_northEast.setValue(float(row[2]))
+                        self.doubleSpin_east.setValue(float(row[3]))
+                        self.doubleSpin_southEast.setValue(float(row[4]))
+                        self.doubleSpin_south.setValue(float(row[5]))
+                        self.doubleSpin_southWest.setValue(float(row[6]))
+                        self.doubleSpin_west.setValue(float(row[7]))
+                        self.doubleSpin_northWest.setValue(float(row[8]))
+                    else:
+                        pass # leave default values
+                elif row[0] == 'Project name':
+                    self.lineEdit_projectName.setText(row[1])
+                elif row[0] == 'Author(s)':
+                    self.lineEdit_author.setText(row[1])
+                elif row[0] == 'changelog':
+                    self.listWidget_changeLog.addItem(row[1])
+                elif row[0] == 'Description':
+                    self.plainTextEdit_description.setPlainText(row[1])
+                elif row[0] == 'Notes':
+                    self.plainTextEdit_notes.setPlainText(row[1])
+                elif row[0] == 'fit':
+                    self.comboBox_fit.setCurrentText(row[1])
+                    self.doubleSpinBox_fit.setValue(float(row[2]))
+                    self.doubleSpinBox_cumulFit.setValue(float(row[3]))
+                elif row[0] == 'maps':
+                    if row[1] == 'Keep all + loadings':
+                        self.radioButton_keepFitted.setChecked(False)
+                        self.radioButton_keepTwo.setChecked(False)
+                        self.radioButton_keepAll.setChecked(True)
+                    elif row[1] == 'Keep all - loadings':
+                        self.radioButton_keepFitted.setChecked(False)
+                        self.radioButton_keepTwo.setChecked(True)
+                        self.radioButton_keepAll.setChecked(False)
+                    elif row[1] == 'Keep fit':
+                        self.radioButton_keepFitted.setChecked(True)
+                        self.radioButton_keepTwo.setChecked(False)
+                        self.radioButton_keepAll.setChecked(False)
                 else:
                     pass
 
@@ -1414,9 +1517,9 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             file_name_rule_tree = file_directory + '/ruletree.pkl'
             file_name_hum_file = file_directory + '/backwardsHUMPOL.hum'
             file_name_image_rule_tree = file_directory + '/ruletreeimage.jpg'
-            project_name = file_dialog.directory().dirName()
+            directory_name = file_dialog.directory().dirName()
             if self.popup_save_file.checkBox_input.isChecked():
-                self.saveInput(file_name_input, project_name)
+                self.saveInput(file_name_input, directory_name)
             if self.popup_save_file.checkBox_ruleDict.isChecked():
                 self.saveRuleDict(file_name_rule_dict)
             if self.popup_save_file.checkBox_ruleTree.isChecked():
@@ -1491,18 +1594,21 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                         self.removePollenCountsFilePath()
                 self.tableWidget_sites.removeRow(row.row())
 
-    def addPollenCountsFilePath(self):
+    def addPollenCountsFilePath(self, isReload = False):
         """ Opens a popup in which the user can a link to a .csv file containing pollen counts. The path is added to a list and can be consulted by
         other parts of the UI from a dictionary. A pollen dataset can only be added to a sampling site that already exists in the sampling
         site table, and no duplicates are allowed"""
+
         if self.tableWidget_sites.rowCount() == 0:
             iface.messageBar().pushMessage('There are no sampling points to connect to.', level=1)
             return
-        add_pollen_percentage_popup = MsaQgisAddPercentPopup(self.tableWidget_sites)
-        add_pollen_percentage_popup.show()
-        if add_pollen_percentage_popup.exec_():
-            selected_sample = add_pollen_percentage_popup.comboBox_samplingPoint.currentText()
-            sample_file_path = add_pollen_percentage_popup.mQgsFileWidget_PollenPercent.filePath()
+        self.add_pollen_percentage_popup = MsaQgisAddPercentPopup(self.tableWidget_sites)
+        if isReload: # THIS IS TEMPORARY TODO
+            self.add_pollen_percentage_popup.label_title.setText('File path in save file was not valid, choose a new path to the file')
+        self.add_pollen_percentage_popup.show()
+        if self.add_pollen_percentage_popup.exec_():
+            selected_sample = self.add_pollen_percentage_popup.comboBox_samplingPoint.currentText()
+            sample_file_path = self.add_pollen_percentage_popup.mQgsFileWidget_PollenPercent.filePath()
             #make sure entry is not a duplicate
             for entry in range(self.tableWidget_pollenFile.rowCount()):
                 if self.tableWidget_pollenFile.itemAt(entry, 0).text() == selected_sample:
@@ -1588,6 +1694,20 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 self.dict_pollen_percent_files.pop(selected_sample)
                 #find and delete table entry
                 self.tableWidget_pollenFile.removeRow(row_index)
+
+    def addToChangeLog(self):
+        """ Adds the entry in the lineEdit for the changelog to the listWidget for the changeLog"""
+        time_changelog = time.strftime("[%Y-%m-%d] [%H:%M]", time.localtime())
+        changelog_entry = self.lineEdit_changeLog.text()
+        self.listWidget_changeLog.addItem(f'{time_changelog} -  {changelog_entry}')
+        self.lineEdit_changeLog.setText('')
+
+    def removeFromChangeLog(self):
+        """ Removes the last entry from the changelog listwidget."""
+        #Allowing only the removal of the last item is intentional, as it shouldn't be too easy to remove older entries
+        #to the changelog, however one should be able to fix typoes...
+        self.listWidget_changeLog.takeItem(self.listWidget_changeLog.count()-1)
+
 
 class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
     def __init__(self, rule_number, tableWidget_vegCom, tableWidget_selected, tableWidget_selRaster, parent = None):

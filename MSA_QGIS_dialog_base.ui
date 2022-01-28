@@ -9,8 +9,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>602</width>
-    <height>890</height>
+    <width>723</width>
+    <height>837</height>
    </rect>
   </property>
   <property name="contextMenuPolicy">
@@ -70,7 +70,7 @@
         <string notr="true">tab_rules {background-color: rgb(240, 240, 240)};</string>
        </property>
        <property name="currentIndex">
-        <number>3</number>
+        <number>6</number>
        </property>
        <widget class="QWidget" name="tab_envAndSpatial">
         <attribute name="title">
@@ -114,8 +114,8 @@
              <rect>
               <x>0</x>
               <y>0</y>
-              <width>588</width>
-              <height>630</height>
+              <width>688</width>
+              <height>618</height>
              </rect>
             </property>
             <layout class="QGridLayout" name="gridLayout">
@@ -402,8 +402,8 @@
              <rect>
               <x>0</x>
               <y>0</y>
-              <width>588</width>
-              <height>630</height>
+              <width>709</width>
+              <height>590</height>
              </rect>
             </property>
             <layout class="QGridLayout" name="gridLayout_2">
@@ -767,8 +767,8 @@
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>390</width>
-                <height>591</height>
+                <width>501</width>
+                <height>543</height>
                </rect>
               </property>
               <layout class="QHBoxLayout" name="horizontalLayout_18">
@@ -939,8 +939,8 @@
              <rect>
               <x>0</x>
               <y>0</y>
-              <width>588</width>
-              <height>630</height>
+              <width>709</width>
+              <height>590</height>
              </rect>
             </property>
             <layout class="QGridLayout" name="gridLayout_3" rowstretch="0,0,0,0,0">
@@ -1171,58 +1171,58 @@
            <item>
             <layout class="QVBoxLayout" name="verticalLayout_4">
              <item>
-              <widget class="QLineEdit" name="lineEdit_north">
-               <property name="text">
-                <string>1</string>
+              <widget class="QDoubleSpinBox" name="doubleSpin_north">
+               <property name="value">
+                <double>1.000000000000000</double>
                </property>
               </widget>
              </item>
              <item>
-              <widget class="QLineEdit" name="lineEdit_northEast">
-               <property name="text">
-                <string>1</string>
+              <widget class="QDoubleSpinBox" name="doubleSpin_northEast">
+               <property name="value">
+                <double>1.000000000000000</double>
                </property>
               </widget>
              </item>
              <item>
-              <widget class="QLineEdit" name="lineEdit_east">
-               <property name="text">
-                <string>10</string>
+              <widget class="QDoubleSpinBox" name="doubleSpin_east">
+               <property name="value">
+                <double>1.000000000000000</double>
                </property>
               </widget>
              </item>
              <item>
-              <widget class="QLineEdit" name="lineEdit_southEast">
-               <property name="text">
-                <string>100</string>
+              <widget class="QDoubleSpinBox" name="doubleSpin_southEast">
+               <property name="value">
+                <double>1.000000000000000</double>
                </property>
               </widget>
              </item>
              <item>
-              <widget class="QLineEdit" name="lineEdit_south">
-               <property name="text">
-                <string>10</string>
+              <widget class="QDoubleSpinBox" name="doubleSpin_south">
+               <property name="value">
+                <double>1.000000000000000</double>
                </property>
               </widget>
              </item>
              <item>
-              <widget class="QLineEdit" name="lineEdit_southWest">
-               <property name="text">
-                <string>100</string>
+              <widget class="QDoubleSpinBox" name="doubleSpin_southWest">
+               <property name="value">
+                <double>1.000000000000000</double>
                </property>
               </widget>
              </item>
              <item>
-              <widget class="QLineEdit" name="lineEdit_west">
-               <property name="text">
-                <string>10</string>
+              <widget class="QDoubleSpinBox" name="doubleSpin_west">
+               <property name="value">
+                <double>1.000000000000000</double>
                </property>
               </widget>
              </item>
              <item>
-              <widget class="QLineEdit" name="lineEdit_northWest">
-               <property name="text">
-                <string>1</string>
+              <widget class="QDoubleSpinBox" name="doubleSpin_northWest">
+               <property name="value">
+                <double>1.000000000000000</double>
                </property>
               </widget>
              </item>
@@ -1234,20 +1234,6 @@
           <widget class="QLabel" name="label_turbConst">
            <property name="text">
             <string>Turbulence constant</string>
-           </property>
-          </widget>
-         </item>
-         <item row="2" column="1" colspan="3">
-          <widget class="QLineEdit" name="lineEdit_diffConst">
-           <property name="text">
-            <string>0.12</string>
-           </property>
-          </widget>
-         </item>
-         <item row="1" column="1">
-          <widget class="QLineEdit" name="lineEdit_atmosConst">
-           <property name="text">
-            <string>0.25</string>
            </property>
           </widget>
          </item>
@@ -1307,13 +1293,6 @@
            </property>
            <property name="text">
             <string>Desired fit per site</string>
-           </property>
-          </widget>
-         </item>
-         <item row="3" column="1" colspan="3">
-          <widget class="QLineEdit" name="lineEdit_windSpeed">
-           <property name="text">
-            <string>20</string>
            </property>
           </widget>
          </item>
@@ -1523,15 +1502,127 @@
            </property>
           </widget>
          </item>
+         <item row="1" column="1">
+          <widget class="QDoubleSpinBox" name="doubleSpin_atmosConstant">
+           <property name="value">
+            <double>0.250000000000000</double>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1" colspan="2">
+          <widget class="QDoubleSpinBox" name="doubleSpin_diffConstant">
+           <property name="value">
+            <double>0.120000000000000</double>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="1" colspan="2">
+          <widget class="QDoubleSpinBox" name="doubleSpin_windSpeed">
+           <property name="value">
+            <double>20.000000000000000</double>
+           </property>
+          </widget>
+         </item>
         </layout>
        </widget>
        <widget class="QWidget" name="tab_metadata">
         <property name="enabled">
-         <bool>false</bool>
+         <bool>true</bool>
         </property>
         <attribute name="title">
          <string>Metadata</string>
         </attribute>
+        <layout class="QGridLayout" name="gridLayout_5">
+         <item row="0" column="0">
+          <widget class="QLabel" name="label_author">
+           <property name="text">
+            <string>Author(s)</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="QLineEdit" name="lineEdit_author"/>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="label_projectName">
+           <property name="text">
+            <string>Project name</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="QLineEdit" name="lineEdit_projectName"/>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="label_description">
+           <property name="text">
+            <string>Description</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="QPlainTextEdit" name="plainTextEdit_description"/>
+         </item>
+         <item row="3" column="0">
+          <widget class="QLabel" name="label_changeLog">
+           <property name="text">
+            <string>Project changelog</string>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="0">
+          <widget class="QLabel" name="label_newChangeLog">
+           <property name="text">
+            <string>New changelog</string>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="1">
+          <layout class="QHBoxLayout" name="horizontalLayout_12">
+           <item>
+            <widget class="QLineEdit" name="lineEdit_changeLog"/>
+           </item>
+           <item>
+            <widget class="QLabel" name="label_changeLogDate">
+             <property name="text">
+              <string/>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="pushButton_addChangeLog">
+             <property name="text">
+              <string>Add</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="pushButton_removeChangeLog">
+             <property name="text">
+              <string>Remove last entry</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item row="5" column="0">
+          <widget class="QLabel" name="label_notes">
+           <property name="text">
+            <string>Notes</string>
+           </property>
+          </widget>
+         </item>
+         <item row="5" column="1">
+          <widget class="QPlainTextEdit" name="plainTextEdit_notes"/>
+         </item>
+         <item row="3" column="1">
+          <widget class="QListWidget" name="listWidget_changeLog">
+           <property name="frameShape">
+            <enum>QFrame::NoFrame</enum>
+           </property>
+          </widget>
+         </item>
+        </layout>
        </widget>
       </widget>
      </item>
@@ -1550,8 +1641,8 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>577</width>
-        <height>226</height>
+        <width>694</width>
+        <height>244</height>
        </rect>
       </property>
       <layout class="QHBoxLayout" name="horizontalLayout_20" stretch="0">
@@ -1883,6 +1974,22 @@ background-color: rgb(199, 199, 199);</string>
     <hint type="destinationlabel">
      <x>20</x>
      <y>20</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>button_box</sender>
+   <signal>rejected()</signal>
+   <receiver>MsaQgisDialogBase</receiver>
+   <slot>reject()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>594</x>
+     <y>810</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>361</x>
+     <y>418</y>
     </hint>
    </hints>
   </connection>

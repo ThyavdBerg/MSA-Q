@@ -1180,14 +1180,14 @@ class MsaQgis:
         conn.commit()
         cursor.execute('BEGIN TRANSACTION')
         insert_into_string = 'INSERT INTO windrose("direction", "windrose_weight") ' \
-                             'VALUES ("N", '+self.dlg.lineEdit_north.text()+'),' \
-                             '("NE", ' + self.dlg.lineEdit_northEast.text() + '),'\
-                             '("E", ' + self.dlg.lineEdit_east.text() + '),'\
-                             '("SE", ' + self.dlg.lineEdit_southEast.text() + '),'\
-                             '("S", ' + self.dlg.lineEdit_south.text() + '),' \
-                             '("SW", ' + self.dlg.lineEdit_southWest.text() + '),'\
-                             '("W", ' + self.dlg.lineEdit_west.text() + '),'\
-                             '("NW", ' + self.dlg.lineEdit_northWest.text() + ');'
+                             'VALUES ("N", '+str(self.dlg.doubleSpin_north.value())+'),' \
+                             '("NE", ' + str(self.dlg.doubleSpin_northEast.value()) + '),'\
+                             '("E", ' + str(self.dlg.doubleSpin_east.value()) + '),'\
+                             '("SE", ' + str(self.dlg.doubleSpin_southEast.value()) + '),'\
+                             '("S", ' + str(self.dlg.doubleSpin_south.value()) + '),' \
+                             '("SW", ' + str(self.dlg.doubleSpin_southWest.value()) + '),'\
+                             '("W", ' + str(self.dlg.doubleSpin_west.value()) + '),'\
+                             '("NW", ' + str(self.dlg.doubleSpin_northWest.value()) + ');'
         cursor.execute(insert_into_string)
         cursor.execute('COMMIT')
 
@@ -1229,9 +1229,9 @@ class MsaQgis:
 
 
                 taxon = self.dlg.tableWidget_taxa.item(row, 0).text()
-                atmos_const= self.dlg.lineEdit_atmosConst.text()
-                diffusion_const = self.dlg.lineEdit_diffConst.text()
-                wind_speed = self.dlg.lineEdit_windSpeed.text()
+                atmos_const= self.dlg.doubleSpin_atmosConstant.value()
+                diffusion_const = self.dlg.doubleSpin_diffConstant.value()
+                wind_speed = self.dlg.doubleSpin_windSpeed.value()
                 #test function
                 fall_speed = 'SELECT "fall_speed" FROM "taxa" WHERE "taxon_code" = "'+taxon+'"'
                 cursor.execute(fall_speed)
