@@ -1,11 +1,11 @@
 # MSA-QGIS
 A plugin that allows the use of the Multiple Scenario Approach in QGIS.
 
-![visual_abstract](https://raw.githubusercontent.com/ThyavdBerg/MSA-QGIS/fdf76fc4f7c7b3e67c0e73bb8cfd56e50770dd14/Relevant%20Info/MSA%20figure.svg?token=ASNU5XQMJU6W6NO4D4745MDB6AYT4)
+[visual_abstract](Relevant Info/MSA_figure.svg)
 
 ## Read more about the MSA
 ### Papers
-[Bunting & Middleton, 2009](/Relevant Info/MSA_figure.svg)
+[Bunting & Middleton, 2009](Relevant Info/Bunting Middleton 2009 Equifinality and uncertainty in the interpretation of pollen data The MSA to reconstruction of past vegetation mosaics.pdf)
 
 ### Websites
 
