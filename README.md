@@ -5,7 +5,7 @@ A plugin that allows the use of the Multiple Scenario Approach in QGIS.
 
 ## Read more about the MSA
 ### Papers
-[Bunting & Middleton, 2009](https://journals.sagepub.com/doi/abs/10.1177/0959683609105304)
+[Bunting & Middleton, 2009](/Relevant Info/MSA_figure.svg)
 
 ### Websites
 
