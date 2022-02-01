@@ -3,7 +3,7 @@ A QGIS plugin that allows the use of the Multiple Scenario Approach in QGIS.
 
 It takes raster or vector polygon maps that have been loaded into QGIS, data on vegetation and pollen, a set of deterministic and probebalistic rules and a pollen dispersal model to iteratively generate hypothetical vegetation maps and test them against actual pollen counts to find possible vegetation reconstructions.
 
-![visual abstract](https://raw.githubusercontent.com/ThyavdBerg/MSA-QGIS/main/Relevant%20Info/MSA%20figure.svg?token=GHSAT0AAAAAABQ6YVRENFDUBEM7COVYRMFKYPXZK2Q)
+![Visual Abstract](https://i.imgur.com/DHYgHQ2.png)
 
 ## Read more about the MSA
 ### Papers
