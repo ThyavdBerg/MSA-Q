@@ -138,6 +138,16 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         #TODO disable model parameters when other than prentice sugita is selected, and enable load lookup if use lookup table is selected.
         #TODO update turbulence constant when atmospheric constant is changed
 
+### DIRECTLY DIALOG RELATED FUNCTIONS
+### SAVING AND LOADING RELATED FUNCTIONS
+### BUTTON FUNCTIONS SPATIAL INPUT TAB
+### BUTTON FUNCTIONS TAXA & VEGETATION TAB
+### BUTTON FUNCTIONS RULES TAB
+### BUTTON FUNCTIONS RULE TREE TAB
+### BUTTON FUNCTIONS POLLEN TAB
+### BUTTON FUNCTIONS METADATA TAB
+
+
     def closeAll(self):
         """Closes all associated windows when main dialog is closed"""
         try: self.veg_com_popup.close()
@@ -817,7 +827,8 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
 
     def changeRuleTreeSelection(self, ruleTreeWidget_id, ruleTreeWidget):
         """ (De-)Select a ruleTreeWidget. If a new ruleTreeWidget is selected, all previously selected ruleTreeWidgets
-        are deselected"""
+        are deselected. Selection is indicated by colouring the ruleTreeWidget red and setting the border to inset
+        instead of outset."""
         dict_for_remove_selection = self.dict_ruleTreeWidgets.copy()
         dict_for_remove_selection.pop(ruleTreeWidget_id)
 
@@ -853,7 +864,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                                 pass
                             else:
                                 iface.messageBar().pushMessage("Error", "branched rules cannot be base group",
-                                                               level=1)  # TODO replace with popup once I have the energy
+                                                               level=1)  # TODO replace with popup
                                 return #exit function
                         self.dict_ruleTreeWidgets[ruleTreeWidget].toggleBaseGroup()
                     else:
@@ -937,7 +948,9 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         pass
 
     def saveRuleTree(self,  file_name_rule_tree):
-        """ Pickles/serializes the dictionary containing all entries into the rule tree"""
+        """ Pickles/serializes the dictionary containing all entries into the rule tree.
+        Since QtWidgets cannot be pickled or saved, a dictionary is created that contains all the input required to
+        rebuild it. Every entry contains information on a single ruleTreeWidget. The key is the ruleTreeWidget's order_id. """
         picklable_dict_ruleTreeWidgets = {}
         for key in self.dict_ruleTreeWidgets:
             list_ruleTreeWidgets_variables = []
@@ -953,6 +966,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             pickle.dump(picklable_dict_ruleTreeWidgets, pkl_file)
 
     def loadRuleTree(self, file_name_rule_tree):
+        """ Imports the pickled dictionary of the rule tree. """
         with open (file_name_rule_tree, 'rb') as pkl_file:
             pickleable_dict_ruleTreeWidgets = pickle.load(pkl_file)
 
@@ -1370,11 +1384,17 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
 
 
     def saveImageRuleTree(self,  file_name_input):
-        """ Saves an image of the rule tree that can be used for reference outside of the programme"""
+        """ Saves an image of the rule tree that can be used for reference outside of the programme. """
         file_name = file_name_input
+        #TODO deselect any selected ruleTreeWidgets
         self.frame_ruleTree.grab().save(file_name)
 
     def loadInput(self, file_name_input):
+        """ Loads the data stored in the inputstate.csv file into the UI.
+        It reads the .csv line by line and checks what type data is contained in the inputstate file by reading the first
+        entry in a row (row[0]) and fills the appropriate widget accordingly.
+        This is a subfunction only to be called by loadFiles.
+        file_name_input contains a URI for a directory, in which a file called inputstate.csv is stored"""
         file_name = file_name_input
         with open(file_name, 'r', newline= '') as csv_file:
             reader = csv.reader(csv_file)
@@ -2191,6 +2211,19 @@ class MsaQgisAddVegComPopup (QtWidgets.QDialog, FORM_CLASS_VEGCOM):
         # Create list of items to pass to the main dialog
         self.vegcom_taxon_combo_list.append(self.comboBox)
         self.vegcom_taxon_double_list.append(self.doubleSpin)
+
+    def runAbortedPopup(self, message, e):
+        """ Opens a popup that shows why the run was aborted
+
+        :param message: message that explains why the run was aborted
+        :type message: str
+
+        :param e: exception raised in the code
+        :type e: Exception"""
+        self.messageBox = QMessageBox()
+        self.messageBox.setWindowTitle('Critical Error, run aborted.')
+        self.messageBox.setText(f'{message}\n {e} \n Check MSA_QGIS.log in your output folder for more information')
+        self.messageBox.setStandardButtons(QMessageBox.Ok)
 
 
 class MsaQgisSaveLoadDialog(QtWidgets.QDialog,FORM_CLASS_SAVELOAD):

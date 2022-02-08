@@ -65,6 +65,7 @@ class MsaQgis:
             application at run time.
         :type iface: QgsInterface
         """
+
         # Save reference to the QGIS interface
         self.iface = iface
         # initialize plugin directory
@@ -92,7 +93,12 @@ class MsaQgis:
         #Print log messages to file
         QgsApplication.messageLog().messageReceived.connect(self.writeLogMessage)
 
+
+
     # noinspection PyMethodMayBeStatic
+
+
+### PLUGIN BUILDER FUNCTIONS
     def tr(self, message):
         """Get the translation for a string using Qt translation API.
 
@@ -106,7 +112,6 @@ class MsaQgis:
         """
         # noinspection PyTypeChecker,PyArgumentList,PyCallByClass
         return QCoreApplication.translate('MsaQgis', message)
-
 
     def add_action(
         self,
@@ -202,54 +207,36 @@ class MsaQgis:
                 self.tr(u'&MSA QGIS'),
                 action)
             self.iface.removeToolBarIcon(action)
+### _SQLite FUNCTIONS
+### WRITE SQLite TABLES
+### CREATION OF BASEMAP
+    def createPointLayer(self):
+        """Returns a vector point layer based on the specifications given by the user in the UI
 
-    def writeLogMessage(self, message, tag, level): # currently triggers on all log messages, should only trigger at runtime
-        """ Writes all log messages received during runtime to a file"""
-        if tag == 'MSA_QGIS':
-            file_name = self.dlg.qgsFileWidget_vectorPoint.filePath() + '/MSA_QGIS_log.txt'
-            with open(file_name, 'a') as logfile:
-                logfile.write(f'{time.strftime("D[%Y-%m-%d] T[%H:%M:%S]", time.localtime())} {tag}({level}): {message}\n')
-        else:
-            pass
+        :class params: self.spacing, self.dlg, self.iface,
 
-    def createPointLayer(self, crs, spacing):
-        """Returns a vector point layer based on the specifications given by the user in the UI"""
-        # with help from https://howtoinqgis.wordpress.com/2016/10/30/how-to-generate-regularly-spaced-points-in-qgis-using-python/
+        :returns: A vector layer with equally spaced points in a square as determined by the user in the UI
+        :rtype: QgsVectorLayer"""
 
-        inset = spacing * 0.5  # set inset
 
         # Create new vector point layer
         vector_point_base = QgsVectorLayer('Point', 'Name', 'memory', crs=self.crs)
         data_provider = vector_point_base.dataProvider()
 
         # Set extent of the new layer
+        inset = self.spacing * 0.5  # set inset
         if self.dlg.extent is None:
-            self.iface.messageBar().pushMessage('Extent not chosen!', level=1)
+            self.iface.messageBar().pushMessage('Extent not chosen!', level=1) # TODO will be deprecated once checkboxes in place
             return
         else:
-            self.iface.messageBar().pushMessage('Extent set!', level=0)
             x_min = self.dlg.extent.xMinimum() + inset
             x_max = self.dlg.extent.xMaximum()
             y_min = self.dlg.extent.yMinimum()
             y_max = self.dlg.extent.yMaximum() - inset
-            # If I get the QgsExtentComboBox working, code below will be removed # TODO
-            # if self.dlg.comboBox_area_of_interest.currentText() == "Use active layer":
-            #     # Method 1 uses active layer
-            #      x_min = ext.xMinimum() + inset
-            #      x_max = ext.xMaximum()
-            #      y_min = ext.yMinimum()
-            #      y_max = ext.yMaximum() - inset
-            # else:
-            #     #Method 2 uses user input
-            #     x_min = self.dlg.spinBox_west.value() + inset
-            #     x_max = self.dlg.spinBox_east.value()
-            #     y_min = self.dlg.spinBox_south.value()
-            #     y_max = self.dlg.spinBox_north.value() - inset
 
-
-        ## Create fields
+        # Create fields
             QgsMessageLog.logMessage("Initiate point creation", 'MSA_QGIS', Qgis.Info)
-            ### Add fields with x and y geometry and the feature id
+            # Add fields with x and y geometry and the feature id
             data_provider.addAttributes([QgsField('geom_X', QVariant.Double, 'double', 20, 5),
                                          QgsField('geom_Y', QVariant.Double, 'double', 20, 5),
                                          QgsField('veg_com', QVariant.String),
@@ -277,10 +264,10 @@ class MsaQgis:
                     if self.dlg.radioButton_qgis_native.isChecked():
                         feat.setAttribute(4, feat.id())
                     del geom
-                    x += spacing
+                    x += self.spacing
                     data_provider.addFeature(feat)
                     del feat
-                y = y - spacing
+                y = y - self.spacing
                 vector_point_base.updateExtents()
                 vector_point_base.updateFields()
 
@@ -288,8 +275,15 @@ class MsaQgis:
         return vector_point_base
 
     def pointSampleNative(self, point_layer):
-        """ Uses native QGIS methods and processing algorithms to point sample user-selected raster and polygon layers
-         Slow, but does not require the user manually installs spatialite"""
+        """ Uses native QGIS processing algorithms (joinattributesbylocation and rastersampling) to point sample
+        user-selected raster and polygon layers. Method the user should use if they cannot/don't want to install
+        Spatialite
+
+         :class params: self.dlg, self.vector_point_filled_vec, self.vector_point_filled_ras
+         :class params note: latter two are class variables as they need to be remembered by QGIS to be able to use them, otherwise would be deleted upon exiting function.
+
+         :param point_layer: vector point layer with equally spaced vector points as made in createPointLayer.
+         :type point_layer: QgsVectorLayer"""
         #create destination layers for vector and raster layer
         QgsMessageLog.logMessage("Native points sampling initiated", 'MSA_QGIS', Qgis.Info)
         point_layer.selectAll()
@@ -447,8 +441,11 @@ class MsaQgis:
         #                                         'utf-8', driverName='CSV')
 
     def convertToSQL(self):
-        """ If the native algorithm was used, this method converts the outcome to SQLite so it can be used further"""
-        QgsMessageLog.logMessage("Convert native qgis points to SQL initiated", 'MSA_QGIS', Qgis.Info)
+        """ Converts QgsVectorLayer to SQLite database entry. Only used if pointSampleNative was also used.
+        Connects to Sqlite db "empty_basemap.sqlite" in user given directory.
+
+        :class params: self.dlg, self.vector_point_filled_ras"""
+        QgsMessageLog.logMessage("Convert native qgis points to SQLite initiated", 'MSA_QGIS', Qgis.Info)
         conn = sqlite3.connect(self.dlg.qgsFileWidget_vectorPoint.filePath()+'//empty_basemap.sqlite')
         cursor = conn.cursor()
         # generate create table string (add " so the query can deal with column names and values that contain spaces
@@ -513,15 +510,26 @@ class MsaQgis:
         conn.close()
         QgsMessageLog.logMessage("Convert native qgis points to SQL finished", 'MSA_QGIS', Qgis.Info)
 
-    def pointSampleSQL(self, vector_point_base, crs):
+    def pointSampleSQL(self, point_layer, conn, cursor):
         """ Uses Spatialite to point sample user-selected raster and polygon layers.
-        Requires the user to install spatialite manually through the OSGeo4W Shell"""
-        QgsMessageLog.logMessage("Points sampling using spatialite initiated", 'MSA_QGIS', Qgis.Info)
+        Requires the user to install spatialite manually through the OSGeo4W Shell before running.
+        Connects to "empty_basemap.sqlite" in user given directory.
 
+        :class params: self.dlg, self.crs
+        :class function: self.copySpatialiteToMem
+
+        :param point_layer: vector point layer with equally spaced vector points as made in createPointLayer.
+        :type point_layer: QgsVectorLayer
+        :param conn: Spatialite connection
+        :type conn: Spatialite connection
+        :param cursor: Spatialite cursor attached to the connection
+        :type cursor: Spatialite cursor"""
+
+        QgsMessageLog.logMessage("Points sampling using spatialite initiated", 'MSA_QGIS', Qgis.Info)
         dict_of_fields_vec = {}
         tableWidget_selVec = self.dlg.tableWidget_selected
         tableWidget_selRas = self.dlg.tableWidget_selRaster
-        #add selected vector layers to dictionary
+        # add selected vector layers to dictionary
         for index in range(tableWidget_selVec.rowCount()):
             layer = QgsProject.instance().mapLayersByName(tableWidget_selVec.item(index, 0).text())[0]
             data_provider = layer.dataProvider()
@@ -533,24 +541,22 @@ class MsaQgis:
             for field in data_provider.fields():
                 if field.name() == field_name:
                     dict_of_fields_vec[layer].append(field)
-
-        #point sample raster create dict and add new column. This is still in native QGIS as spatialite doesn't deal with rasters and this is much faster than converting to vector first
+        # Point sample raster create dict and add new column. (does not use spatialite)
         dict_of_bands_ras = {}
         for index in range(tableWidget_selRas.rowCount()):
             layer = QgsProject.instance().mapLayersByName(tableWidget_selRas.item(index, 0).text())[0]
             band_nr = tableWidget_selRas.item(index, 1).text()[5]
-            column_name = layer.name()[0:8]+band_nr
+            column_name = layer.name()[0:8] + band_nr
             if layer in dict_of_bands_ras:
                 dict_of_bands_ras[layer].append(int(band_nr))
             else:
                 dict_of_bands_ras[layer] = [int(band_nr)]
-            data_provider = vector_point_base.dataProvider()
+            data_provider = point_layer.dataProvider()
             data_provider.addAttributes([QgsField(column_name, QVariant.Double, 'double', 20, 5)])
-            vector_point_base.updateFields()
-            vector_point_base.commitChanges()
-
-            vector_point_base.startEditing()
-            for feature in vector_point_base.getFeatures():
+            point_layer.updateFields()
+            point_layer.commitChanges()
+            point_layer.startEditing()
+            for feature in point_layer.getFeatures():
                 feat_x = feature.geometry().asPoint().x()
                 feat_y = feature.geometry().asPoint().y()
                 point = QgsPointXY(feat_x, feat_y)
@@ -560,44 +566,34 @@ class MsaQgis:
                         if ident:
                             value = ident[band]
                             feature[column_name] = value
-                            vector_point_base.updateFeature(feature)
+                            point_layer.updateFeature(feature)
                         else:
                             pass
-            vector_point_base.commitChanges()
-
-
-        #turn vector_point_base (now with raster layers attached) into a spatialite db
-        import spatialite #this is imported here so that if the user only wants to use the native packages,
-        # they can without running into an error because they have not installed spatialite
+            point_layer.commitChanges()
+        # Turn vector_point_base (now with raster layers attached) into a spatialite db
         file_name_basemap = self.dlg.qgsFileWidget_vectorPoint.filePath() + '//empty_basemap.sqlite'
-        QgsVectorFileWriter.writeAsVectorFormat(vector_point_base, file_name_basemap, 'utf-8', crs, driverName='SQLite',
-                                                onlySelected=False, datasourceOptions=['SPATIALITE=YES'])
-
-        conn = spatialite.connect(":memory:")
-        cursor = conn.cursor()
+        QgsVectorFileWriter.writeAsVectorFormat(point_layer, file_name_basemap, 'utf-8', self.crs, driverName='SQLite',
+                                                onlySelected=False,
+                                                datasourceOptions=['SPATIALITE=YES'])  # TODO deprecated in QGIS
         self.copySpatialiteToMem(conn, cursor, file_name_basemap, 'empty_basemap')
-        #convert name primary key to msa_id
+        # Convert name primary key to msa_id
         cursor.execute('ALTER TABLE "empty_basemap" RENAME COLUMN "ogc_fid" TO "msa_id"')
         conn.commit()
-
-
-        #convert selected vector layers to spatialite layer
+        # Convert selected vector layers to spatialite layer
         for layer in dict_of_fields_vec:
             lyrn = layer.name()
-            #save layer as db
+            # Save layer as db
             file_name = f'{self.dlg.qgsFileWidget_vectorPoint.filePath()}//{lyrn}.sqlite'
-            QgsVectorFileWriter.writeAsVectorFormat(layer,file_name,'utf-8', crs, driverName='SQLite',
+            QgsVectorFileWriter.writeAsVectorFormat(layer, file_name, 'utf-8', self.crs, driverName='SQLite',
                                                     onlySelected=False, datasourceOptions=['SPATIALITE=YES'])
-            #attach the new db to the basemap db with ATTACH and copy it to the in-memory database
-            self.copySpatialiteToMem(conn, cursor, file_name, lyrn, layer)
-
-
+            # Attach the new db to the basemap db with ATTACH and copy it to the in-memory database
+            self.copySpatialiteToMem(conn, cursor, file_name, lyrn)
             cursor.execute('BEGIN TRANSACTION')
             for field in dict_of_fields_vec[layer]:
                 start_time = time.time()
                 field_name = field.name()
                 field_type = field.type()
-                #Add a new empty column to empty_basemap
+                # Add a new empty column to empty_basemap
                 alter_table_string = 'ALTER TABLE "empty_basemap" ADD COLUMN '
                 if field_type == QVariant.String or field_type == QVariant.Char:
                     length = str(field.length())
@@ -611,22 +607,20 @@ class MsaQgis:
                     pass
                 else:  # I doubt anyone will be using blobs or anything... and geometry is already stored in a double
                     QgsMessageLog.logMessage(f'{field_name} is wrong datatype for sql, look up Qvariant: {field_type}',
-                        'MSA_QGIS', Qgis.Warning)
-
+                                             'MSA_QGIS', Qgis.Warning)
                 alter_table_string = alter_table_string + column_string
                 cursor.execute(alter_table_string)
 
-                #TODO identify layers unsuitable for spatial index beforehand and choose simple method (if it is faster)
-                #This is bc layers that have polygons spanning the entire layer run slower with the spatial index instead of faster.
-                #Other option is to warn users in the manual and have them prepare their data by splitting polygon into smaller bits
-                #(although the splitting also takes a ridiculous amount of time, so if they're running the MSA only once it is moot.
+                # TODO identify layers unsuitable for spatial index beforehand and choose simple method (if it is faster)
+                # This is bc layers that have polygons spanning the entire layer run slower with the spatial index instead of faster.
+                # Other option is to warn users in the manual and have them prepare their data by splitting polygon into smaller bits
+                # (although the splitting also takes a ridiculous amount of time, so if they're running the MSA only once it is moot.
 
-                #simple version w/o spatial index:
+                # Simple version w/o spatial index:
                 update_string = f'UPDATE "empty_basemap" SET "{field_name}" = (SELECT "{field_name}" FROM "{lyrn}" ' \
-                                f'WHERE INTERSECTS("{lyrn}".GEOMETRY, "empty_basemap".GEOMETRY));'# TODO temporarily enabled until the one using the spatial index is fixed
+                                f'WHERE INTERSECTS("{lyrn}".GEOMETRY, "empty_basemap".GEOMETRY));'  # TODO temporarily enabled until the one using the spatial index is fixed
 
-                #new version that uses spatial index:# TODO still broken!!
-                #
+                # # New version that uses spatial index:# TODO still broken!!
                 # update_string = f'UPDATE empty_basemap SET "{field_name}" = ' \
                 #                 f'(SELECT lyr."{field_name}" FROM {lyrn} AS lyr ' \
                 #                 f'WHERE (lyr.ROWID IN (SELECT ROWID FROM SpatialIndex ' \
@@ -635,14 +629,13 @@ class MsaQgis:
 
                 cursor.execute(update_string)
 
-
                 end_time = time.time() - start_time
                 QgsMessageLog.logMessage(f'{field_name} took {str(end_time)} to compute.',
-                    'MSA_QGIS', Qgis.Info)
+                                         'MSA_QGIS', Qgis.Info)
             cursor.execute('COMMIT')
 
-        # write csv file to check if everything went okay
-        cursor.execute('select * from empty_basemap')
+        # # Write csv file to check if everything went okay
+        # cursor.execute('select * from empty_basemap')
         # with open (self.dlg.qgsFileWidget_vectorPoint.filePath()+ '//sql_basemap.csv', 'w', newline = '') as csv_file:
         #     csv_writer = csv.writer(csv_file)
         #     csv_writer.writerow([i[0] for i in cursor.description])
@@ -650,23 +643,30 @@ class MsaQgis:
         string_vacuum_into = f'VACUUM INTO "{self.dlg.qgsFileWidget_vectorPoint.filePath()}//pointsampled_basemap.sqlite";'
         cursor.execute(string_vacuum_into)
         conn.commit()
-
-        conn.close()
         QgsMessageLog.logMessage("Points sampling using spatialite finished", 'MSA_QGIS', Qgis.Info)
 
-    def copySpatialiteToMem(self, conn, cursor, file_name, table_name, layer=None):
-        """ copies all necessary tables from on disk spatialite database to given connected database"""
-        QgsMessageLog.logMessage("Copying spatialite db to memory initiated", 'MSA_QGIS', Qgis.Info)
+    def copySpatialiteToMem(self, conn, cursor, file_name, table_name):
+        """Copies all necessary tables from on disk spatialite database to given connected database.
 
-        # attach empty basemap database
+        :Class params: none
+
+        :param conn: Spatialite connection
+        :type conn: Spatialite connection
+        :param cursor: Spatialite cursor attached to the connection
+        :type cursor: Spatialiate cursor
+        :param file_name: URI containing link to spatialite database that was created on disk.
+        :type file_name: str
+        :param table_name: Name of spatialite table to be copied
+        :type table_name: str"""
+
+        QgsMessageLog.logMessage("Copying spatialite db to memory initiated", 'MSA_QGIS', Qgis.Info)
+        # Attach empty basemap database
         cursor.execute(f'ATTACH DATABASE "{file_name}" AS "copy"')
         conn.commit()
         cursor.execute(f'CREATE TABLE "{table_name}" AS SELECT * FROM copy."{table_name}"')
         conn.commit()
-
         if table_name == 'empty_basemap':
-            #base maps similar for every spatialite database- only have to be added for the first map/ empty basemap
-
+            # Base maps similar for every spatialite database- only have to be added for the first map/ empty basemap
             cursor.execute('CREATE TABLE "ElementaryGeometries" AS SELECT * FROM copy.ElementaryGeometries')
             cursor.execute('CREATE TABLE "geometry_columns" AS SELECT * FROM copy.geometry_columns')
             cursor.execute('CREATE TABLE "geometry_columns_auth" AS SELECT * FROM copy.geometry_columns_auth')
@@ -694,8 +694,7 @@ class MsaQgis:
             cursor.execute('INSERT INTO "geometry_columns_field_infos" SELECT * FROM copy.geometry_columns_field_infos;')
             cursor.execute('INSERT INTO "geometry_columns_statistics" SELECT * FROM copy.geometry_columns_statistics;')
             cursor.execute('COMMIT')
-
-        #maps that are specific per base map table
+        # Maps that are specific per base map table
         cursor.execute(
             f'CREATE TABLE "idx_{table_name}_GEOMETRY" AS SELECT * FROM copy."idx_{table_name}_GEOMETRY"')
         cursor.execute(
@@ -704,65 +703,109 @@ class MsaQgis:
             f'CREATE TABLE "idx_{table_name}_GEOMETRY_parent" AS SELECT * FROM copy."idx_{table_name}_GEOMETRY_parent"')
         cursor.execute(
             f'CREATE TABLE "idx_{table_name}_GEOMETRY_rowid" AS SELECT * FROM copy."idx_{table_name}_GEOMETRY_rowid"')
-
-        #detach the database
+        # Detach the database
         cursor.execute('DETACH DATABASE "copy"')
         conn.commit()
-
-        #create spatial index
+        # Create spatial index
         cursor.execute(f'SELECT CreateSpatialIndex("{table_name}", "GEOMETRY")')
         conn.commit()
         QgsMessageLog.logMessage("Copying spatialite db to memory finished", 'MSA_QGIS', Qgis.Info)
+        # Delete file once copied
+        os.remove(file_name)
+
+### SIMULATING VEGETATION MAPS
+### POLLEN MODELLING
+### MISC
+
+    def writeLogMessage(self, message, tag, level): # currently triggers on all log messages, should only trigger at runtime
+        """ Writes all log messages received during runtime to a file.
+
+        :class params: self.dlg
+        :param message: Message that was given to be printed in the log
+        :type message: str
+
+        :param tag: tag given to the log (e.g. Python, MSA_QGIS, SQLite)
+        :type tag: str
+
+        :param level: Level of priority of the message (info, warning, critical)
+        :type level: int"""
+        if tag == 'MSA_QGIS':
+            file_name = self.dlg.qgsFileWidget_vectorPoint.filePath() + '/MSA_QGIS_log.txt'
+            with open(file_name, 'a') as logfile:
+                logfile.write(f'{time.strftime("D[%Y-%m-%d] T[%H:%M:%S]", time.localtime())} {tag}({level}): {message}\n')
+        else:
+            pass
 
     def assignVegetationSQL(self, order_id, input_table, output_table, conn, cursor, iteration, table_length):
-        """ Edits items in the SQLite database version of the map based on the given rule."""
+        """Edits veg_com in the SQLite database version of the map based on the given rule.
+
+        :class params: self.dlg
+
+        :param order_id: ID of the entry in the rule tree. Links to a rule, and determines the
+        :type order_id: int
+
+        :param input_table: name of the SQLite table containing the map that the current rule applies to.
+        :type input_table: int
+
+        :param output_table: name of the SQlite table containing the map that is created with the current order_id
+        :type output_table: int
+
+        :param conn: SQLite connection to db in memory
+        :type conn: SQLite connection
+
+        :param cursor: SQLite cursor attached to connection
+        :type cursor: SQLite cursor
+
+        :param iteration: Number of the iteration being processed.
+        :type iteration: int
+
+        :param table_length: Number of points in the vector point layer = number of entries in the SQLite table.
+        :type table_length: int
+
+        :returns: Name of the SQLite table that has been updated according to the rule associated with the order_id
+        :rtype: str"""
+
         QgsMessageLog.logMessage(f"Assigning vegetation communities for {str(order_id)} initiated" , 'MSA_QGIS', Qgis.Info)
         start_time = time.time()
-        #determine whether the place where the rule is applied requires the creation of a new table
+        # Determine whether the place where the rule is applied requires the creation of a new table
         if input_table == output_table:
             sql_map_name = str(input_table)
         else:
             sql_map_name = f'{str(output_table)}run{str(iteration)}'
+            # Create new table by copying the input table, with the new table having the order_id of the ruleTreeWidget that is being computed as the name TODO
             create_table_string = f'CREATE TABLE "{sql_map_name}" AS SELECT * FROM "{input_table}";'
             cursor.execute(create_table_string)
-            #create new table by copying the input table, with the new table having the order_id of the ruleTreeWidget that is being computed as the name TODO
             pass
 
-        #from nested dict get rule
+        # From nested dict get rule
         if self.dlg.dict_ruleTreeWidgets[order_id].duplicate_ruleTreeWidgets:
             visible_duplicate = min(self.dlg.dict_ruleTreeWidgets[order_id].duplicate_ruleTreeWidgets)
             rule = self.dlg.dict_ruleTreeWidgets[visible_duplicate].comboBox_name.currentText()
         else:
             rule = self.dlg.dict_ruleTreeWidgets[order_id].comboBox_name.currentText()
 
-        #from nested dict get vegcom
+        # From nested dict get vegcom
         veg_com = self.dlg.nest_dict_rules[rule][2]
         rule_type = self.dlg.nest_dict_rules[rule][3]
         list_of_prev_vegcom = self.dlg.nest_dict_rules[rule][9]
         string_condition_prev_veg_com = ''
 
-
-        #randomize the chance column if necessary
+        # Randomize the chance column (if necessary)
         chance = self.dlg.nest_dict_rules[rule][4]
         if chance == 100:
             pass
         else:
             for msa_id in range(1,table_length+1):
-                #generate random number 0-100.00
                 random_number = round(random.uniform(0.01, 100.00),2)
-                #insert random number into chance_to_happen column
                 insert_random_string = f'UPDATE "{sql_map_name}" SET "chance_to_happen" = {str(random_number)}' \
                                        f' WHERE (msa_id = {str(msa_id)});'
                 cursor.execute(insert_random_string)
                 conn.commit()
-
-        #start_string = 'UPDATE "' + sql_map_name + '" SET "veg_com"= "' + veg_com + '" WHERE '#TODO remove non fstring
         start_string = f'UPDATE "{sql_map_name}" SET "veg_com" = "{veg_com}" WHERE '
-        #create the conditional update string
+        # Create the conditional update string
         if rule_type == '(Re)place':
-
-            # implement limitation previous veg_com
-            if self.dlg.nest_dict_rules[rule][8]: # if all veg coms was checked
+            # Implement limitation previous veg_com
+            if self.dlg.nest_dict_rules[rule][8]:  # Check if all veg coms was checked
                 string_condition_prev_veg_com = ''
             elif self.dlg.nest_dict_rules[rule][9][0]== 'Empty':
                 string_condition_prev_veg_com = '"veg_com" = "Empty" AND '
@@ -770,11 +813,10 @@ class MsaQgis:
                 for prev_veg_com in list_of_prev_vegcom:
                     string_condition_prev_veg_com = string_condition_prev_veg_com + f'"veg_com" = "{prev_veg_com}" AND '
         elif rule_type == 'Encroach':
-            #get n_of_points and calculate the distance within which the encroachable points must be. Should be very clear in the manual what is included per encroach!
+            # Get n_of_points and calculate the distance within which the encroachable points must be. Should be very clear in the manual what is included per encroach!
             n_of_points = self.dlg.nest_dict_rules[rule][5]
-            spacing = self.dlg.spinBox_resolution.value()
-            encroachable_distance = n_of_points * spacing
-            #Select the points that are next to the chosen veg com. Requires creating a temporary table that has all the entries from the veg_com to encroach,
+            encroachable_distance = n_of_points * self.spacing
+            # Select the points that are next to the chosen veg com. Requires creating a temporary table that has all the entries from the veg_com to encroach,
             #as otherwise the table will update while running and increase the number of points while running, which changes the entire map to the encroaching veg_com.
             string_create_temp_table = 'CREATE TEMPORARY TABLE temp AS SELECT * FROM "' + sql_map_name + '" WHERE veg_com = "' + veg_com + '"'
             cursor.execute(string_create_temp_table)
@@ -1576,7 +1618,7 @@ pseudo_id IS NOT NULL """
             best_cumul_fit_map_string = f'SELECT map_id FROM maps WHERE likelihood_cumul = (SELECT MIN(likelihood_cumul) FROM maps)'
             cursor.execute(best_cumul_fit_map_string)
             fit_map = cursor.fetchone()[0]
-            current_best_fit_string = f'SELECT likelihood_cumul FROM maps WHERE map_id = {fit_map}'
+            current_best_fit_string = f'SELECT likelihood_cumul FROM maps WHERE map_id = "{fit_map}"'
             cursor.execute(current_best_fit_string)
             current_best_fit = cursor.fetchone()[0]
             uri = f'file:///{self.dlg.qgsFileWidget_vectorPoint.filePath()}/{fit_map}.csv' + \
@@ -1722,24 +1764,31 @@ pseudo_id IS NOT NULL """
                                      Qgis.Info)
             startTime = time.time()
 
-    ### Create the base point layer with resolution and extent given by user
+### Create the base point layer with resolution and extent given by user
             self.crs = iface.activeLayer().crs()
-            spacing = self.dlg.spinBox_resolution.value()  # Takes input from user in "resolution" to set spacing
+            self.spacing = self.dlg.spinBox_resolution.value()  # Takes input from user in "resolution" to set spacing
 
-            vector_point_base = self.createPointLayer(self.crs, spacing)
+            vector_point_base = self.createPointLayer()
 
             #timer
             create_points_time = (time.time() - startTime)
             create_points_time_end = time.time()
             QgsMessageLog.logMessage('Vector point creation, Execution time in seconds: ' + str(create_points_time), 'MSA_QGIS',
                                      Qgis.Info)
-    #return #limit code for testing
-
-    ### Point sample natively and convert to sql, or create sql directly
+### Point sample natively and convert to sql, or create sql directly using spatialite
 
             if self.dlg.radioButton_qgis_native.isChecked():
-                self.pointSampleNative(vector_point_base)
-                self.convertToSQL()
+                try:
+                    self.pointSampleNative(vector_point_base)
+                    self.convertToSQL()
+                except Exception as e:
+                    QgsMessageLog.logMessage("Exception raised, native point sampling could not run, abort run",
+                                             'MSA_QGIS',
+                                             Qgis.Warning)
+                    QgsMessageLog.logMessage(str(e), 'SQLite error', Qgis.Critical)
+                    message = 'Point sampling failed'
+                    self.dlg.runAbortedPopup(message, e)
+                    return
                 # timer
                 point_sample_time = (time.time() - create_points_time_end)
                 point_sample_time_end = time.time()
@@ -1747,7 +1796,21 @@ pseudo_id IS NOT NULL """
                                          'MSA_QGIS',
                                          Qgis.Info)
             else:
-                self.pointSampleSQL(vector_point_base,self.crs)
+                try:
+                    import spatialite  # this is imported here so that if the user only wants to use the native packages,
+                                       # they can without running into an error because they have not installed spatialite
+                    conn = spatialite.connect(":memory:")
+                    cursor = conn.cursor()
+                    self.pointSampleSQL(vector_point_base, conn, cursor)
+                except Exception as e:
+                    QgsMessageLog.logMessage("Exception raised, point sample using spatialite could not run,  "/
+                                             "trying native point sample instead",
+                                             'SQLite error',
+                                             Qgis.Warning)
+                    QgsMessageLog.logMessage(str(e), 'SQLite error', Qgis.Warning)
+                    try:conn.close()  # if the error was within pointSampleSQL, the connection still needs to be closed.
+                    except: pass
+                    return
                 # timer
                 point_sample_time = (time.time() - create_points_time_end)
                 point_sample_time_end = time.time()
@@ -1755,11 +1818,7 @@ pseudo_id IS NOT NULL """
                                          'MSA_QGIS',
                                          Qgis.Info)
 
-
-    ### Processing the rules (this is in sql, but not necessarily in spatialite. Since the maps has both the csv version
-        # of the coordinates and the spatialite coordinates if spatialite was used, this difference should not matter.
-
-
+### Processing the rules
             list_base_group_ids = []
             list_final_rule_ids = []
             number_of_iters = self.dlg.spinBox_iter.value()
@@ -1795,10 +1854,10 @@ pseudo_id IS NOT NULL """
             QgsMessageLog.logMessage('number of points is: '+ str(number_of_entries),
                                      'MSA_QGIS',
                                      Qgis.Info)
-            self.createSiteTables(conn, cursor, spacing) # creates both table with site and tables with pollen counts
+            self.createSiteTables(conn, cursor, self.spacing) # creates both table with site and tables with pollen counts
             self.createTaxonTables(conn,cursor)
             self.createTableDistanceToSite(conn,cursor, number_of_entries)
-            self.createTablePseudoPoints(conn,cursor, spacing)
+            self.createTablePseudoPoints(conn,cursor, self.spacing)
             self.createTableOfMaps(conn,cursor)
             self.createTablePollenLookupBasin(conn, cursor)
             self.createTableWindrose(conn,cursor)
@@ -1914,7 +1973,6 @@ pseudo_id IS NOT NULL """
             conn.close()
 
             final_time = (time.time() - basemap_time_end)
-            final_time_end = time.time()
             QgsMessageLog.logMessage(
                 'all iterations completed, Execution time in seconds: ' + str(final_time),'MSA_QGIS', Qgis.Info)
 
