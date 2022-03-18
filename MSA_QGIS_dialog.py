@@ -21,28 +21,28 @@
  *                                                                         *
  ***************************************************************************/
 """
-import datetime
-import os
-import pickle
-import re
-import csv
-import time
-from os.path import exists
+# General imports
+import os  # to connect to the operating system
+import pickle # to create the dictionary save files
+import re # for various string operations
+import csv # for reading and writing .csv files
+import time # for reporting date and time in the interface
+from os.path import exists # for checking whether files exist before loading
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QTableWidgetItem, QWidget, QLineEdit, QLabel, QVBoxLayout, QComboBox, QGridLayout, \
-    QDoubleSpinBox, QFrame, QRadioButton, QHBoxLayout, QPushButton, QSpacerItem, QScrollArea, QCheckBox, QMessageBox, \
-    QSizePolicy, QFileDialog, QWidgetItem, QTableWidget
+# Imports from QGIS package
+from PyQt5.QtWidgets import QTableWidgetItem, QWidget, QLabel, QVBoxLayout, QComboBox,  \
+    QDoubleSpinBox, QFrame, QHBoxLayout, QPushButton, QMessageBox, QFileDialog, QTableWidget
 from qgis.PyQt import uic
 from qgis.PyQt import QtWidgets
 from qgis.utils import iface
 from qgis.core import *
 
-from.MSA_QGIS_custom_widget_frame_rule_tree import RuleTreeFrame
+# Local imports from plugin package
+from .MSA_QGIS_custom_widget_frame_rule_tree import RuleTreeFrame
 from .MSA_QGIS_custom_widget_rule_tree import RuleTreeWidget
 
 
-# This loads your .ui file so that PyQt can populate your plugin with the elements from Qt Designer
+# This loads .ui files so that PyQt can populate the plugin with the elements from Qt Designer
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'MSA_QGIS_dialog_base.ui'))
 FORM_CLASS_TAXA, _ = uic.loadUiType(os.path.join(
@@ -63,13 +63,15 @@ FORM_CLASS_PERCENT, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'MSA_QGIS_popup_add_pollen_percentages.ui'))
 FORM_CLASS_SUCCES, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'MSA_QGIS_succes_dialog.ui'))
+FORM_CLASS_RUN, _ = uic.loadUiType(os.path.join(
+    os.path.dirname(__file__), 'MSA_QGIS_run_dialog.ui'))
 
 ### Main dialog window
 
 
 class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
     def __init__(self, parent=None):
-        """Constructor."""
+        """Constructor for the main dialog that shows once the MSA-QGIS plugin is opened."""
         super(MsaQgisDialog, self).__init__(parent)
         # Set up the user interface from Designer through FORM_CLASS.
         # After self.setupUi() you can access any designer object by doing
@@ -78,10 +80,13 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         # #widgets-and-dialogs-with-auto-connect
         self.setupUi(self)
 
-        # class variables
+        # Class variables
         self.extent = None
+        self.check_state = -1
+        self.run_type = -1
+        self.save_directory = None
 
-        # class lists & dictionaries
+        # Class lists & dictionaries
         self.list_cb_rule_veg_com = []
         self.list_cb_env_var = []
         self.list_cb_rule_type = []
@@ -93,22 +98,23 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.dict_pollen_percent_files = {}
 
         # UI setup
+        self.tab_top.setCurrentIndex(0) # Ensures the main dialog opens with the first tab shown upon startup
+        self.changeAtmosConstantValue() # Calculates the first instance of the turbulence constant upon startup
         self.qgsFileWidget_importHandbag.setFilter('*.hum')
+        self.label_mapFile.hide()
+        self.mQgsFileWidget_startingPoint.hide()
 
+        # Add the custom ruleTreeFrame to the UI
         self.frame_ruleTree = RuleTreeFrame()
         self.scrollArea_ruleTree.setWidget(self.frame_ruleTree)
         self.ruleTreeLayout = QVBoxLayout()
         self.ruleTreeLayout.setSpacing(40)
         self.frame_ruleTree.setLayout(self.ruleTreeLayout)
 
-
-
-
-        # events
+        # Events
         self.rejected.connect(self.closeAll)
+        self.doubleSpin_atmosConstant.valueChanged.connect(self.changeAtmosConstantValue)
         self.mExtentGroupBox.setMapCanvas(iface.mapCanvas())
-        #self.mExtentGroupBox.setOutputExtentFromDrawOnCanvas() #for some reason causes really weird behaviour.
-        # Q asked on GIS stackexchange
         self.mExtentGroupBox.extentChanged.connect(self.setExtent)
         self.getFieldsandBands(self.tableWidget_vector, self.tableWidget_raster)
         self.tableWidget_vector.itemSelectionChanged.connect(lambda: self.updateSelectedRows(self.tableWidget_selected,
@@ -135,21 +141,84 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.pushButton_removePollenFile.clicked.connect(self.removePollenCountsFilePath)
         self.pushButton_addChangeLog.clicked.connect(self.addToChangeLog)
         self.pushButton_removeChangeLog.clicked.connect(self.removeFromChangeLog)
+        self.radioButton_createMap.clicked.connect(self.changeStartingPoint)
+        self.radioButton_loadPointMap.clicked.connect(self.changeStartingPoint)
+        self.radioButton_loadBaseMap.clicked.connect(self.changeStartingPoint)
+        self.checkBox_enableWindrose.stateChanged.connect(self.enableWindrose)
         #TODO disable model parameters when other than prentice sugita is selected, and enable load lookup if use lookup table is selected.
-        #TODO update turbulence constant when atmospheric constant is changed
+        self.button_box.accepted.connect(self.openRunDialog)
+
+        # Events for Checklist
+        self.mQgsFileWidget_startingPoint.fileChanged.connect(self.checkChecklist)
+        self.mExtentGroupBox.extentChanged.connect(self.checkChecklist)
+        self.spinBox_resolution.valueChanged.connect(self.checkChecklist)
+        self.tableWidget_vector.clicked.connect(self.checkChecklist)
+        self.tableWidget_raster.clicked.connect(self.checkChecklist)
+        self.tableWidget_taxa.clicked.connect(self.checkChecklist)
+        self.tableWidget_vegCom.clicked.connect(self.checkChecklist)
+        self.pushButton_addSite.clicked.connect(self.checkChecklist)
+        self.pushButton_removeSite.clicked.connect(self.checkChecklist)
+        self.pushButton_importPollen.clicked.connect(self.checkChecklist)
+        self.pushButton_removePollenFile.clicked.connect(self.checkChecklist)
+        self.doubleSpin_atmosConstant.valueChanged.connect(self.checkChecklist)
+        self.doubleSpin_diffConstant.valueChanged.connect(self.checkChecklist)
+        self.doubleSpin_windSpeed.valueChanged.connect(self.checkChecklist)
+        self.checkBox_enableWindrose.clicked.connect(self.checkChecklist)
+        self.pushButton_addRule.clicked.connect(self.checkChecklist)
+        self.pushButton_removeRule.clicked.connect(self.checkChecklist)
+        self.pushButton_ruleBelow.clicked.connect(self.checkChecklist)
+        self.pushButton_deleteBranch.clicked.connect(self.checkChecklist)
+        self.spinBox_iter.valueChanged.connect(self.checkChecklist)
+        self.lineEdit_author.textChanged.connect(self.checkChecklist)
+        self.lineEdit_projectName.textChanged.connect(self.checkChecklist)
+        self.plainTextEdit_description.textChanged.connect(self.checkChecklist)
+        self.plainTextEdit_notes.textChanged.connect(self.checkChecklist)
 
 ### DIRECTLY DIALOG RELATED FUNCTIONS
-### SAVING AND LOADING RELATED FUNCTIONS
-### BUTTON FUNCTIONS SPATIAL INPUT TAB
-### BUTTON FUNCTIONS TAXA & VEGETATION TAB
-### BUTTON FUNCTIONS RULES TAB
-### BUTTON FUNCTIONS RULE TREE TAB
-### BUTTON FUNCTIONS POLLEN TAB
-### BUTTON FUNCTIONS METADATA TAB
+    def openRunDialog(self):
+        """Opens a dialog that asks the user how they would like to run the plugin, with 3 options:
+        1: Run only to create the point layer with environmental variables
+        2: Run only to create the basemap
+        3: Run full MSA model.
 
+        :params from UI: none
+
+        :class params: self.check_state, self.runDialog, self.accept"""
+        if self.check_state == -1:
+            iface.messageBar().pushMessage('Input incomplete', level=1)
+            return
+        input_state = 0
+        if self.radioButton_loadPointMap.isChecked():
+            input_state = 1
+            if self.check_state == 1:  #cannot make a point map if the input is a loaded point map, not enough input for basemap or MSA
+                iface.messageBar().pushMessage('Input incomplete', level=1)
+                return
+        elif self.radioButton_loadBaseMap.isChecked():
+            input_state = 2
+            if self.check_state == 0 or self.check_state == 1:  # cannot make point or basemap if input is a basemap, not enough input for msa
+                iface.messageBar().pushMessage('Input incomplete', level=1)
+                return
+
+        self.runDialog = MsaQgisRunDialog(self.check_state, input_state)
+        self.runDialog.show()
+
+        # run MsaQgisDialog as well once the run dialog is accepted
+        self.runDialog.accepted.connect(lambda: self.copyRunTypeAndSaveDir(self.runDialog)) # copy run_type from runDialog
+        self.runDialog.accepted.connect(self.accept)
+
+    def copyRunTypeAndSaveDir(self, runDialog):
+        """Exists for the purpose of copying the runtype from the runDialog to the main Dialog
+
+        :param runDialog: instance of a MsaQgisRunDialog
+        :type runDialog: MsaQgisRunDialog"""
+        self.run_type = runDialog.run_type
+        self.save_directory = runDialog.mQgsFileWidget.filePath()
 
     def closeAll(self):
-        """Closes all associated windows when main dialog is closed"""
+        """Closes all associated windows when main dialog is closed, if they are still open.
+
+        :params from UI files: None
+        :class params: self.veg_com_popup, self.taxonPopup, self.popup_rule_list, self. popup_save_file, self. popup_load_file"""
         try: self.veg_com_popup.close()
         except: pass
         try:self.taxonPopup.close()
@@ -164,15 +233,237 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         except: pass
         pass
 
-    def setExtent(self):
-        """Attaches the extent given by the user to a variable, and updates the 'current extent'
-        so that the input can be used in further analysis"""
-        self.extent = self.mExtentGroupBox.outputExtent()
-        self.mExtentGroupBox.setCurrentExtent(self.extent, self.mExtentGroupBox.outputCrs())
+    def changeStartingPoint(self):
+        """Sets up the spatial and environmental input tab to show/hide which parts are necessary
+
+        :params from UI files:
+
+        """
+        if self.radioButton_createMap.isChecked():
+            #show labels
+            self.label_areaOfInterest.show()
+            self.label_resolution.show()
+            self.label_fieldsAndBands.show()
+            self.label_currentSel.show()
+            self.label_vector.show()
+            self.label_raster.show()
+            #hide labels
+            self.label_mapFile.hide()
+            #show items
+            self.mExtentGroupBox.show()
+            self.spinBox_resolution.show()
+            self.tableWidget_vector.show()
+            self.tableWidget_raster.show()
+            self.tableWidget_selected.show()
+            self.tableWidget_selRaster.show()
+            #hide widgets
+            self.mQgsFileWidget_startingPoint.hide()
+        elif self.radioButton_loadPointMap.isChecked():
+            #show labels
+
+            self.label_mapFile.show()
+            #hide labels
+            self.label_fieldsAndBands.hide()
+            self.label_currentSel.hide()
+            self.label_areaOfInterest.hide()
+            self.label_resolution.hide()
+            self.label_vector.hide()
+            self.label_raster.hide()
+            #show widgets
+
+            self.mQgsFileWidget_startingPoint.show()
+            #hide widgets
+            self.tableWidget_vector.hide()
+            self.tableWidget_raster.hide()
+            self.tableWidget_selected.hide()
+            self.tableWidget_selRaster.hide()
+            self.mExtentGroupBox.hide()
+            self.spinBox_resolution.hide()
+            pass
+        elif self.radioButton_loadBaseMap.isChecked():
+            #show labels
+            self.label_mapFile.show()
+            #hide labels
+            self.label_areaOfInterest.hide()
+            self.label_resolution.hide()
+            self.label_fieldsAndBands.hide()
+            self.label_currentSel.hide()
+            self.label_vector.hide()
+            self.label_raster.hide()
+            #show widgets
+            self.mQgsFileWidget_startingPoint.show()
+            #hide widgets
+            self.mExtentGroupBox.hide()
+            self.spinBox_resolution.hide()
+            self.tableWidget_vector.hide()
+            self.tableWidget_raster.hide()
+            self.tableWidget_selected.hide()
+            self.tableWidget_selRaster.hide()
+
+    def checkChecklist(self):
+        """ Determines whether widgets have been filled by the user and checks the appropriate boxes if it has. Also
+        changes the text of the status label based on which boxes are checked, to say which actions the user is able
+        to undertake if they choose to run the programme. The checkboxes are checked at the absolute minimum of what is
+        required to run (e.g. only one rule) and so are not an indication of whether the input is correct or sensible.
+
+        :params from UI files:
+        """
+        # Extent set?
+        if self.mExtentGroupBox.currentExtent() != QgsRectangle(0.0, 0.0):
+            self.checkBox_extent.setChecked(True)
+        elif self.radioButton_createMap.isChecked() == False and self.mQgsFileWidget_startingPoint.filePath != '':
+            self.checkBox_extent.setChecked(True)
+        else:
+            self.checkBox_extent.setChecked(False)
+        # Resolution set?
+        if self.spinBox_resolution.value() != 0:
+            self.checkBox_resolution.setChecked(True)
+        elif self.radioButton_createMap.isChecked() == False and self.mQgsFileWidget_startingPoint.filePath != '':
+            self.checkBox_resolution.setChecked(True)
+        else:
+            self.checkBox_resolution.setChecked(False)
+        # Environmental variables selected?
+        if self.tableWidget_selected.rowCount() != 0:
+            self.checkBox_envLayers.setChecked(True)
+        elif self.tableWidget_selRaster.rowCount() != 0:
+            self.checkBox_envLayers.setChecked(True)
+        else:
+            self.checkBox_envLayers.setChecked(False)
+        # Taxa set?
+        if self.tableWidget_taxa.rowCount() != 0:
+            self.checkBox_taxa.setChecked(True)
+        else:
+            self.checkBox_taxa.setChecked(False)
+        # Vegetation communities set?
+        if self.tableWidget_vegCom.rowCount() != 0:
+            self.checkBox_vegCom.setChecked(True)
+        else:
+            self.checkBox_vegCom.setChecked(False)
+        # Pollen counts set?
+        if self.tableWidget_sites.rowCount() != 0:
+            for row in range(self.tableWidget_sites.rowCount()):
+                site_name = self.tableWidget_sites.item(row,0).text()
+                check_state = False
+                for row2 in range(self.tableWidget_pollenFile.rowCount()):
+                    if self.tableWidget_pollenFile.item(row2, 0).text() == site_name:
+                        check_state = True
+                if check_state == False:
+                    self.checkBox_pollenCounts.setChecked(False)
+                    break
+                else:
+                    self.checkBox_pollenCounts.setChecked(True)
+
+        else:
+            self.checkBox_pollenCounts.setChecked(False)
+        # Model Parameters set?
+        if self.comboBox_dispModel.currentText() == 'Prentice-Sugita':
+            if self.doubleSpin_atmosConstant.value() != 0 and self.doubleSpin_diffConstant.value() != 0 and self.doubleSpin_windSpeed.value() !=0:
+                self.checkBox_parameters.setChecked(True)
+            else:
+                self.checkBox_parameters.setChecked(False)
+        elif self.comboBox_dispModel.currentText() == 'different model': # TODO Fill here when adding new model
+            #...
+            pass
+        else:
+            self.checkBox_parameters.setChecked(False)
+        # Windrose set?
+        if self.checkBox_enableWindrose.isChecked:
+            self.checkBox_windRose.setChecked(True)
+        else:
+            self.checkBox_windRose.setChecked(False)
+        # Rules set?
+        if self.listWidget_rules.count() != 0:
+            self.checkBox_rules.setChecked(True)
+        else:
+            self.checkBox_rules.setChecked(False)
+        # Rule Tree set?
+        if self.dict_ruleTreeWidgets != {}:
+            self.checkBox_ruleTree.setChecked(True)
+        else:
+            self.checkBox_ruleTree.setChecked(False)
+        # Iterations set?
+        if self.spinBox_iter.value() != 0:
+            self.checkBox_iterations.setChecked(True)
+        else:
+            self.checkBox_iterations.setChecked(False)
+
+        # Check which boxes have been checked or not to set the check state
+        if (self.checkBox_extent.isChecked() and self.checkBox_resolution.isChecked()
+                and self. checkBox_envLayers.isChecked()):
+            self.check_state = 0
+            if (self.checkBox_taxa.isChecked() and self.checkBox_vegCom.isChecked() and self.checkBox_rules.isChecked()
+                    and self.checkBox_ruleTree.isChecked()):
+                if self.dict_ruleTreeWidgets[1].isBaseGroup:  # Check if at least one base group rule
+                    self.check_state = 1
+                #  note that existence of a base group is not a requirement for a full run
+                if (self.checkBox_pollenCounts.isChecked() and self.checkBox_parameters.isChecked()
+                        and self.checkBox_iterations.isChecked()):
+                    self.check_state = 2
+        else:
+            self.check_state = -1
+
+    def enableWindrose(self):
+        """Hides or shows the windrose input labels and spinboxes
+
+        :params from UI files:self.label_north, self.label_northEast, self.label_east, self.label_southEast,
+        self.label_south, self.label_southWest, self.label_west, self.label_northWest, self.doubleSpin_north,
+        self.doubleSpin_northEast, self.doubleSpin_east, self.doubleSpin_southEast, self.doubleSpin_south,
+        elf.doubleSpin_southWest, self.doubleSpin_west, self.doubleSpin_northWest, self.checkBox_enableWindrose"""
+
+        if self.checkBox_enableWindrose.isChecked():
+            self.label_north.show()
+            self.label_northEast.show()
+            self.label_east.show()
+            self.label_southEast.show()
+            self.label_south.show()
+            self.label_southWest.show()
+            self.label_west.show()
+            self.label_northWest.show()
+            self.doubleSpin_north.show()
+            self.doubleSpin_northEast.show()
+            self.doubleSpin_east.show()
+            self.doubleSpin_southEast.show()
+            self.doubleSpin_south.show()
+            self.doubleSpin_southWest.show()
+            self.doubleSpin_west.show()
+            self.doubleSpin_northWest.show()
+        elif self.checkBox_enableWindrose.isChecked() == False:
+            self.label_north.hide()
+            self.label_northEast.hide()
+            self.label_east.hide()
+            self.label_southEast.hide()
+            self.label_south.hide()
+            self.label_southWest.hide()
+            self.label_west.hide()
+            self.label_northWest.hide()
+            self.doubleSpin_north.hide()
+            self.doubleSpin_northEast.hide()
+            self.doubleSpin_east.hide()
+            self.doubleSpin_southEast.hide()
+            self.doubleSpin_south.hide()
+            self.doubleSpin_southWest.hide()
+            self.doubleSpin_west.hide()
+            self.doubleSpin_northWest.hide()
+        else:
+            pass
+
+    def changeAtmosConstantValue(self):
+        """ Changes the atmospheric constant value based on the value the user has given for the turbulence constant
+
+        :params from UI files: self.label_calculatedTurbConst, self.doubleSpin_atmosConstant """
+
+        self.label_calculatedTurbConst.setText(str(self.doubleSpin_atmosConstant.value()*0.5))
 
     def getFieldsandBands(self, tableWidget_vector, tableWidget_raster):
-        """Fills a table widget with all fields from vector polygon layers and all bands from raster layers currently
-        loaded into the QGIS interface"""
+        """Fills two table widgets with all fields from vector polygon layers and all bands from raster layers that are
+        currently loaded into the QGIS interface.
+
+        :param tableWidget_raster: Table that will contain the raster layers
+        :type tableWidget_raster: QTableWidget
+
+        :param tableWidget_vector: Table that will containg the vector layers
+        :type tableWidget_vector: QTableWidget"""
+        # Make sure the tables are clear first
         tableWidget_vector.clear()
         row_count = 0
         column_count = 0
@@ -183,37 +474,39 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         ras_column_count = 0
         tableWidget_raster.setRowCount(ras_row_count + 1)
 
+        # Fill tables
         for lyr_nr in range(iface.mapCanvas().layerCount()):
             layer = iface.mapCanvas().layer(lyr_nr)
             if (layer.type() == layer.VectorLayer) and (layer.geometryType() == QgsWkbTypes.PolygonGeometry):
                 data_provider = layer.dataProvider()
                 for field in data_provider.fields():
                     tableWidget_vector.setItem(row_count, column_count, QTableWidgetItem(layer.name()))
-                    column_count +=1
-                    tableWidget_vector.setItem(row_count, column_count, QTableWidgetItem(field.name()))
+                    tableWidget_vector.setItem(row_count, column_count+1, QTableWidgetItem(field.name()))
                     row_count += 1
                     tableWidget_vector.setRowCount(row_count + 1)
-                    column_count -= 1
             elif layer.type() == layer.RasterLayer:
                 for band in range(layer.bandCount()):
                     tableWidget_raster.setItem(ras_row_count, ras_column_count, QTableWidgetItem(layer.name()))
-                    ras_column_count += 1
-                    tableWidget_raster.setItem(ras_row_count, ras_column_count, QTableWidgetItem(layer.bandName(band + 1)))
+                    tableWidget_raster.setItem(ras_row_count, ras_column_count+1, QTableWidgetItem(layer.bandName(band + 1)))
                     ras_row_count += 1
                     tableWidget_raster.setRowCount(ras_row_count + 1)
-                    ras_column_count -= 1
             else:
                 continue
-
             tableWidget_vector.setHorizontalHeaderLabels(['Layers', 'Fields'])
             tableWidget_raster.setHorizontalHeaderLabels(['Layers', 'Bands'])
+        #remove the extra generated row when everything is done.
         tableWidget_vector.setRowCount(row_count)
         tableWidget_raster.setRowCount(ras_row_count)
 
     def updateSelectedRows(self, tableWidget_selection, tableWidget_list):
-        """ Updates a table widget with the rows selected in another table widget"""
-        # selectionTable = self.tableWidget_selected
-        # listTable = self.tableWidget_vector
+        """ Updates a table widget with the information from rows selected in another table widget
+
+        :param tableWidget_selection: Table the selected information will be copied to
+        :type tableWidget_selection: QTableWidget
+
+        :param tableWidget_list: Table in which the selection is made that will be copied
+        :type tableWidget_list: QTableWidget
+        """
         tableWidget_selection.setRowCount(len(tableWidget_list.selectionModel().selectedRows()))
         row_count_sel = 0
 
@@ -228,10 +521,94 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             else:
                 continue
             row_count_sel += 1
+### SAVING AND LOADING RELATED FUNCTIONS
+    def loadHandbagFile(self):
+        """
+        Loads a HUMPOL handbag (.hum) file into the software. This fills in the data (if specified in the file) for:
+        Taxa
+        Communities
+        Sample points
+        Windroses
+        Metadata
+        Notes
+        Compatible with the HUMPOL suite (Bunting & Middleton 2005) and LandPolFlow (Bunting & Middleton 2009)
 
+        :params from UI files: self.qgsFileWidget_importHandbag,  self.tableWidget_vegCom, self.tableWidget_taxa,
+        self.tableWidget_vegCom, ETC
+
+        """
+        #TODO windrose data, metadata, notes
+        file_name = self.qgsFileWidget_importHandbag.filePath()
+        if not os.path.isfile(file_name):
+            iface.messageBar().pushMessage('File does not exist, please try again', level=1)
+        else:
+            with open(file_name) as file:
+                for line in file:
+                    if line[0] == '1':  # Taxa
+                        if int(line[:4]) >= 1100:
+                            line = line[5:]
+                            line_list = list(re.split('\t|\n', line))
+                            row_count = self.tableWidget_taxa.rowCount()
+                            self.tableWidget_taxa.setRowCount(row_count + 1)
+                            self.tableWidget_taxa.setItem(row_count, 0, QTableWidgetItem(line_list[0]))
+                            self.tableWidget_taxa.setItem(row_count, 1, QTableWidgetItem(line_list[1]))
+                            self.tableWidget_taxa.setItem(row_count, 2, QTableWidgetItem(str(line_list[2])))
+                            self.tableWidget_taxa.setItem(row_count, 3, QTableWidgetItem(str(line_list[3])))
+                    elif line[0] == '2':  # Communities
+                        # Skip community names (TODO but what to do if a handbag file has multiple community files?)
+                        if 2200 <= int(line[:4]) < 2300:
+                            line = line[7:]
+                            line = line.replace('\n','')
+                            self.tableWidget_vegCom.setRowCount(self.tableWidget_vegCom.rowCount() +1)
+                            self.tableWidget_vegCom.setItem(self.tableWidget_vegCom.rowCount() - 1, 0, QTableWidgetItem(
+                                line))
+                        elif int(line[:4]) >= 2300:
+                            line = line[5:]
+                            line_list = list(re.split('\t|\n', line))
+                            # Only create a new column if the header does not yet exist note: this is a duplicate from addNewVegCom
+                            header_list = [self.tableWidget_vegCom.horizontalHeaderItem(column).text() for column in
+                                           range(1, self.tableWidget_vegCom.columnCount())]
+                            if line_list[0] in header_list:
+                                # Get column number of named column
+                                for column in range(self.tableWidget_vegCom.columnCount()):
+                                    header_text = self.tableWidget_vegCom.horizontalHeaderItem(column).text()
+                                    if header_text == line_list[0]:
+                                        self.tableWidget_vegCom.setItem(self.tableWidget_vegCom.rowCount() - 1, column,
+                                                                   QTableWidgetItem(line_list[1]))
+                                # Add value at right location to that column
+                                pass
+                            elif line_list[0] not in header_list:
+                                self.tableWidget_vegCom.setColumnCount(self.tableWidget_vegCom.columnCount()+1)
+                                # Set header of new column
+                                self.tableWidget_vegCom.setHorizontalHeaderItem(self.tableWidget_vegCom.columnCount() - 1,
+                                                                           QTableWidgetItem(line_list[0]))
+                                # Add value to new column
+                                self.tableWidget_vegCom.setItem(self.tableWidget_vegCom.rowCount() - 1, self.tableWidget_vegCom.columnCount() - 1,
+                                                           QTableWidgetItem(
+                                                               str(line_list[1])))
+                            else:
+                                iface.messageBar().pushMessage('Error in creating vegetation community columns', level=1)
+                    elif line[0] == '3':  # Sample points
+                        pass
+                        #TODO
+                file.close()
+### BUTTON FUNCTIONS SPATIAL INPUT TAB
+    def setExtent(self):
+        """Attaches the extent given by the user to a variable, and updates the 'current extent'
+        so that the input can be used in further analysis
+
+        :params from UI files: self.mExtentGroupBox"""
+        self.extent = self.mExtentGroupBox.outputExtent()
+        self.mExtentGroupBox.setCurrentExtent(self.extent, self.mExtentGroupBox.outputCrs())
+
+
+### BUTTON FUNCTIONS TAXA & VEGETATION TAB
     def addNewTaxon(self):
-        """ Adds a new pollen taxon to the list of taxa by opening a pop-up in which the taxon short and full name,
-        fall speed and relative pollen productivity can be given"""
+        """ Adds a new pollen taxon to the list of taxa by opening a pop-up in which the taxon code, full name,
+        fall speed and relative pollen productivity can be given. The popup closes when executed or cancelled.
+
+        :class param: self.taxonPopup
+        :params from UI files: self. tableWidget_taxa"""
         self.taxonPopup = MsaQgisAddTaxonPopup()
         self.taxonPopup.show()
         result = self.taxonPopup.exec_()
@@ -251,74 +628,94 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 self.tableWidget_taxa.setItem(row_count, 2, QTableWidgetItem(str(taxon_fall_speed)))
                 self.tableWidget_taxa.setItem(row_count, 3, QTableWidgetItem(str(taxon_rpp)))
             else:
-                iface.messageBar().pushMessage('Missing value in add new taxon, '
-                                                    'please try again', level=1)
+                iface.messageBar().pushMessage('Missing or zero value in add new taxon, '
+                                                    'please try again', level=2)
+        elif self.taxonPopup.rejected:
+            iface.messageBar().pushMessage('Adding taxon cancelled by user', level=0)
 
     def addNewVegCom(self):
-        """ Adds a new vegetation community to the list of communities by opening a pop-up in which a list of species
-         and their percentages, as well as a new community name can be given"""
-        #pass list of taxa to the popup and open it
-        tableWidget_taxa = self.tableWidget_taxa
-        item_list = [tableWidget_taxa.item(row,0).text() for row in range(tableWidget_taxa.rowCount())]
-        self.veg_com_popup = MsaQgisAddVegComPopup(item_list)
-        tableWidget_vegCom = self.tableWidget_vegCom
+        """ Adds a new vegetation community to the table of communities by opening a pop-up in which a list of species
+         and their percentages, as well as a new community name can be given.
 
-        #add entries to table
+         :class params: self.veg_com_popup
+         :params from UI files: self.tableWidget_taxa, self.tableWidget_vegCom
+         """
+
+        tableWidget_taxa = self.tableWidget_taxa
+        tableWidget_vegCom = self.tableWidget_vegCom
+        # Pass list of taxa as found in the table of taxa to the popup and open it
+        item_list = [tableWidget_taxa.item(row,0).text() for row in range(tableWidget_taxa.rowCount())]
+        self.veg_com_popup = MsaQgisAddVegComPopup(item_list)  # Opens popup
         result = self.veg_com_popup.exec_()
+
         if result:
-            tableWidget_vegCom.setRowCount(tableWidget_vegCom.rowCount()+1)
+            # Check for errors, critical, do NOT add entry to table
+            veg_com_list = [tableWidget_vegCom.item(row,0).text() for row in range(tableWidget_vegCom.rowCount())]
+            if self.veg_com_popup.lineEdit_vegComName.text() == '': # no name was entered, critical error
+                iface.messageBar().pushMessage('No name for the vegetation community was entered, '
+                                               'please try again.', level=2)
+                return
+            elif self.veg_com_popup.lineEdit_vegComName.text() in veg_com_list: # vegcom name is already in use
+                iface.messageBar().pushMessage('Vegetation community already exists, please try again.', level=2)
+                return
+            for taxon_name in self.veg_com_popup.taxon_dict: # One of the taxa is set to 0% add without that taxa and give a warning.
+                if self.veg_com_popup.taxon_dict[taxon_name].value() == 0:
+                    iface.messageBar().pushMessage('One of the taxa did not have percentage assigned, please try again.'
+                                                   ,level=2)
+                    return
+            # Check for errors, warning, DO add entry to table
+            if self.veg_com_popup.taxon_dict == {}: # No taxa were added, give warning
+                iface.messageBar().pushMessage(f'Vegetation community {self.veg_com_popup.lineEdit_vegComName.text()} '
+                                               f'contains no taxa.', level=1)
+            # Add entries to table.
+            # Create new header if taxon is not yet in tableWidget_vegCom, else add percentage under existing header.
+            tableWidget_vegCom.setRowCount(tableWidget_vegCom.rowCount() + 1)
             tableWidget_vegCom.setItem(tableWidget_vegCom.rowCount() - 1, 0, QTableWidgetItem(
                 self.veg_com_popup.lineEdit_vegComName.text()))
-
-            #Check if a taxon already had a column, add new column only for a new taxon
-            #Create list of taxa that already have a column
-            header_list = [tableWidget_vegCom.horizontalHeaderItem(column).text() for column in range(1, tableWidget_vegCom.columnCount()-1)]
-            for taxon in range(len(self.veg_com_popup.vegcom_taxon_combo_list)):
-                if self.veg_com_popup.vegcom_taxon_combo_list[taxon].currentText() in header_list:
-                    # get column number of named column
-                    for column in range(tableWidget_vegCom.columnCount()-1):
+            header_list = [tableWidget_vegCom.horizontalHeaderItem(column).text()
+                           for column in range(1, tableWidget_vegCom.columnCount())]
+            for taxon_name in self.veg_com_popup.taxon_dict:  # Check if header already exists
+                if taxon_name.currentText() in header_list:  # Header exists, add percentage value to existing column
+                    for column in range(tableWidget_vegCom.columnCount()):
                         header_text = tableWidget_vegCom.horizontalHeaderItem(column).text()
-                        if header_text == self.veg_com_popup.vegcom_taxon_combo_list[taxon].currentText():
-                            tableWidget_vegCom.setItem(tableWidget_vegCom.rowCount() - 1, column, QTableWidgetItem(
-                                str(self.veg_com_popup.vegcom_taxon_double_list[taxon].value())))
-                    # add value at right location to that column
-                    pass
-                elif self.veg_com_popup.vegcom_taxon_combo_list[taxon] not in header_list:
-                    self.tableWidget_vegCom.setColumnCount(self.tableWidget_vegCom.columnCount() +1)
-                    # set header of new column
+                        if header_text == taxon_name.currentText():
+                            tableWidget_vegCom.setItem(tableWidget_vegCom.rowCount() - 1, column, 
+                                                       QTableWidgetItem(str(self.veg_com_popup.taxon_dict[taxon_name].value())))
+                else: #Header does not yet exist, make new.
+                    self.tableWidget_vegCom.setColumnCount(self.tableWidget_vegCom.columnCount() + 1)
                     tableWidget_vegCom.setHorizontalHeaderItem(self.tableWidget_vegCom.columnCount() - 1, QTableWidgetItem(
-                                self.veg_com_popup.vegcom_taxon_combo_list[taxon].currentText()))
-                    # add value to new column
+                                taxon_name.currentText()))
                     tableWidget_vegCom.setItem(tableWidget_vegCom.rowCount() - 1, self.tableWidget_vegCom.columnCount() - 1, QTableWidgetItem(
-                        str(self.veg_com_popup.vegcom_taxon_double_list[taxon].value())))
-                else:
-                    iface.messageBar().pushMessage('Error in creating vegetation community columns', level=1)
+                        str(self.veg_com_popup.taxon_dict[taxon_name].value())))
+        elif self.veg_com_popup.rejected:
+            iface.messageBar().pushMessage('Adding vegetation community cancelled by user', level=0)
 
     def removeTaxaEntry(self):
-        """ Removes selected entries from a table with a pop-up warning"""
+        """ Removes selected entries from a table with a pop-up warning
+
+        :params from UI: self.tableWidget_taxa"""
         # popup
         pass #TODO create pop-up warning
-
-
-        #get selection
         tableWidget_taxa = self.tableWidget_taxa
         for row in tableWidget_taxa.selectionModel().selectedRows():
             tableWidget_taxa.removeRow(row.row())
 
     def removeVegComEntry(self):
-        """ Removes selected entries from a table with a pop-up warning"""
-        #Popup
+        """ Removes selected entries from the vegetation community table with a pop-up warning
+
+        :params from UI: self.tableWidget_vegCom"""
+        # Popup
          #TODO create pop-up warning
 
 
-        #remove row
+        # Remove the row containing the selected vegcom
         tableWidget_vegCom = self.tableWidget_vegCom
         columns_to_remove = []
 
         if tableWidget_vegCom.selectionModel().selectedRows():
             for row in tableWidget_vegCom.selectionModel().selectedRows():
                 tableWidget_vegCom.removeRow(row.row())
-        #remove columns that no longer contain data after the row was removed
+        # Remove columns that no longer contain data after the row was removed
         for column in range(1,tableWidget_vegCom.columnCount()):
             item_list = []
             for row in range(tableWidget_vegCom.rowCount()):
@@ -326,86 +723,23 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                     item_list.append(tableWidget_vegCom.item(row,column))
             if not item_list:
                 columns_to_remove.append(column)
-            else:
-                continue
         for list_item in columns_to_remove:
             tableWidget_vegCom.removeColumn(list_item)
             tableWidget_vegCom.setColumnCount(self.tableWidget_vegCom.columnCount()-1)
-
-    def loadHandbagFile(self):
-        """
-        Loads a HUMPOL handbag (.hum) file into the software. This fills in the data (if specified in the file) for:
-        Taxa
-        Communities
-        Sample points
-        Windroses
-        Metadata
-        Notes
-        Compatible with the HUMPOL suite (Bunting & Middleton 2005) and LandPolFlow (Bunting & Middleton 2009)
-        """
-        #TODO windrose data, metadata, notes
-        file_name = self.qgsFileWidget_importHandbag.filePath()
-        tableWidget_vegCom = self.tableWidget_vegCom
-        if not os.path.isfile(file_name):
-            iface.messageBar().pushMessage('File does not exist, please try again', level=1)
-        else:
-            with open(file_name) as file:
-                for line in file:
-                    if line[0] == '1':
-                        if int(line[:4]) >= 1100:
-                            line = line[5:]
-                            line_list = list(re.split('\t|\n', line))
-                            row_count = self.tableWidget_taxa.rowCount()
-                            self.tableWidget_taxa.setRowCount(row_count + 1)
-                            self.tableWidget_taxa.setItem(row_count, 0, QTableWidgetItem(line_list[0]))
-                            self.tableWidget_taxa.setItem(row_count, 1, QTableWidgetItem(line_list[1]))
-                            self.tableWidget_taxa.setItem(row_count, 2, QTableWidgetItem(str(line_list[2])))
-                            self.tableWidget_taxa.setItem(row_count, 3, QTableWidgetItem(str(line_list[3])))
-                    elif line[0] == '2': #communities
-                        # skip community names (TODO but what to do if a handbag file has multiple community files?)
-                        if 2200 <= int(line[:4]) < 2300:
-                            line = line[7:]
-                            line = line.replace('\n','')
-                            tableWidget_vegCom.setRowCount(self.tableWidget_vegCom.rowCount() +1)
-                            tableWidget_vegCom.setItem(self.tableWidget_vegCom.rowCount() - 1, 0, QTableWidgetItem(
-                                line))
-                        elif int(line[:4]) >= 2300:
-                            line = line[5:]
-                            line_list = list(re.split('\t|\n', line))
-                            # Only create a new column if the header does not yet exist note: this is a duplicate from addNewVegCom
-                            header_list = [tableWidget_vegCom.horizontalHeaderItem(column).text() for column in
-                                           range(1, tableWidget_vegCom.columnCount())]
-                            if line_list[0] in header_list:
-                                # get column number of named column
-                                for column in range(tableWidget_vegCom.columnCount()):
-                                    header_text = tableWidget_vegCom.horizontalHeaderItem(column).text()
-                                    if header_text == line_list[0]:
-                                        tableWidget_vegCom.setItem(self.tableWidget_vegCom.rowCount() - 1, column,
-                                                                   QTableWidgetItem(line_list[1]))
-                                # add value at right location to that column
-                                pass
-                            elif line_list[0] not in header_list:
-                                self.tableWidget_vegCom.setColumnCount(self.tableWidget_vegCom.columnCount()+1)
-                                # set header of new column
-                                tableWidget_vegCom.setHorizontalHeaderItem(self.tableWidget_vegCom.columnCount() - 1,
-                                                                           QTableWidgetItem(line_list[0]))
-                                # add value to new column
-                                tableWidget_vegCom.setItem(self.tableWidget_vegCom.rowCount() - 1, self.tableWidget_vegCom.columnCount() - 1,
-                                                           QTableWidgetItem(
-                                                               str(line_list[1])))
-                            else:
-                                iface.messageBar().pushMessage('Error in creating vegetation community columns', level=1)
-                    elif line[0] == '3': #sample points
-                        pass
-                        #TODO
-                file.close()
-
+                    
+### BUTTON FUNCTIONS RULES TAB
     def addNewRule(self):
-        """ Allows the dynamic adding of new rules under the rules tab in the main dialog UI."""
-        #Determine rule number, takes the next number not yet taken
+        """ Opens a popup that enables adding of new rules under the rules tab in the main dialog UI. The new rule is
+        assigned the next available digit, in a range of 0-999.
+
+        :Class params: self.next_dict_rules, self.add_rule_popup
+
+        :params from UI files: self.tableWidget_vegCom, self.tableWidget_selected, self.tableWidget_selRaster,
+        self.listWidget_rules"""
+        #Determine rule number, takes the next number not yet taken to avoid skipping numbers.
         rule_in_list = False
-        if self.nest_dict_rules:
-            for counter in range(0,1000): # this means a max of 1000 rules is possible
+        if self.nest_dict_rules: # Check if there are any rules in the list
+            for counter in range(0,1000): # This means a max of 1000 rules is possible. With current envisioned use, that is generous.
                 for entry in self.nest_dict_rules:
                     if counter == self.nest_dict_rules[entry][0]:
                         rule_in_list = True
@@ -425,19 +759,21 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.add_rule_popup = MsaQgisAddRulePopup(rule_number, self.tableWidget_vegCom,
                                                   self.tableWidget_selected, self.tableWidget_selRaster)
         self.add_rule_popup.show()
-
         if self.add_rule_popup.exec_():
-            # add the rule to the dictionary and rule description to the rule listWidget
+            # Add the rule to the dictionary and rule description to the rule listWidget
             self.nest_dict_rules['Rule ' + str(rule_number)] = self.add_rule_popup.dict_rules_list
             self.listWidget_rules.addItem(self.nest_dict_rules['Rule ' + str(rule_number)][1])
 
     def deleteRule(self):
-        """ Deletes a rule from the rule list and dictionary"""
-        #check which rule(s) are selected
+        """ Deletes a selected rule from the rule list widget and dictionary.
+
+        :params from UI files: self.listWidget_rules
+
+        :class params: self.nest_dict_rules"""
+        # Check which rule(s) are selected
         list_to_remove = []
         for item in self.listWidget_rules.selectedItems():
             description = item.text()
-            # description = self.listWidget_rules.findItems(item, 0)[0].text()
             self.listWidget_rules.takeItem(self.listWidget_rules.row(item))
             for key in self.nest_dict_rules:
                 if self.nest_dict_rules[key][1] == description:
@@ -445,17 +781,21 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         for entry in list_to_remove:
             self.nest_dict_rules.pop(entry)
 
+### BUTTON FUNCTIONS RULE TREE TAB
     def viewRuleList(self):
-        """ Opens the list of rules in a separate window for quick reference when creating the rule tree"""
+        """ Opens the list of rules in a separate window for quick reference when creating the rule tree.
+
+        :class params: self.popup_rule_list, self.nest_dict_rules"""
         self.popup_rule_list = MsaQgisRuleListPopup(self.nest_dict_rules)
         self.popup_rule_list.show()
 
     def checkIfSelectedRule(self):
-        """ Checks if there are any selected rules.
-        If there are no rules in the dictionary, returns -2.
-        If there are rules, but none are selected, returns -1.
-        If there are rules in the dictionary, but no RuleTreeWidgets in self.dict_ruleTreeWidgets, returns 0.
-        If there is a selected RuleTreeWidget, returns its ID."""
+        """ Checks if there are any selected ruleTreeWidgets in the rule tree.
+
+        :class params: self.nest_dict_rules, self.dict_ruleTreeWidgets
+
+        :returns: The ID of the selected rule, or: -2, no rules found, -1, no rule selected selected, 0 rules in dictionary but not in widgets.
+        :rtype: int"""
         selected_rule = -1
         if self.nest_dict_rules: #check if there are any rules in the rule dictionary
             if self.dict_ruleTreeWidgets: # check if there are any RuleTreeWidgets already placed
@@ -467,22 +807,28 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             selected_rule = -2
         return selected_rule
 
-    def addRuleToTree(self, selected_rule = None, rule_tree_type ='Insert Above'):
-        """ Adds a RuleTreeWidget to the RuleTreeFrame.
-        Based on a selected ruleTreeWidget, unless no ruleTreeWidgets exist."""
+    def addRuleToTree(self):
+        """ Adds a RuleTreeWidget to the RuleTreeFrame with a 'normal' connection type (not in series, and not a duplicate)
+        Based on a selected ruleTreeWidget, unless no ruleTreeWidgets exist, in which case it places the first
+        ruleTreeWidget in the emply frame. If the rule is added to a scenario where a series exists, the appropriate
+        'duplicate' ruleTreeWidges are also added. A maximum of 9 rules can be connected to a single rule.
+
+        :class params: self.x, self.y, self.nest_dict_rules, self.dict_ruleTreeWidgets
+        :params from UI files: self.scrollArea_ruleTree, self.tabl_top, self.ruleTreeLayout, self.frame_ruleTree
+        :class functions: self.checkIfSelectedRule, self.changeRuleTreeSelection"""
         next_layout = QHBoxLayout()
         own_layout = QVBoxLayout()
         x_position_for_spoilerplate = self.scrollArea_ruleTree.x() + self.tab_top.x() + self.x()
         y_position_for_spoilerplate = self.scrollArea_ruleTree.y() + self.tab_top.y() + self.y()
         selected_rule = self.checkIfSelectedRule()
-        if selected_rule == -2:
+        if selected_rule == -2:  # Check if there are rules in the rule list
             iface.messageBar().pushMessage("Error", "There are no rules to add", level = 1)
-            return # request not valid, exit function
-        elif selected_rule == -1:
+            return
+        elif selected_rule == -1:  # Check if a ruleTreeWidget was selected
             iface.messageBar().pushMessage("Error", "Select a rule to add a new rule to the rule tree",
                                            level=1)
-            return  # request not valid, exit function
-        elif selected_rule == 0:
+            return
+        elif selected_rule == 0:  # Check if this is the first ruleTreeWidget to be added
             rule_id = 1
             ruleTreeWidget = RuleTreeWidget(self.nest_dict_rules, rule_id, next_layout,
                                             main_dialog_x=x_position_for_spoilerplate,
@@ -490,16 +836,16 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             self.ruleTreeLayout.insertWidget(0, ruleTreeWidget) # insert itself
             self.ruleTreeLayout.insertLayout(1, ruleTreeWidget.next_layout) # insert holder for next widgets
             self.ruleTreeLayout.insertStretch(2, 1) # insert stretch to push to top
-        else:
+        else:  # selected_rule contains the ID of a selected ruleTreeWidget
             if self.dict_ruleTreeWidgets[selected_rule].connection_type != 'normal':
-                iface.messageBar().pushMessage("Error", "Cannot add a rule to a rule in series or parallel. "
+                iface.messageBar().pushMessage("Error", "Cannot add a rule to a rule in series. "
                                                         "Use already connected rule instead or replace rule in series with a normal branch",
                                                level=1)
-                return # request not valid, exit function
+                return
             elif len(self.dict_ruleTreeWidgets[selected_rule].next_ruleTreeWidgets) >= 9:
                 iface.messageBar().pushMessage("Error", "Cannot add more than 9 rules to a branch",
                                                level=1)
-                return # request not valid, exit function
+                return
             else:
                 if self.dict_ruleTreeWidgets[
                     selected_rule].next_ruleTreeWidgets:  # NOTE max number of branches possible is 10, but can adjust for higher by adding 00 or 000 in other option. Does need adjustment in making duplicates and other rules as well
@@ -510,22 +856,22 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                                                 main_dialog_x=x_position_for_spoilerplate,
                                                 main_dialog_y=y_position_for_spoilerplate)
 
-                #determine if selected rule already had a next rule and if yes remove from base group. Then append new rule
+                # Determine if selected rule already had a next rule and if yes remove from base group. Then append new rule
                 if len(self.dict_ruleTreeWidgets[selected_rule].next_ruleTreeWidgets) == 1 and self.dict_ruleTreeWidgets[selected_rule].isBaseGroup:
                     self.dict_ruleTreeWidgets[selected_rule].toggleBaseGroup()
                     iface.messageBar().pushMessage("Note", "Selected rule removed from base group",
                                                    level=0)
                 self.dict_ruleTreeWidgets[selected_rule].next_ruleTreeWidgets.append(rule_id)
-                # create own layout and insert itself
+                # Create own layout and insert itself
                 self.dict_ruleTreeWidgets[selected_rule].next_layout.addLayout(own_layout)
                 own_layout.addWidget(ruleTreeWidget)
                 own_layout.addLayout(next_layout)
                 own_layout.insertStretch(2, 1)
-                #determine previous RuleTreeWidgets
+                # Determine previous RuleTreeWidgets
                 ruleTreeWidget.prev_ruleTreeWidgets = self.dict_ruleTreeWidgets[selected_rule].prev_ruleTreeWidgets.copy()
                 ruleTreeWidget.prev_ruleTreeWidgets.append(selected_rule)
 
-                #check if selected rule has duplicates and if yes create a duplicate
+                # Check if selected rule has duplicates and if yes create a duplicate
                 if self.dict_ruleTreeWidgets[selected_rule].duplicate_ruleTreeWidgets:
                     for duplicate in self.dict_ruleTreeWidgets[selected_rule].duplicate_ruleTreeWidgets:
                         #determine rule id
@@ -533,29 +879,38 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                             rule_id_duplicate = max(self.dict_ruleTreeWidgets[duplicate].next_ruleTreeWidgets) + 1
                         else:
                             rule_id_duplicate = int(str(self.dict_ruleTreeWidgets[duplicate].order_id) + '0')
-                        #create widget
+                        # Create widget
                         ruleTreeWidget_duplicate = RuleTreeWidget(self.nest_dict_rules, rule_id_duplicate, None, None)
-                        #add to dictionary
+                        # Add to dictionary
                         self.dict_ruleTreeWidgets[rule_id_duplicate] = ruleTreeWidget_duplicate
-                        #determine previous
+                        # Determine previous
                         self.dict_ruleTreeWidgets[rule_id_duplicate].prev_ruleTreeWidgets = self.dict_ruleTreeWidgets[duplicate].prev_ruleTreeWidgets.copy()
-                        #add to next
+                        # Add to next
                         self.dict_ruleTreeWidgets[duplicate].next_ruleTreeWidgets.append(rule_id_duplicate)
-                        #add to duplicates
+                        # Add to duplicates
                         ruleTreeWidget.duplicate_ruleTreeWidgets.append(rule_id_duplicate)
                         self.dict_ruleTreeWidgets[rule_id_duplicate].duplicate_ruleTreeWidgets.append(rule_id)
-        # add ruleTreeWidget to dict and add prev to list
+        # Add ruleTreeWidget to dict and add prev to list
         self.dict_ruleTreeWidgets[ruleTreeWidget.order_id] = ruleTreeWidget
-        # allow widget to remove selection from other widgets when selected
+        # Allow widget to remove selection from other widgets when selected
         ruleTreeWidget.clicked.connect(
             lambda *args, ruleTreeWidget_id=ruleTreeWidget.order_id, ruleTreeWidget=ruleTreeWidget:
             self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
-        #update the frame
+        # Update the frame
         self.frame_ruleTree.update()
 
+### BUTTON FUNCTIONS POLLEN TAB
+### BUTTON FUNCTIONS METADATA TAB
+
+
+
     def addRuleToTreeSeries(self):
-        """ Adds multiple ruleTreeWidgets to the RuleTreeFrame for the placement of a series branch.
-        Cannot be placed as the first RuleTreeWidget."""
+        """ Adds multiple ruleTreeWidgets to the RuleTreeFrame for the placement of a series branch, or if the selected
+        ruleTreeWidget is one in series, adds a ruleTreeWidget to the existing series. Where applicable, 'duplicate'
+        type ruleTreeWidgets are also created.
+        Cannot be placed as the first RuleTreeWidget.
+
+        """
         # Create the RuleTreeWidgets in series and set as previous 1 and previous 2
         # Create the subsequent (duplicate) RuleTreeWidgets
         # If no previous rule tree widgets give an error.
@@ -570,34 +925,34 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         x_position_for_spoilerplate = self.scrollArea_ruleTree.x() + self.tab_top.x() + self.x()
         y_position_for_spoilerplate = self.scrollArea_ruleTree.y() + self.tab_top.y() + self.y()
         selected_rule = self.checkIfSelectedRule()
-        if selected_rule == -2:
+        if selected_rule == -2: # Check if rules were made
             iface.messageBar().pushMessage("Error", "There are no rules to add", level = 1)
-            return # request not valid, exit function
-        elif selected_rule == -1:
+            return
+        elif selected_rule == -1: # Check if a rule was selected
             iface.messageBar().pushMessage("Error", "Select a rule to add a new rule to the rule tree",
                                            level=1)
-            return  # request not valid, exit function
-        elif selected_rule == 0:
+            return
+        elif selected_rule == 0: # Check if this is the first rule
             iface.messageBar().pushMessage("Error", "First rule cannot be in series",
                                            level=1)
-            return  # request not valid, exit function
-        else:
-            if len(self.dict_ruleTreeWidgets[selected_rule].next_ruleTreeWidgets) >= 9:
+            return
+        else: # selected_rule contains the ID of the selected ruleTreeWidget
+            if len(self.dict_ruleTreeWidgets[selected_rule].next_ruleTreeWidgets) >= 9:  # Check if max branches
                 iface.messageBar().pushMessage("Error", "Cannot add more than 9 rules to a branch",
                                                level=1)
-                return # request not valid, exit function
+                return
             elif self.dict_ruleTreeWidgets[selected_rule].connection_type == 'normal':
-                # create new set of rules in series.
-                #determine rule_ids
+                # Create new set of rules in series.
+                # Determine rule_ids
                 if self.dict_ruleTreeWidgets[
-                    selected_rule].next_ruleTreeWidgets:  # NOTE max number of branches possible is 10, but can adjust for higher by adding 00 or 000 in other option.
+                    selected_rule].next_ruleTreeWidgets:
                     rule_id_top = max(self.dict_ruleTreeWidgets[selected_rule].next_ruleTreeWidgets) + 1
                 else:
                     rule_id_top = int(str(self.dict_ruleTreeWidgets[selected_rule].order_id) + '0')
                 rule_id_series = int(str(rule_id_top)+'0')
                 rule_id_bottom = int(str(rule_id_series)+'0')
                 rule_id_series_two = rule_id_bottom+1
-                # create widgets
+                # Create widgets
                 ruleTreeWidget_top = RuleTreeWidget(self.nest_dict_rules, rule_id_top, next_layout_top,own_layout_top, 'series start',
                                                 main_dialog_x=x_position_for_spoilerplate,
                                                 main_dialog_y=y_position_for_spoilerplate)
@@ -610,7 +965,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 ruleTreeWidget_bottom = RuleTreeWidget(self.nest_dict_rules, rule_id_bottom, next_layout_bottom,own_layout_bottom, 'normal',
                                                 main_dialog_x=x_position_for_spoilerplate,
                                                 main_dialog_y=y_position_for_spoilerplate)
-                # place widgets
+                # Place widgets
                 self.dict_ruleTreeWidgets[selected_rule].next_layout.addLayout(ruleTreeWidget_top.own_layout)
                 ruleTreeWidget_top.own_layout.addWidget(ruleTreeWidget_top)
                 ruleTreeWidget_top.own_layout.addLayout(ruleTreeWidget_top.next_layout)
@@ -622,30 +977,30 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 ruleTreeWidget_series.next_layout.addWidget(ruleTreeWidget_bottom)
                 ruleTreeWidget_series.next_layout.addLayout(ruleTreeWidget_bottom.next_layout)
 
-                # create the duplicate, which is NOT added to the UI
+                # Create the duplicate, which is NOT added to the UI
                 rule_id_duplicate = int(str(rule_id_series_two) + str(0))
                 ruleTreeWidget_duplicate = RuleTreeWidget(self.nest_dict_rules, rule_id_duplicate, None, None, 'duplicate')
 
-                # add all relevant id's to relevant dictionaries and lists.
-                # add to rule dictionary
+                # Add all relevant id's to relevant dictionaries and lists.
+                # Add to rule dictionary
                 self.dict_ruleTreeWidgets[ruleTreeWidget_top.order_id] = ruleTreeWidget_top
                 self.dict_ruleTreeWidgets[ruleTreeWidget_series.order_id] = ruleTreeWidget_series
                 self.dict_ruleTreeWidgets[ruleTreeWidget_bottom.order_id] = ruleTreeWidget_bottom
                 self.dict_ruleTreeWidgets[ruleTreeWidget_series_two.order_id] = ruleTreeWidget_series_two
                 self.dict_ruleTreeWidgets[ruleTreeWidget_duplicate.order_id] = ruleTreeWidget_duplicate
 
-                # add to duplicates
+                # Add to duplicates
                 ruleTreeWidget_duplicate.duplicate_ruleTreeWidgets.append(ruleTreeWidget_bottom.order_id)
                 ruleTreeWidget_bottom.duplicate_ruleTreeWidgets.append(ruleTreeWidget_duplicate.order_id)
 
-                # add to next widgets
+                # Add to next widgets
                 self.dict_ruleTreeWidgets[selected_rule].next_ruleTreeWidgets.append(ruleTreeWidget_top.order_id)
                 ruleTreeWidget_top.next_ruleTreeWidgets.append(ruleTreeWidget_series.order_id)
                 ruleTreeWidget_series.next_ruleTreeWidgets.append(ruleTreeWidget_bottom.order_id)
                 ruleTreeWidget_series.next_ruleTreeWidgets.append(ruleTreeWidget_series_two.order_id)
                 ruleTreeWidget_series_two.next_ruleTreeWidgets.append(ruleTreeWidget_duplicate.order_id)
 
-                # add to previous widgets
+                # Add to previous widgets
                 ruleTreeWidget_top.prev_ruleTreeWidgets = self.dict_ruleTreeWidgets[selected_rule].prev_ruleTreeWidgets.copy()
                 ruleTreeWidget_top.prev_ruleTreeWidgets.append(selected_rule)
                 ruleTreeWidget_series.prev_ruleTreeWidgets = ruleTreeWidget_top.prev_ruleTreeWidgets.copy()
@@ -656,7 +1011,6 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 ruleTreeWidget_series_two.prev_ruleTreeWidgets.append(ruleTreeWidget_series.order_id)
                 ruleTreeWidget_duplicate.prev_ruleTreeWidgets = ruleTreeWidget_series_two.prev_ruleTreeWidgets.copy()
                 ruleTreeWidget_duplicate.prev_ruleTreeWidgets.append(ruleTreeWidget_series_two.order_id)
-
 
                 # connect all the widgets to the selection
                 ruleTreeWidget_top.clicked.connect(
@@ -672,11 +1026,10 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                     lambda *args, ruleTreeWidget_id=ruleTreeWidget_bottom.order_id, ruleTreeWidget=ruleTreeWidget_bottom:
                     self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
 
-                # if selected_rule has duplicates, create duplicates for all
-
+                # If selected_rule has duplicates, create duplicates for all
                 if self.dict_ruleTreeWidgets[selected_rule].duplicate_ruleTreeWidgets:
                     for duplicate in self.dict_ruleTreeWidgets[selected_rule].duplicate_ruleTreeWidgets:
-                        # determine rule id
+                        # Determine rule id
                         if self.dict_ruleTreeWidgets[
                             duplicate].next_ruleTreeWidgets:  # NOTE max number of branches possible is 10, but can adjust for higher by adding 00 or 000 in other option.
                             rule_id_top_duplicate = max(self.dict_ruleTreeWidgets[duplicate].next_ruleTreeWidgets) + 1
@@ -686,19 +1039,19 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                         rule_id_bottom_duplicate = int(str(rule_id_series_duplicate) + '0')
                         rule_id_series_two_duplicate = rule_id_bottom_duplicate + 1
                         rule_id_bottom_duplicate_two = int(str(rule_id_series_two_duplicate)+ '0')
-                        # create widget
+                        # Create widget
                         ruleTreeWidget_top_duplicate = RuleTreeWidget(self.nest_dict_rules, rule_id_top_duplicate, None, None, 'duplicate')
                         ruleTreeWidget_series_duplicate = RuleTreeWidget(self.nest_dict_rules, rule_id_series_duplicate, None, None, 'duplicate')
                         ruleTreeWidget_series_two_duplicate = RuleTreeWidget(self.nest_dict_rules, rule_id_series_two_duplicate, None, None, 'duplicate')
                         ruleTreeWidget_bottom_duplicate = RuleTreeWidget(self.nest_dict_rules, rule_id_bottom_duplicate, None, None, 'duplicate')
                         ruleTreeWidget_bottom_duplicate_two = RuleTreeWidget(self.nest_dict_rules, rule_id_bottom_duplicate_two, None, None, 'duplicate')
-                        # add to dictionary
+                        # Add to dictionary
                         self.dict_ruleTreeWidgets[ruleTreeWidget_top_duplicate.order_id] = ruleTreeWidget_top_duplicate
                         self.dict_ruleTreeWidgets[ruleTreeWidget_series_duplicate.order_id] = ruleTreeWidget_series_duplicate
                         self.dict_ruleTreeWidgets[ruleTreeWidget_series_two_duplicate.order_id] = ruleTreeWidget_series_two_duplicate
                         self.dict_ruleTreeWidgets[ruleTreeWidget_bottom_duplicate.order_id] = ruleTreeWidget_bottom_duplicate
                         self.dict_ruleTreeWidgets[ruleTreeWidget_bottom_duplicate_two.order_id] = ruleTreeWidget_bottom_duplicate_two
-                        # determine previous
+                        # Determine previous
                         ruleTreeWidget_top_duplicate.prev_ruleTreeWidgets = \
                             self.dict_ruleTreeWidgets[duplicate].prev_ruleTreeWidgets.copy()
                         ruleTreeWidget_top_duplicate.prev_ruleTreeWidgets.append(duplicate)
@@ -714,13 +1067,13 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                         ruleTreeWidget_bottom_duplicate_two.prev_ruleTreeWidgets = \
                             ruleTreeWidget_series_two.prev_ruleTreeWidgets.copy()
                         ruleTreeWidget_bottom_duplicate_two.prev_ruleTreeWidgets.append(rule_id_series_two_duplicate)
-                        # add to next
+                        # Add to next
                         self.dict_ruleTreeWidgets[duplicate].next_ruleTreeWidgets.append(rule_id_top_duplicate)
                         ruleTreeWidget_top_duplicate.next_ruleTreeWidgets.append(rule_id_series_duplicate)
                         ruleTreeWidget_series_duplicate.next_ruleTreeWidgets.append(rule_id_series_two_duplicate)
                         ruleTreeWidget_series_duplicate.next_ruleTreeWidgets.append(rule_id_bottom_duplicate)
                         ruleTreeWidget_series_two_duplicate.next_ruleTreeWidgets.append(rule_id_bottom_duplicate_two)
-                        # add to duplicates
+                        # Add to duplicates
                         ruleTreeWidget_top.duplicate_ruleTreeWidgets.append(rule_id_top_duplicate)
                         ruleTreeWidget_top_duplicate.duplicate_ruleTreeWidgets.append(rule_id_top)
                         ruleTreeWidget_series.duplicate_ruleTreeWidgets.append(rule_id_series_duplicate)
@@ -737,9 +1090,9 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                         ruleTreeWidget_bottom_duplicate_two.duplicate_ruleTreeWidgets.append(rule_id_duplicate)
 
             elif self.dict_ruleTreeWidgets[selected_rule].connection_type == 'series start' or self.dict_ruleTreeWidgets[selected_rule].connection_type == 'series':
-                # add a rule in series to an already existing set of rules in series.
+                # Add a rule in series to an already existing set of rules in series.
                 if self.dict_ruleTreeWidgets[selected_rule].connection_type == 'series':
-                    #find series start and set as selected_rule
+                    # Find series start and set as selected_rule
                     partial_id_to_rm = '0'
                     for number in reversed(str(selected_rule)):
                         if number != '0':
@@ -750,11 +1103,16 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                     len_to_keep = len(str(selected_rule))-len(partial_id_to_rm)
                     rule_id_series_top = str(selected_rule)[:len_to_keep]
                     selected_rule = int(rule_id_series_top)
-                #find id of first in and first after series
+
+                # Find id of first in and first after series
                 first_in_series = str(selected_rule) + '0'
                 first_after_series = first_in_series + '0'
+                if len(self.dict_ruleTreeWidgets[int(first_after_series)].duplicate_ruleTreeWidgets) > 9:
+                    iface.messageBar().pushMessage("Error", "Cannot add more than 9 rules to a branch",
+                                                   level=1)
+                    return
                 own_layout_series = self.dict_ruleTreeWidgets[int(first_in_series)].own_layout
-                #find id of last in series
+                # Find id of last in series
                 list_ids_to_check = []
                 contains_only_1 = False
                 length_first_in_series = len(first_in_series)
@@ -773,24 +1131,24 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 prev_rule_series = max(list_ids_to_check)
                 rule_id = int(str(prev_rule_series) + '1')
 
-                #create the widget
+                # Create the widget
                 ruleTreeWidget = RuleTreeWidget(self.nest_dict_rules, rule_id, next_layout= None,
                                                 connection_type='series')
-                #place the widget
+                # Place the widget
                 own_layout_series.addWidget(ruleTreeWidget)
                 own_layout_series.addStretch()
-                #add to dictionary
+                # Add to dictionary
                 self.dict_ruleTreeWidgets[ruleTreeWidget.order_id] = ruleTreeWidget
-                #add to previous widgets
+                # Add to previous widgets
                 self.dict_ruleTreeWidgets[rule_id].prev_ruleTreeWidgets = self.dict_ruleTreeWidgets[prev_rule_series].prev_ruleTreeWidgets.copy()
                 ruleTreeWidget.prev_ruleTreeWidgets.append(prev_rule_series)
-                #add to next widgets of previous widgets
+                # Add to next widgets of previous widgets
                 self.dict_ruleTreeWidgets[prev_rule_series].next_ruleTreeWidgets.append(rule_id)
-                #connect visible widgets to selection
+                # Connect visible widgets to selection
                 ruleTreeWidget.clicked.connect(
                     lambda *args, ruleTreeWidget_id=ruleTreeWidget.order_id, ruleTreeWidget=ruleTreeWidget:
                     self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
-                #find all of the next rules after the first series rule and give them duplicates.
+                # Find all of the next rules after the first series rule and give them duplicates.
                 list_ids_to_check = []
                 for key in self.dict_ruleTreeWidgets:
                     if first_after_series in str(self.dict_ruleTreeWidgets[key].order_id)[:length_first_after_series]:
@@ -800,22 +1158,23 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                     rule_id_duplicate = int(str(rule_id) + str(id)[length_first_in_series:])
                     ruleTreeWidget_duplicate = RuleTreeWidget(self.nest_dict_rules, rule_id_duplicate, None, None,
                                                               'duplicate')
-                    #add to dictionary
+                    # Add to dictionary
                     self.dict_ruleTreeWidgets[ruleTreeWidget_duplicate.order_id] = ruleTreeWidget_duplicate
-                    #add to previous widgets
+                    # Add to previous widgets
                     prev_rule_id = int(str(rule_id_duplicate)[:len(str(rule_id_duplicate))-1])
                     self.dict_ruleTreeWidgets[rule_id_duplicate].prev_ruleTreeWidgets = self.dict_ruleTreeWidgets[
                         prev_rule_id].prev_ruleTreeWidgets.copy()
 
-                    #add to next widgets
+                    # Add to next widgets
                     self.dict_ruleTreeWidgets[prev_rule_id].next_ruleTreeWidgets.append(rule_id_duplicate)
-                    #add to duplicates
+                    # Add to duplicates
                     for duplicate in self.dict_ruleTreeWidgets[id].duplicate_ruleTreeWidgets:
                         self.dict_ruleTreeWidgets[duplicate].duplicate_ruleTreeWidgets.append(rule_id_duplicate)
                         self.dict_ruleTreeWidgets[rule_id_duplicate].duplicate_ruleTreeWidgets.append(self.dict_ruleTreeWidgets[duplicate].order_id)
                     self.dict_ruleTreeWidgets[rule_id_duplicate].duplicate_ruleTreeWidgets.append(id)
                     self.dict_ruleTreeWidgets[id].duplicate_ruleTreeWidgets.append(rule_id_duplicate)
-        #test whether created rules and relations are okay
+
+        # # Test whether created rules and relations are okay
         # for entries in self.dict_ruleTreeWidgets:
         #     if self.dict_ruleTreeWidgets[entries].duplicate_ruleTreeWidgets:
         #         for next in self.dict_ruleTreeWidgets[entries].duplicate_ruleTreeWidgets:
@@ -1288,6 +1647,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             dispersal_model = self.comboBox_dispModel.currentText()
             atmostpheric_constant = self.doubleSpin_atmosConstant.value()
             diffusion_constant = self.doubleSpin_diffConstant.value()
+            windspeed = self.doubleSpin_windSpeed.value()
             windrose_enabled = self.checkBox_enableWindrose.isChecked()
             wr_north = self.doubleSpin_north.value()
             wr_northEast = self.doubleSpin_northEast.value()
@@ -1306,6 +1666,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             writer.writerow(['dispersal model', dispersal_model]) ###TODO rest of model parameters
             writer.writerow(['atmospheric constant', atmostpheric_constant ])
             writer.writerow(['diffusion constant', diffusion_constant])
+            writer.writerow(['windspeed', windspeed])
             writer.writerow(['Windrose enabled', windrose_enabled])
             if windrose_enabled:
                 writer.writerow(['','north', 'northeast', 'east', 'southeast', 'south', 'southwest', 'west', 'northwest'])
@@ -1466,13 +1827,13 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                         #path to file not found (likely because it is a different computer)
                         self.addPollenCountsFilePath('Reload')
                         pass
-                elif row[0] == 'Dispersal model':
+                elif row[0] == 'dispersal model':
                     self.comboBox_dispModel.setCurrentText(row[1])
-                elif row[0] == 'Atmospheric constant':
+                elif row[0] == 'atmospheric constant':
                     self.doubleSpin_atmosConstant.setValue(float(row[1]))
-                elif row[0] == 'Diffusion constant':
+                elif row[0] == 'diffusion constant':
                     self.doubleSpin_diffConstant.setValue(float(row[1]))
-                elif row[0] == 'Windspeed':
+                elif row[0] == 'windspeed':
                     self.doubleSpin_windSpeed.setValue(float(row[1]))
                 elif row[0] == 'Windrose enabled':
                     self.checkBox_enableWindrose.setChecked(bool(row[1]))
@@ -1571,6 +1932,9 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
 
         else:
             iface.messageBar().pushMessage('Cancelled operation, no files saved', level=1)
+
+        self.checkChecklist()  # check the checklist for which bits were loaded
+
 
     def clearLayout(self, layout):
         """ Recurively clears a layout of all its widgets and layouts."""
@@ -2153,66 +2517,7 @@ class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
             self.messageBox.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
         #TODO Can probably think of more warnings
 
-
-class MsaQgisAddTaxonPopup (QtWidgets.QDialog, FORM_CLASS_TAXA):
-    def __init__(self, parent=None):
-        """Popup Constructor."""
-        super(MsaQgisAddTaxonPopup, self).__init__(parent)
-        self.setupUi(self)
-
-
-class MsaQgisAddVegComPopup (QtWidgets.QDialog, FORM_CLASS_VEGCOM):
-    def __init__(self, taxonlist, parent=None):
-        """Popup Constructor."""
-        super(MsaQgisAddVegComPopup, self).__init__(parent)
-        self.setupUi(self)
-        #events
-        self.pushButton_vegComAddSpecies.clicked.connect(self.addVegComTaxonRow)
-
-        #class variables
-        self.previous = 0
-        self.taxon_list = taxonlist
-        self.vegcom_taxon_double_list = []
-        self.vegcom_taxon_combo_list = []
-
-
-        #add gridlayout to scrollarea
-        self.frameWidget_scroll = QFrame(self.scrollArea)
-        self.frameWidget_scroll.setLayout(self.gridLayout)
-        self.scrollArea.setWidget(self.frameWidget_scroll)
-
-        #set locations of original widgets in grid (because Qt designer won't bloody work with me)
-
-        self.gridLayout.addWidget(self.label_Title, 0, 0, 1, 4)
-        self.gridLayout.addWidget(self.label_Name, 1, 0)
-        self.gridLayout.addWidget(self.lineEdit_vegComName, 1, 1, 1, 4)
-        self.gridLayout.setRowStretch(2, 100) #stretch middle row to maximum possible size
-        self.gridLayout.addWidget(self.pushButton_vegComAddSpecies, 3, 0, 1, 4)
-        self.gridLayout.addWidget(self.buttonBox_2, 4, 1, 1, 3)
-        self.gridLayout.addWidget(self.buttonBox_2, 5, 0, 1, 4)
-
-    def addVegComTaxonRow(self):
-        """ Adds a new comboBox and doubleSpinBox to be able to add a new taxon to a vegetation community"""
-        label = QLabel('Taxon ' + str(int((self.previous * 0.5)+1)), self)
-        self.comboBox = QComboBox()
-        self.doubleSpin = QDoubleSpinBox()
-        # insert the new widgets
-        self.gridLayout.addWidget(label, self.previous+2, 0, 1, 4)
-        self.gridLayout.addWidget(self.comboBox, self.previous+3, 0, 1, 3)
-        self.gridLayout.addWidget(self.doubleSpin, self.previous+3, 3, 1, 2)
-        self.gridLayout.setRowStretch(self.previous + 2, 0)  # reset stretch of previously stretched row
-        self.gridLayout.setRowStretch(self.previous + 4, 100)  # set new middle row to maximum stretch
-        # move the widgets below to new location
-        self.gridLayout.addWidget(self.pushButton_vegComAddSpecies, self.previous + 5, 0, 1, 4)
-        self.gridLayout.addWidget(self.buttonBox_2, self.previous + 6, 0, 1, 4)
-        self.previous += 2
-        # Fill the comboBox
-        self.comboBox.addItems(self.taxon_list)
-        # Create list of items to pass to the main dialog
-        self.vegcom_taxon_combo_list.append(self.comboBox)
-        self.vegcom_taxon_double_list.append(self.doubleSpin)
-
-    def runAbortedPopup(self, message, e):
+    def runAbortedPopup(self, message, e): # TODO implement!
         """ Opens a popup that shows why the run was aborted
 
         :param message: message that explains why the run was aborted
@@ -2224,6 +2529,75 @@ class MsaQgisAddVegComPopup (QtWidgets.QDialog, FORM_CLASS_VEGCOM):
         self.messageBox.setWindowTitle('Critical Error, run aborted.')
         self.messageBox.setText(f'{message}\n {e} \n Check MSA_QGIS.log in your output folder for more information')
         self.messageBox.setStandardButtons(QMessageBox.Ok)
+
+
+class MsaQgisAddTaxonPopup (QtWidgets.QDialog, FORM_CLASS_TAXA):
+    def __init__(self, parent=None):
+        """Popup Constructor."""
+        super(MsaQgisAddTaxonPopup, self).__init__(parent)
+        self.setupUi(self)
+
+
+class MsaQgisAddVegComPopup (QtWidgets.QDialog, FORM_CLASS_VEGCOM):
+    """Popup in which data for a new vegetation community can be entered.
+
+    :param taxon_dict : a dictionary that will contain information on the taxa added to the vegcom, in the format of [comboBox_taxa, doubleSpinBox_taxonPercentage]
+    :type self.taxon_dict:dict
+ """
+    def __init__(self, taxonlist, parent=None):
+        """Popup Constructor for popup in which data for a new vegetation community can be entered.
+
+        :param taxonlist: List of taxa to be shown in the comboBox dropdown
+        :type taxonlist: list
+        """
+        super(MsaQgisAddVegComPopup, self).__init__(parent)
+        self.setupUi(self)
+        #events
+        self.pushButton_vegComAddSpecies.clicked.connect(self.addVegComTaxonRow)
+
+        #class variables
+        self.previous_gridRow = 0
+        self.taxon_list = taxonlist
+        self.taxon_dict = {} ;  #"""Should be in format of {QComboBox:QDoubleSpinBox}."""
+
+        #add gridlayout to scrollarea
+        self.frameWidget_scroll = QFrame(self.scrollArea)
+        self.frameWidget_scroll.setLayout(self.gridLayout)
+        self.scrollArea.setWidget(self.frameWidget_scroll)
+
+        #set locations of original widgets in grid #TODO this should be possible directly in Qt Designer/ .UI file.
+        self.gridLayout.addWidget(self.label_Title, 0, 0, 1, 4)
+        self.gridLayout.addWidget(self.label_Name, 1, 0)
+        self.gridLayout.addWidget(self.lineEdit_vegComName, 1, 1, 1, 4)
+        self.gridLayout.setRowStretch(2, 100) #stretch middle row to maximum possible size
+        self.gridLayout.addWidget(self.pushButton_vegComAddSpecies, 3, 0, 1, 4)
+        self.gridLayout.addWidget(self.buttonBox_exec, 4, 1, 1, 3)
+        self.gridLayout.addWidget(self.buttonBox_exec, 5, 0, 1, 4)
+
+    def addVegComTaxonRow(self):
+        """ Adds a new comboBox and doubleSpinBox to be able to add a new taxon to a vegetation community.
+        The new widgets are saved in a dictionary for later use.
+
+        :class params: self.previous_gridRow, self.taxon_dict
+        :params from UI files: self.gridLayout, self.pushButton)vegComAddSpecies, self.buttonBox_exec
+        """
+        label = QLabel('Taxon ' + str(int((self.previous_gridRow * 0.5) + 1)), self)
+        self.comboBox_taxon = QComboBox()
+        self.doubleSpin_taxonPercentage = QDoubleSpinBox()
+        # insert the new widgets
+        self.gridLayout.addWidget(label, self.previous_gridRow + 2, 0, 1, 4)
+        self.gridLayout.addWidget(self.comboBox_taxon, self.previous_gridRow + 3, 0, 1, 3)
+        self.gridLayout.addWidget(self.doubleSpin_taxonPercentage, self.previous_gridRow + 3, 3, 1, 2)
+        self.gridLayout.setRowStretch(self.previous_gridRow + 2, 0)  # reset stretch of previously stretched row
+        self.gridLayout.setRowStretch(self.previous_gridRow + 4, 100)  # set new middle row to maximum stretch
+        # move the widgets below to new location
+        self.gridLayout.addWidget(self.pushButton_vegComAddSpecies, self.previous_gridRow + 5, 0, 1, 4)
+        self.gridLayout.addWidget(self.buttonBox_exec, self.previous_gridRow + 6, 0, 1, 4)
+        self.previous_gridRow += 2
+        # Fill the comboBox
+        self.comboBox_taxon.addItems(self.taxon_list)
+        # Create dict of qwidgets to pass to the main dialog
+        self.taxon_dict[self.comboBox_taxon] = self.doubleSpin_taxonPercentage
 
 
 class MsaQgisSaveLoadDialog(QtWidgets.QDialog,FORM_CLASS_SAVELOAD):
@@ -2285,4 +2659,96 @@ class MsaQgisSuccesDialog(QtWidgets.QDialog,FORM_CLASS_SUCCES):
         self.spinBox_loadX.setEnabled(True)
     def disableMapsToLoad(self):
         self.spinBox_loadX.setEnabled(False)
+
+class MsaQgisRunDialog(QtWidgets.QDialog,FORM_CLASS_RUN):
+    def __init__(self, checklist_state, input_state, parent=None):
+        """Popup Constructor."""
+        super(MsaQgisRunDialog, self).__init__(parent)
+        self.setupUi(self)
+        self.run_type = -1
+
+        # Events
+        self.radioButton_pointSample.clicked.connect(self.enableButtonBox)
+        self.radioButton_basemap.clicked.connect(self.enableButtonBox)
+        self.radioButton_msa.clicked.connect(self.enableButtonBox)
+        self.mQgsFileWidget.fileChanged.connect(self.enableButtonBox)
+        self.radioButton_pointSample.clicked.connect(self.changeRunType)
+        self.radioButton_basemap.clicked.connect(self.changeRunType)
+        self.radioButton_msa.clicked.connect(self.changeRunType)
+        self.mQgsFileWidget.fileChanged.connect(self.checkIfPathLegit)
+
+        # Enable only parts of UI that are able to be ran
+        if checklist_state == 0:  # Only point sample possible
+            if input_state == 0:  # Create map from scratch, so point sample is possible
+                self.radioButton_basemap.setEnabled(False)
+                self.radioButton_msa.setEnabled(False)
+            else:  # Not set to create map from scratch, creating point sampled map not possible
+                iface.messageBar().pushMessage("Run Dialog Shouldn't have opened", level=2)
+                self.reject()
+        elif checklist_state == 1: # up to basemap possible
+            if input_state == 0: # set to create map from scratch, so creating basemap is possible
+                self.radioButton_msa.setEnabled(False)
+            elif input_state == 1: # set to load point sampled map, creating basemap is possible, but point sample not
+                self.radioButton_pointSample.setEnabled(False)
+                self.radioButton_msa.setEnabled(False)
+                pass
+            else:  # set to load from basemap, so making basemap not possible
+                iface.messageBar().pushMessage("Run Dialog Shouldn't have opened", level=2)
+                self.reject()
+            pass
+        elif checklist_state == 2: # entire MSA run possible
+            if input_state == 0: # set to create map from scratch, so all can be run
+                pass
+            elif input_state == 1: # set to load point map, so creating point map not possible
+                self.radioButton_pointSample.setEnabled(False)
+                pass
+            else: # set to load basemap, so making point map and basemap not possible
+                self.radioButton_pointSample.setEnabled(False)
+                self.radioButton_basemap.setEnabled(False)
+
+            pass
+
+    def checkIfPathLegit(self):
+        """Checks if the file path given in the file widget has been filled, and if so, if it points to an existing
+        directory
+
+        :params from UI: self.mQgsFileWidget
+
+        :returns: True if path is legit and can be used, False if not
+        :rtype: bool"""
+        #check if file path has been filled
+        if self.mQgsFileWidget.filePath() != '':
+            #check if file path exists on OS
+            if not os.path.exists(self.mQgsFileWidget.filePath()):
+                iface.messageBar().pushMessage('Directory not found on device', level=1)
+                return False
+            else:
+                return True
+        else:
+            return False
+
+    def enableButtonBox(self):
+        """Checks if all of the input is legit, and if yes, enables the ok button"""
+        if (self.radioButton_pointSample.isChecked() or self.radioButton_basemap.isChecked()
+                or self.radioButton_msa.isChecked()):
+            path_state = self.checkIfPathLegit()
+            self.buttonBox_ok.setEnabled(path_state)
+        else:
+            self.buttonBox_ok.setEnabled(False)
+
+    def changeRunType(self):
+        """Changes the run type based on which radiobutton is checked.
+        1 = only point sample
+        2 = only basemap
+        3 = runn full msa
+        -1 = invalid input"""
+
+        if self.radioButton_pointSample.isChecked():
+            self.run_type = 0
+        elif self.radioButton_basemap.isChecked():
+            self.run_type = 1
+        elif self.radioButton_msa.isChecked():
+            self.run_type = 2
+        else:
+            self.run_type = -1
 

@@ -10,7 +10,7 @@
     <x>0</x>
     <y>0</y>
     <width>723</width>
-    <height>837</height>
+    <height>886</height>
    </rect>
   </property>
   <property name="contextMenuPolicy">
@@ -70,7 +70,7 @@
         <string notr="true">tab_rules {background-color: rgb(240, 240, 240)};</string>
        </property>
        <property name="currentIndex">
-        <number>5</number>
+        <number>0</number>
        </property>
        <widget class="QWidget" name="tab_envAndSpatial">
         <attribute name="title">
@@ -114,8 +114,8 @@
              <rect>
               <x>0</x>
               <y>0</y>
-              <width>688</width>
-              <height>618</height>
+              <width>692</width>
+              <height>652</height>
              </rect>
             </property>
             <layout class="QGridLayout" name="gridLayout">
@@ -134,8 +134,21 @@
              <property name="spacing">
               <number>10</number>
              </property>
-             <item row="0" column="0">
-              <widget class="QLabel" name="label_area_of_interest">
+             <item row="1" column="1" colspan="2">
+              <widget class="QgsFileWidget" name="mQgsFileWidget_startingPoint"/>
+             </item>
+             <item row="1" column="0">
+              <widget class="QLabel" name="label_mapFile">
+               <property name="text">
+                <string>Map file:</string>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="1" colspan="2">
+              <widget class="QgsExtentGroupBox" name="mExtentGroupBox"/>
+             </item>
+             <item row="2" column="0">
+              <widget class="QLabel" name="label_areaOfInterest">
                <property name="toolTip">
                 <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The area of interest is the extent of the main grid for which the simulation of vegetation communities and pollen counts based thereon will take place. Please make sure that all input maps are at least as large as the area of interest or larger.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                </property>
@@ -144,30 +157,7 @@
                </property>
               </widget>
              </item>
-             <item row="0" column="1" colspan="2">
-              <widget class="QgsExtentGroupBox" name="mExtentGroupBox"/>
-             </item>
-             <item row="1" column="0">
-              <widget class="QLabel" name="label_resolution">
-               <property name="toolTip">
-                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The resolution dictates how far apart each vector point will be spaced. The unit of distance is determined by the projection (e.g. British National Grid will be in meters).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-               </property>
-               <property name="text">
-                <string>Resolution</string>
-               </property>
-              </widget>
-             </item>
-             <item row="1" column="1" colspan="2">
-              <widget class="QSpinBox" name="spinBox_resolution">
-               <property name="maximum">
-                <number>1000000</number>
-               </property>
-               <property name="value">
-                <number>10000</number>
-               </property>
-              </widget>
-             </item>
-             <item row="2" column="0">
+             <item row="4" column="0">
               <widget class="QLabel" name="label_fieldsAndBands">
                <property name="toolTip">
                 <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;All fields and bands that are suitable as input will be shown in these two tables, with column 1 indicating layer and column 2 indicating field or band.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
@@ -180,69 +170,7 @@
                </property>
               </widget>
              </item>
-             <item row="2" column="1" rowspan="2">
-              <layout class="QVBoxLayout" name="verticalLayout_vector">
-               <property name="spacing">
-                <number>10</number>
-               </property>
-               <item>
-                <widget class="QLabel" name="label_vector">
-                 <property name="font">
-                  <font>
-                   <pointsize>10</pointsize>
-                   <weight>75</weight>
-                   <bold>true</bold>
-                  </font>
-                 </property>
-                 <property name="text">
-                  <string>Vector Polygon</string>
-                 </property>
-                 <property name="alignment">
-                  <set>Qt::AlignCenter</set>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QTableWidget" name="tableWidget_vector">
-                 <property name="frameShape">
-                  <enum>QFrame::StyledPanel</enum>
-                 </property>
-                 <property name="editTriggers">
-                  <set>QAbstractItemView::DoubleClicked|QAbstractItemView::SelectedClicked</set>
-                 </property>
-                 <property name="dragDropMode">
-                  <enum>QAbstractItemView::NoDragDrop</enum>
-                 </property>
-                 <property name="alternatingRowColors">
-                  <bool>true</bool>
-                 </property>
-                 <property name="selectionMode">
-                  <enum>QAbstractItemView::MultiSelection</enum>
-                 </property>
-                 <property name="selectionBehavior">
-                  <enum>QAbstractItemView::SelectRows</enum>
-                 </property>
-                 <property name="wordWrap">
-                  <bool>true</bool>
-                 </property>
-                 <attribute name="horizontalHeaderCascadingSectionResizes">
-                  <bool>false</bool>
-                 </attribute>
-                 <column>
-                  <property name="text">
-                   <string>Layer</string>
-                  </property>
-                 </column>
-                 <column>
-                  <property name="text">
-                   <string>Field</string>
-                  </property>
-                 </column>
-                </widget>
-               </item>
-              </layout>
-             </item>
-             <item row="2" column="2" rowspan="2">
+             <item row="4" column="2" rowspan="2">
               <layout class="QVBoxLayout" name="verticalLayout_raster">
                <property name="spacing">
                 <number>10</number>
@@ -304,30 +232,89 @@
                </item>
               </layout>
              </item>
-             <item row="4" column="1">
-              <widget class="QTableWidget" name="tableWidget_selected">
-               <property name="editTriggers">
-                <set>QAbstractItemView::NoEditTriggers</set>
+             <item row="3" column="1" colspan="2">
+              <widget class="QSpinBox" name="spinBox_resolution">
+               <property name="maximum">
+                <number>1000000</number>
                </property>
-               <property name="alternatingRowColors">
-                <bool>true</bool>
+               <property name="value">
+                <number>0</number>
                </property>
-               <property name="selectionMode">
-                <enum>QAbstractItemView::NoSelection</enum>
-               </property>
-               <column>
-                <property name="text">
-                 <string>Layer</string>
-                </property>
-               </column>
-               <column>
-                <property name="text">
-                 <string>Field</string>
-                </property>
-               </column>
               </widget>
              </item>
-             <item row="4" column="2">
+             <item row="4" column="1" rowspan="2">
+              <layout class="QVBoxLayout" name="verticalLayout_vector">
+               <property name="spacing">
+                <number>10</number>
+               </property>
+               <item>
+                <widget class="QLabel" name="label_vector">
+                 <property name="font">
+                  <font>
+                   <pointsize>10</pointsize>
+                   <weight>75</weight>
+                   <bold>true</bold>
+                  </font>
+                 </property>
+                 <property name="text">
+                  <string>Vector Polygon</string>
+                 </property>
+                 <property name="alignment">
+                  <set>Qt::AlignCenter</set>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QTableWidget" name="tableWidget_vector">
+                 <property name="frameShape">
+                  <enum>QFrame::StyledPanel</enum>
+                 </property>
+                 <property name="editTriggers">
+                  <set>QAbstractItemView::DoubleClicked|QAbstractItemView::SelectedClicked</set>
+                 </property>
+                 <property name="dragDropMode">
+                  <enum>QAbstractItemView::NoDragDrop</enum>
+                 </property>
+                 <property name="alternatingRowColors">
+                  <bool>true</bool>
+                 </property>
+                 <property name="selectionMode">
+                  <enum>QAbstractItemView::MultiSelection</enum>
+                 </property>
+                 <property name="selectionBehavior">
+                  <enum>QAbstractItemView::SelectRows</enum>
+                 </property>
+                 <property name="wordWrap">
+                  <bool>true</bool>
+                 </property>
+                 <attribute name="horizontalHeaderCascadingSectionResizes">
+                  <bool>false</bool>
+                 </attribute>
+                 <column>
+                  <property name="text">
+                   <string>Layer</string>
+                  </property>
+                 </column>
+                 <column>
+                  <property name="text">
+                   <string>Field</string>
+                  </property>
+                 </column>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item row="3" column="0">
+              <widget class="QLabel" name="label_resolution">
+               <property name="toolTip">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The resolution dictates how far apart each vector point will be spaced. The unit of distance is determined by the projection (e.g. British National Grid will be in meters).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               </property>
+               <property name="text">
+                <string>Resolution</string>
+               </property>
+              </widget>
+             </item>
+             <item row="6" column="2">
               <widget class="QTableWidget" name="tableWidget_selRaster">
                <property name="editTriggers">
                 <set>QAbstractItemView::NoEditTriggers</set>
@@ -350,7 +337,30 @@
                </column>
               </widget>
              </item>
-             <item row="4" column="0">
+             <item row="6" column="1">
+              <widget class="QTableWidget" name="tableWidget_selected">
+               <property name="editTriggers">
+                <set>QAbstractItemView::NoEditTriggers</set>
+               </property>
+               <property name="alternatingRowColors">
+                <bool>true</bool>
+               </property>
+               <property name="selectionMode">
+                <enum>QAbstractItemView::NoSelection</enum>
+               </property>
+               <column>
+                <property name="text">
+                 <string>Layer</string>
+                </property>
+               </column>
+               <column>
+                <property name="text">
+                 <string>Field</string>
+                </property>
+               </column>
+              </widget>
+             </item>
+             <item row="6" column="0">
               <widget class="QLabel" name="label_currentSel">
                <property name="toolTip">
                 <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Fields and bands selected in the top two tables will be displayed here, please check if they are correct before running any simulations.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
@@ -360,6 +370,41 @@
                </property>
                <property name="wordWrap">
                 <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="1" colspan="2">
+              <layout class="QHBoxLayout" name="horizontalLayout_22">
+               <item>
+                <widget class="QRadioButton" name="radioButton_createMap">
+                 <property name="text">
+                  <string>Create map from scratch</string>
+                 </property>
+                 <property name="checked">
+                  <bool>true</bool>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QRadioButton" name="radioButton_loadPointMap">
+                 <property name="text">
+                  <string>Load point sampled map</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QRadioButton" name="radioButton_loadBaseMap">
+                 <property name="text">
+                  <string>Load basemap</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item row="0" column="0">
+              <widget class="QLabel" name="label_startingPoint">
+               <property name="text">
+                <string>Starting point:</string>
                </property>
               </widget>
              </item>
@@ -403,7 +448,7 @@
               <x>0</x>
               <y>0</y>
               <width>709</width>
-              <height>590</height>
+              <height>630</height>
              </rect>
             </property>
             <layout class="QGridLayout" name="gridLayout_2">
@@ -479,7 +524,7 @@
              <item row="1" column="0">
               <widget class="QLabel" name="label_taxa">
                <property name="toolTip">
-                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;This table contains the plant taxa and the attributes necessary for modelling them. Add a new taxon by clicking &amp;quot;add new&amp;quot; or by importing a HUMPOL handbag file.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;This table contains the plant taxa and the attributes necessary for modelling them. Add a new taxon by clicking &amp;quot;add new&amp;quot; or by importing a HUMPOL handbag file. Please make sure that the spelling you use is the same as in your pollen percentage file.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                </property>
                <property name="text">
                 <string>Taxa:</string>
@@ -620,7 +665,7 @@
                  <item>
                   <widget class="QPushButton" name="pushButton_removeVegCom">
                    <property name="toolTip">
-                    <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Remove a vegetation community from the table of vegetation communities&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                    <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Remove the selected vegetation community from the table of vegetation communities&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                    </property>
                    <property name="text">
                     <string>Remove</string>
@@ -767,8 +812,8 @@
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>501</width>
-                <height>543</height>
+                <width>533</width>
+                <height>591</height>
                </rect>
               </property>
               <layout class="QHBoxLayout" name="horizontalLayout_18">
@@ -865,10 +910,13 @@
                   <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Fill in the number of iterations here. Minimum 1.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                  </property>
                  <property name="minimum">
-                  <number>1</number>
+                  <number>0</number>
                  </property>
                  <property name="maximum">
                   <number>1000</number>
+                 </property>
+                 <property name="value">
+                  <number>0</number>
                  </property>
                 </widget>
                </item>
@@ -940,7 +988,7 @@
               <x>0</x>
               <y>0</y>
               <width>709</width>
-              <height>590</height>
+              <height>630</height>
              </rect>
             </property>
             <layout class="QGridLayout" name="gridLayout_3" rowstretch="0,0,0,0,0">
@@ -1111,56 +1159,56 @@
            <item>
             <layout class="QVBoxLayout" name="verticalLayout_3">
              <item>
-              <widget class="QLabel" name="label_2">
+              <widget class="QLabel" name="label_north">
                <property name="text">
                 <string>North</string>
                </property>
               </widget>
              </item>
              <item>
-              <widget class="QLabel" name="label_3">
+              <widget class="QLabel" name="label_northEast">
                <property name="text">
                 <string>NorthEast</string>
                </property>
               </widget>
              </item>
              <item>
-              <widget class="QLabel" name="label_5">
+              <widget class="QLabel" name="label_east">
                <property name="text">
                 <string>East</string>
                </property>
               </widget>
              </item>
              <item>
-              <widget class="QLabel" name="label_6">
+              <widget class="QLabel" name="label_southEast">
                <property name="text">
                 <string>SouthEast</string>
                </property>
               </widget>
              </item>
              <item>
-              <widget class="QLabel" name="label_7">
+              <widget class="QLabel" name="label_south">
                <property name="text">
                 <string>South</string>
                </property>
               </widget>
              </item>
              <item>
-              <widget class="QLabel" name="label_8">
+              <widget class="QLabel" name="label_southWest">
                <property name="text">
                 <string>SouthWest</string>
                </property>
               </widget>
              </item>
              <item>
-              <widget class="QLabel" name="label_9">
+              <widget class="QLabel" name="label_west">
                <property name="text">
                 <string>West</string>
                </property>
               </widget>
              </item>
              <item>
-              <widget class="QLabel" name="label_10">
+              <widget class="QLabel" name="label_northWest">
                <property name="text">
                 <string>NorthWest</string>
                </property>
@@ -1232,6 +1280,9 @@
          </item>
          <item row="1" column="2">
           <widget class="QLabel" name="label_turbConst">
+           <property name="toolTip">
+            <string>Also known as: γ (lower case gamma)</string>
+           </property>
            <property name="text">
             <string>Turbulence constant</string>
            </property>
@@ -1239,8 +1290,11 @@
          </item>
          <item row="1" column="0">
           <widget class="QLabel" name="label_atmosConst">
+           <property name="toolTip">
+            <string>Also known as: diffusion coefficient, n</string>
+           </property>
            <property name="text">
-            <string>Atmospheric constant</string>
+            <string>Atmostpheric constant</string>
            </property>
           </widget>
          </item>
@@ -1298,8 +1352,11 @@
          </item>
          <item row="2" column="0">
           <widget class="QLabel" name="label_difConst_2">
+           <property name="toolTip">
+            <string>Also known as: Cz</string>
+           </property>
            <property name="text">
-            <string>Diffusion constant</string>
+            <string>Vertical diffusion coefficient</string>
            </property>
           </widget>
          </item>
@@ -1315,8 +1372,11 @@
          </item>
          <item row="3" column="0">
           <widget class="QLabel" name="label_windSpeed">
+           <property name="toolTip">
+            <string>Also known as: u</string>
+           </property>
            <property name="text">
-            <string>Average Wind speed (m/s)</string>
+            <string>Average wind speed (m/s)</string>
            </property>
           </widget>
          </item>
@@ -1505,21 +1565,21 @@
          <item row="1" column="1">
           <widget class="QDoubleSpinBox" name="doubleSpin_atmosConstant">
            <property name="value">
-            <double>0.250000000000000</double>
+            <double>0.000000000000000</double>
            </property>
           </widget>
          </item>
          <item row="2" column="1" colspan="2">
           <widget class="QDoubleSpinBox" name="doubleSpin_diffConstant">
            <property name="value">
-            <double>0.120000000000000</double>
+            <double>0.000000000000000</double>
            </property>
           </widget>
          </item>
          <item row="3" column="1" colspan="2">
           <widget class="QDoubleSpinBox" name="doubleSpin_windSpeed">
            <property name="value">
-            <double>20.000000000000000</double>
+            <double>0.000000000000000</double>
            </property>
           </widget>
          </item>
@@ -1641,8 +1701,8 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>694</width>
-        <height>244</height>
+        <width>715</width>
+        <height>217</height>
        </rect>
       </property>
       <layout class="QHBoxLayout" name="horizontalLayout_20" stretch="0">
@@ -1662,7 +1722,7 @@
         <number>0</number>
        </property>
        <item>
-        <layout class="QVBoxLayout" name="verticalLayout_16" stretch="1,1,1,1,1">
+        <layout class="QVBoxLayout" name="verticalLayout_16" stretch="1,1,1,1">
          <property name="leftMargin">
           <number>6</number>
          </property>
@@ -1684,6 +1744,9 @@
              <bold>true</bold>
             </font>
            </property>
+           <property name="toolTip">
+            <string>Please note that the checklist only checks whether an input was given, NOT whether the input is correct</string>
+           </property>
            <property name="text">
             <string>Checklist</string>
            </property>
@@ -1698,38 +1761,89 @@
             <layout class="QVBoxLayout" name="verticalLayout_13">
              <item>
               <widget class="QCheckBox" name="checkBox_extent">
+               <property name="enabled">
+                <bool>false</bool>
+               </property>
+               <property name="mouseTracking">
+                <bool>false</bool>
+               </property>
+               <property name="styleSheet">
+                <string notr="true">color: rgb(0, 0, 0);</string>
+               </property>
                <property name="text">
                 <string>Extent set</string>
                </property>
-               <property name="checked">
+               <property name="checkable">
                 <bool>true</bool>
+               </property>
+               <property name="checked">
+                <bool>false</bool>
                </property>
               </widget>
              </item>
              <item>
               <widget class="QCheckBox" name="checkBox_resolution">
+               <property name="enabled">
+                <bool>false</bool>
+               </property>
+               <property name="mouseTracking">
+                <bool>false</bool>
+               </property>
+               <property name="styleSheet">
+                <string notr="true">color: rgb(0, 0, 0);</string>
+               </property>
                <property name="text">
                 <string>Resolution set</string>
                </property>
-               <property name="checked">
+               <property name="checkable">
                 <bool>true</bool>
+               </property>
+               <property name="checked">
+                <bool>false</bool>
                </property>
               </widget>
              </item>
              <item>
               <widget class="QCheckBox" name="checkBox_envLayers">
+               <property name="enabled">
+                <bool>false</bool>
+               </property>
+               <property name="mouseTracking">
+                <bool>false</bool>
+               </property>
+               <property name="styleSheet">
+                <string notr="true">color: rgb(0, 0, 0);</string>
+               </property>
                <property name="text">
                 <string>Environmental Layers selected</string>
                </property>
-               <property name="checked">
+               <property name="checkable">
                 <bool>true</bool>
+               </property>
+               <property name="checked">
+                <bool>false</bool>
                </property>
               </widget>
              </item>
              <item>
-              <widget class="QCheckBox" name="checkBox_saveFile">
+              <widget class="QCheckBox" name="checkBox_taxa">
+               <property name="enabled">
+                <bool>false</bool>
+               </property>
+               <property name="mouseTracking">
+                <bool>false</bool>
+               </property>
+               <property name="styleSheet">
+                <string notr="true">color: rgb(0, 0, 0);</string>
+               </property>
                <property name="text">
-                <string>Save file set</string>
+                <string>Taxa set</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+               <property name="checked">
+                <bool>false</bool>
                </property>
               </widget>
              </item>
@@ -1738,42 +1852,90 @@
            <item>
             <layout class="QVBoxLayout" name="verticalLayout_14">
              <item>
-              <widget class="QCheckBox" name="checkBox_taxa">
-               <property name="text">
-                <string>Taxa set</string>
-               </property>
-               <property name="checked">
-                <bool>true</bool>
-               </property>
-              </widget>
-             </item>
-             <item>
               <widget class="QCheckBox" name="checkBox_vegCom">
+               <property name="enabled">
+                <bool>false</bool>
+               </property>
+               <property name="mouseTracking">
+                <bool>false</bool>
+               </property>
+               <property name="styleSheet">
+                <string notr="true">color: rgb(0, 0, 0);</string>
+               </property>
                <property name="text">
                 <string>Vegetation communities set</string>
                </property>
-               <property name="checked">
+               <property name="checkable">
                 <bool>true</bool>
+               </property>
+               <property name="checked">
+                <bool>false</bool>
                </property>
               </widget>
              </item>
              <item>
               <widget class="QCheckBox" name="checkBox_pollenCounts">
+               <property name="enabled">
+                <bool>false</bool>
+               </property>
+               <property name="mouseTracking">
+                <bool>false</bool>
+               </property>
+               <property name="styleSheet">
+                <string notr="true">color: rgb(0, 0, 0);</string>
+               </property>
                <property name="text">
                 <string>Pollen counts set</string>
                </property>
-               <property name="checked">
+               <property name="checkable">
                 <bool>true</bool>
+               </property>
+               <property name="checked">
+                <bool>false</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="checkBox_parameters">
+               <property name="enabled">
+                <bool>false</bool>
+               </property>
+               <property name="mouseTracking">
+                <bool>false</bool>
+               </property>
+               <property name="styleSheet">
+                <string notr="true">color: rgb(0, 0, 0);</string>
+               </property>
+               <property name="text">
+                <string>Model Parameters set</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+               <property name="checked">
+                <bool>false</bool>
                </property>
               </widget>
              </item>
              <item>
               <widget class="QCheckBox" name="checkBox_windRose">
+               <property name="enabled">
+                <bool>false</bool>
+               </property>
+               <property name="mouseTracking">
+                <bool>false</bool>
+               </property>
+               <property name="styleSheet">
+                <string notr="true">color: rgb(0, 0, 0);</string>
+               </property>
                <property name="text">
                 <string>(Optional) Wind rose set</string>
                </property>
-               <property name="checked">
+               <property name="checkable">
                 <bool>true</bool>
+               </property>
+               <property name="checked">
+                <bool>false</bool>
                </property>
               </widget>
              </item>
@@ -1782,22 +1944,50 @@
            <item>
             <layout class="QVBoxLayout" name="verticalLayout_15">
              <item>
-              <widget class="QCheckBox" name="checkBox_parameters">
+              <widget class="QCheckBox" name="checkBox_rules">
+               <property name="enabled">
+                <bool>false</bool>
+               </property>
+               <property name="mouseTracking">
+                <bool>false</bool>
+               </property>
+               <property name="styleSheet">
+                <string notr="true">color: rgb(0, 0, 0);</string>
+               </property>
                <property name="text">
-                <string>Model Parameters set</string>
+                <string>Rules set</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
                </property>
                <property name="checked">
-                <bool>true</bool>
+                <bool>false</bool>
                </property>
               </widget>
              </item>
              <item>
-              <widget class="QCheckBox" name="checkBox_rules">
-               <property name="text">
-                <string>Rules set</string>
+              <widget class="QCheckBox" name="checkBox_ruleTree">
+               <property name="enabled">
+                <bool>false</bool>
                </property>
-               <property name="checked">
-                <bool>true</bool>
+               <property name="styleSheet">
+                <string notr="true">color: rgb(0, 0, 0);</string>
+               </property>
+               <property name="text">
+                <string>Rule Tree set</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="checkBox_iterations">
+               <property name="enabled">
+                <bool>false</bool>
+               </property>
+               <property name="styleSheet">
+                <string notr="true">color: rgb(0, 0, 0);</string>
+               </property>
+               <property name="text">
+                <string>Iterations set</string>
                </property>
               </widget>
              </item>
@@ -1836,33 +2026,6 @@
           </layout>
          </item>
          <item>
-          <layout class="QHBoxLayout" name="horizontalLayout_6">
-           <item>
-            <widget class="QLabel" name="label_saveOutput">
-             <property name="text">
-              <string>Set save directory:</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QgsFileWidget" name="qgsFileWidget_vectorPoint">
-             <property name="toolTip">
-              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Set a directory where you would like to save your output files. Make sure the directory does not contain any results from other runs, as the data will be overwritten.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-             </property>
-             <property name="defaultRoot">
-              <string/>
-             </property>
-             <property name="storageMode">
-              <enum>QgsFileWidget::GetDirectory</enum>
-             </property>
-             <property name="relativeStorage">
-              <enum>QgsFileWidget::RelativeDefaultPath</enum>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </item>
-         <item>
           <layout class="QHBoxLayout" name="horizontalLayout_15" stretch="1,0,0,0">
            <property name="spacing">
             <number>10</number>
@@ -1881,7 +2044,7 @@
 background-color: rgb(199, 199, 199);</string>
              </property>
              <property name="text">
-              <string>Click OK to run MSA-QGIS...</string>
+              <string/>
              </property>
             </widget>
            </item>
@@ -1961,22 +2124,6 @@ background-color: rgb(199, 199, 199);</string>
  </customwidgets>
  <resources/>
  <connections>
-  <connection>
-   <sender>button_box</sender>
-   <signal>accepted()</signal>
-   <receiver>MsaQgisDialogBase</receiver>
-   <slot>accept()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>20</x>
-     <y>20</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>20</x>
-     <y>20</y>
-    </hint>
-   </hints>
-  </connection>
   <connection>
    <sender>button_box</sender>
    <signal>rejected()</signal>

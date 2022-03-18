@@ -27,7 +27,7 @@ import re
 import time
 import sqlite3
 import math
-import numpy
+import pandas as pd
 
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, QVariant
 from qgis.PyQt.QtGui import QIcon
@@ -42,6 +42,8 @@ from PyQt5.QtWidgets import QTableWidgetItem
 from .resources import *
 # Import the code for the dialog
 from .MSA_QGIS_dialog import MsaQgisDialog, MsaQgisSuccesDialog
+from .MSA_QGIS_custom_sql_methods import SqlSqrt, SqlCardinalDir
+from .MSA_QGIS_distance_weighting_sql_methods import SqlDwPrenticeSugita
 import os.path
 import sys
 
@@ -90,8 +92,7 @@ class MsaQgis:
         # Must be set in initGui() to survive plugin reloads
         self.first_start = None
 
-        #Print log messages to file
-        QgsApplication.messageLog().messageReceived.connect(self.writeLogMessage)
+
 
 #** PLUGIN BUILDER FUNCTIONS
     def tr(self, message):
@@ -202,110 +203,9 @@ class MsaQgis:
                 self.tr(u'&MSA QGIS'),
                 action)
             self.iface.removeToolBarIcon(action)
-#** _SQLite FUNCTIONS
-    def _Sqlsqrt(self, real_number):
-        """Used to import the python sqrt function to sqlite.
-
-        :param real_number: The number of which the squareroot will be calculated.
-        :type real_number: float"""
-        return math.sqrt(real_number)
-
-    def _SqlCardinalDir(self, x, y):
-        """ Takes a spatial point and determines its cardinal direction from 0,0 using normalized vectors. Can be imported into
-         SQlite.
-
-         :param x: x-coordinate or longitude
-         :type x: float
-
-         :param y: y-coordinate or latitude
-         :type y: float
-
-         :returns: One of eight cardinal directions (N, NE, E, SE, S, SW, W, NW)
-         :rtype: str"""
-        # Create normalized vectors for cardinal directions
-        vecN = numpy.array([1, 0])
-        vecNE = numpy.array([1, 1])
-        norm_vecNE = vecNE / numpy.linalg.norm(vecNE)
-        vecE = numpy.array([0, 1])
-        vecSE = numpy.array([-1, 1])
-        norm_vecSE = vecSE/numpy.linalg.norm(vecSE)
-        vecS = numpy.array([-1, 0])
-        vecSW = numpy.array([-1, -1])
-        norm_vecSW = vecSW/numpy.linalg.norm(vecSW)
-        vecW = numpy.array([0, -1])
-        vecNW = numpy.array([1, -1])
-        norm_vecNW = vecSE/numpy.linalg.norm(vecNW)
-
-        vecPoint = numpy.array([x,y])
-        # Calculate euclidean distances to all normalized vectors of cardinal directions
-        dist_N = numpy.linalg.norm(vecN - vecPoint)
-        dist_NE = numpy.linalg.norm(norm_vecNE - vecPoint)
-        dist_E = numpy.linalg.norm(vecE - vecPoint)
-        dist_SE = numpy.linalg.norm(norm_vecSE - vecPoint)
-        dist_S = numpy.linalg.norm(vecS - vecPoint)
-        dist_SW = numpy.linalg.norm(norm_vecSW - vecPoint)
-        dist_W = numpy.linalg.norm(vecW - vecPoint)
-        dist_NW = numpy.linalg.norm(norm_vecNW - vecPoint)
-        list_dist = [dist_N, dist_NE, dist_E, dist_SE, dist_S, dist_SW, dist_W, dist_NW]
-        if min(list_dist) == list_dist[0]:
-            return 'N'
-        elif min(list_dist) == list_dist[1]:
-            return 'NE'
-        elif min(list_dist) == list_dist[2]:
-            return 'E'
-        elif min(list_dist) == list_dist[3]:
-            return 'SE'
-        elif min(list_dist) == list_dist[4]:
-            return 'S'
-        elif min(list_dist) == list_dist[5]:
-            return 'SW'
-        elif min(list_dist) == list_dist[6]:
-            return 'W'
-        elif min(list_dist) == list_dist[7]:
-            return 'NW'
-        else:
-            return 'Error'
-
-#** _SQLite Distance weighting functions
-    def _SqlDwPrenticeSugita(self, atmos_const, diffusion_const, wind_speed, distance, fall_speed):
-        """A distance weighting function.
-        The pollen dispersal and deposition function from the Prentice/Sugita's (mixed) basin models and the
-        HUMPOL model. All variables come in in str form as
-
-        :param atmos_const: Atmospheric constant
-        :type atmos_const: float
-
-        :param diffusion_const: Diffusion constant
-        :type diffusion_const: float
-
-        :param wind_speed: Annual average of wind speed
-        :type wind_speed: float
-
-        :param distance: distance from the vector point producing the pollen to the sampling site.
-        :type distance: float
-
-        :param fall_speed: Fall speed for the pollen taxon
-        :type fall_speed: float"""
-        if distance == 0:
-            return -1
-        else:
-            turb_const = 2 * atmos_const
-            settling_coefficient = (4*fall_speed)/(turb_const*wind_speed* math.sqrt(math.pi * diffusion_const))
-            pollen_dispersal_deposition = settling_coefficient*atmos_const*(distance**(atmos_const*-1))*math.exp((settling_coefficient*-1)*(distance**atmos_const))
-            return pollen_dispersal_deposition
-
-
-    # #* ADD NEW DISTANCE WEIGHTING FUNCTIONS HERE.
-    #
-    # #* template distance weighting function
-    # def _SQLDW_{name of your distance weighting function}(self, distance, input_variable1, input_variable2):
-    #     """ A distance weighting function.
-    #     {put description of your distance weighting function here}"""
-    #     distance_weight = {your pollen distance weighting function here}
-    #     return distance_weight
 
 #** WRITE SQLite TABLES
-    def createSiteTables(self, conn, cursor):
+    def createSiteTables(self, conn, cursor, basemap):
         """ Forms sql strings and executes them to create a table containing samples and associated tables with
         pollen data per sample, which it gets from the file paths given in the UI
         :class params: self.dlg
@@ -331,10 +231,10 @@ class MsaQgis:
             sample_x = table_sites.item(row,1).text()
             sample_y = table_sites.item(row,2).text()
             sample_is_lake = table_sites.item(row,3).text()
-            snapped_x = f'(SELECT geom_x FROM basemap WHERE geom_x BETWEEN ({sample_x}-{str(self.spacing)}) ' \
+            snapped_x = f'(SELECT geom_x FROM "{basemap}" WHERE geom_x BETWEEN ({sample_x}-{str(self.spacing)}) ' \
                         f'AND ({sample_x}+{str(self.spacing)}) ORDER BY abs({sample_x}-geom_x) limit 1)'
 
-            snapped_y = f'(SELECT geom_y FROM basemap WHERE geom_y BETWEEN ({sample_y}-{str(self.spacing)}) ' \
+            snapped_y = f'(SELECT geom_y FROM "{basemap}" WHERE geom_y BETWEEN ({sample_y}-{str(self.spacing)}) ' \
                         f'AND ({sample_y}+{str(self.spacing)}) ORDER BY abs({sample_x}-geom_y) limit 1)'
             values_string = f'"{sample_site}", {sample_x}, {sample_y}, "{sample_is_lake}", {snapped_x},  {snapped_y})'
             cursor.execute(insert_into_string+values_string)
@@ -364,8 +264,8 @@ class MsaQgis:
 
                                     cursor.execute(f'{insert_into_string}"{sample_site}", "{taxon_name}" , {taxon_percent})')
                                     conn.commit()
-        update_msa_string = 'UPDATE sampling_sites SET msa_id = (SELECT msa_id FROM basemap WHERE basemap.geom_x = ' \
-                            'sampling_sites.snapped_x AND basemap.geom_y = sampling_sites.snapped_y)'
+        update_msa_string = f'UPDATE sampling_sites SET msa_id = (SELECT msa_id FROM "{basemap}" WHERE "{basemap}".geom_x = ' \
+                            f'sampling_sites.snapped_x AND "{basemap}".geom_y = sampling_sites.snapped_y)'
         cursor.execute(update_msa_string)
         conn.commit()
         QgsMessageLog.logMessage("Creation of site tables finished", 'MSA_QGIS',
@@ -422,7 +322,7 @@ class MsaQgis:
         QgsMessageLog.logMessage("Creation of taxon tables finished", 'MSA_QGIS',
                                  Qgis.Info)
 
-    def createTableDistanceToSite(self,conn, cursor, number_of_entries):
+    def createTableDistanceToSite(self,conn, cursor, number_of_entries, basemap):
         """Creates new tables based on the coordinates of msa_id and sites ann calculates the distance and direction
         to said sites. One table is created per site
 
@@ -446,8 +346,12 @@ class MsaQgis:
         cursor.execute(create_table_string)
         conn.commit()
         # Create new (math) functions from python to SQLite that are not normally available.
-        conn.create_function("SQRT", 1, self._Sqlsqrt)
-        conn.create_function("CARDDIR", 2, self._SqlCardinalDir)
+        # conn.create_function("SQRT", 1, self._SqlSqrt) #TODO OLD
+        # conn.create_function("CARDDIR", 2, self._SqlCardinalDir) # TODO OLD
+
+        conn.create_function("SQRT", 1, SqlSqrt)
+        conn.create_function("CARDDIR", 2, SqlCardinalDir)
+
         cursor.execute('BEGIN TRANSACTION')
         for row in range(table_sites.rowCount()):
             sample_site = table_sites.item(row,0).text()
@@ -464,8 +368,8 @@ class MsaQgis:
                 #TODO probably a way to directly use msa_id instead of number_of_entries which would be better and more consistent, but for now it works.
                 insert_into_string = f'INSERT INTO dist_dir(msa_id, site_name, geom_x, geom_y) ' \
                                      f'VALUES({str(entry)}, "{sample_site}", ' \
-                                     f'(SELECT geom_x FROM "basemap" WHERE msa_id = {str(entry)}), ' \
-                                     f'(SELECT geom_y FROM "basemap" WHERE msa_id = {str(entry)}))'
+                                     f'(SELECT geom_x FROM "{basemap}" WHERE msa_id = {str(entry)}), ' \
+                                     f'(SELECT geom_y FROM "{basemap}" WHERE msa_id = {str(entry)}))'
                 cursor.execute(insert_into_string)
 
             # Calculate distance
@@ -517,7 +421,7 @@ class MsaQgis:
         QgsMessageLog.logMessage("Creation of site tables finished", 'MSA_QGIS',
                                  Qgis.Info)
 
-    def createTablePseudoPoints(self,conn,cursor):
+    def createTablePseudoPoints(self,conn,cursor, basemap):
         """ Creates a table with 4 points per sampling site that lie around the snapped x and y to avoid overcontribution of the
         point to which the site is snapped.
 
@@ -535,7 +439,7 @@ class MsaQgis:
         create_table_string = 'CREATE TABLE pseudo_points(pseudo_id INT, site_name VARCHAR(50), msa_id INT(20), ' \
                               'direction REAL, distance REAL, geom_x REAL, geom_y REAL, veg_com VARCHAR(20) DEFAULT "empty", ' \
                               'primary key(pseudo_id), FOREIGN KEY(site_name) REFERENCES sampling_sites(site_name),' \
-                              'FOREIGN KEY(msa_id) REFERENCES basemap(msa_id), FOREIGN KEY(veg_com) REFERENCES vegcom(veg_com))'
+                              f'FOREIGN KEY(msa_id) REFERENCES "{basemap}"(msa_id), FOREIGN KEY(veg_com) REFERENCES vegcom(veg_com))'
         cursor.execute(create_table_string)
 
         #fill table 4 points at a time
@@ -647,7 +551,7 @@ class MsaQgis:
         # Define distance weighting function
         cursor.execute('BEGIN TRANSACTION')
         if self.dlg.comboBox_dispModel.currentText() == 'Prentice-Sugita':
-            conn.create_function("DISTANCEWEIGHT", 5, self._SqlDwPrenticeSugita)
+            conn.create_function("DISTANCEWEIGHT", 5, SqlDwPrenticeSugita)
             # Calculate the pollen dispersal and deposition functions
             for row in range(self.dlg.tableWidget_taxa.rowCount()):
 
@@ -656,10 +560,7 @@ class MsaQgis:
                 atmos_const= self.dlg.doubleSpin_atmosConstant.value()
                 diffusion_const = self.dlg.doubleSpin_diffConstant.value()
                 wind_speed = self.dlg.doubleSpin_windSpeed.value()
-                #fall_speed = 'SELECT "fall_speed" FROM "taxa" WHERE "taxon_code" = "'+taxon+'"' #TODO remove non f-string
                 fall_speed = f'(SELECT "fall_speed" FROM "taxa" WHERE "taxon_code" = "{taxon}")'
-                # update_DWPA_string = 'UPDATE PollenLookup SET ' + taxon + '_DW = (SELECT DISTANCEWEIGHT('+str(atmos_const)+\
-                #     ', '+str(diffusion_const)+', '+str(wind_speed)+', distance, '+str(fall_speed)+'))'  # TODO remove non f-string
                 update_DWPA_string = f'UPDATE PollenLookup SET {taxon}_DW = (SELECT DISTANCEWEIGHT({atmos_const}, ' \
                                      f'{diffusion_const}, {wind_speed}, distance, {fall_speed}))'
                 cursor.execute(update_DWPA_string)
@@ -691,7 +592,7 @@ class MsaQgis:
         inset = self.spacing * 0.5  # set inset
         if self.dlg.extent is None:
             self.iface.messageBar().pushMessage('Extent not chosen!', level=1) # TODO will be deprecated once checkboxes in place
-            return
+            raise Exception('Extent not chosen')
         else:
             x_min = self.dlg.extent.xMinimum() + inset
             x_max = self.dlg.extent.xMaximum()
@@ -904,13 +805,13 @@ class MsaQgis:
         #                                         self.dlg.qgsFileWidget_vectorPoint.filePath() + '\_basemap_empty.csv',
         #                                         'utf-8', driverName='CSV')
 
-    def convertToSQL(self):
+    def convertVectorToSql(self, save_directory):
         """ Converts QgsVectorLayer to SQLite database entry. Only used if pointSampleNative was also used.
         Connects to Sqlite db "empty_basemap.sqlite" in user given directory.
 
         :class params: self.dlg, self.vector_point_filled_ras"""
         QgsMessageLog.logMessage("Convert native qgis points to SQLite initiated", 'MSA_QGIS', Qgis.Info)
-        conn = sqlite3.connect(self.dlg.qgsFileWidget_vectorPoint.filePath()+'//empty_basemap.sqlite')
+        conn = sqlite3.connect(':memory:')
         cursor = conn.cursor()
         # generate create table string (add " so the query can deal with column names and values that contain spaces
         start_string = 'CREATE TABLE empty_basemap ('
@@ -968,13 +869,13 @@ class MsaQgis:
             cursor.execute(insert_string)
             conn.commit()
 
-        string_vacuum_into = f'VACUUM INTO "{self.dlg.qgsFileWidget_vectorPoint.filePath()}//pointsampled_basemap.sqlite";'
+        string_vacuum_into = f'VACUUM INTO "{save_directory}//pointsampled_basemap.sqlite";'
         cursor.execute(string_vacuum_into)
         conn.commit()
         conn.close()
         QgsMessageLog.logMessage("Convert native qgis points to SQL finished", 'MSA_QGIS', Qgis.Info)
 
-    def pointSampleSQL(self, point_layer, conn, cursor):
+    def pointSampleSQL(self, point_layer, conn, cursor, save_directory):
         """ Uses Spatialite to point sample user-selected raster and polygon layers.
         Requires the user to install spatialite manually through the OSGeo4W Shell before running.
         Connects to "empty_basemap.sqlite" in user given directory.
@@ -1035,7 +936,7 @@ class MsaQgis:
                             pass
             point_layer.commitChanges()
         # Turn vector_point_base (now with raster layers attached) into a spatialite db
-        file_name_basemap = self.dlg.qgsFileWidget_vectorPoint.filePath() + '//empty_basemap.sqlite'
+        file_name_basemap = save_directory + '//empty_basemap.sqlite'
         QgsVectorFileWriter.writeAsVectorFormat(point_layer, file_name_basemap, 'utf-8', self.crs, driverName='SQLite',
                                                 onlySelected=False,
                                                 datasourceOptions=['SPATIALITE=YES'])  # TODO deprecated in QGIS
@@ -1047,7 +948,7 @@ class MsaQgis:
         for layer in dict_of_fields_vec:
             lyrn = layer.name()
             # Save layer as db
-            file_name = f'{self.dlg.qgsFileWidget_vectorPoint.filePath()}//{lyrn}.sqlite'
+            file_name = f'{save_directory}//{lyrn}.sqlite'
             QgsVectorFileWriter.writeAsVectorFormat(layer, file_name, 'utf-8', self.crs, driverName='SQLite',
                                                     onlySelected=False, datasourceOptions=['SPATIALITE=YES'])
             # Attach the new db to the basemap db with ATTACH and copy it to the in-memory database
@@ -1100,11 +1001,11 @@ class MsaQgis:
 
         # # Write csv file to check if everything went okay
         # cursor.execute('select * from empty_basemap')
-        # with open (self.dlg.qgsFileWidget_vectorPoint.filePath()+ '//sql_basemap.csv', 'w', newline = '') as csv_file:
+        # with open (save_directory+ '//sql_basemap.csv', 'w', newline = '') as csv_file:
         #     csv_writer = csv.writer(csv_file)
         #     csv_writer.writerow([i[0] for i in cursor.description])
         #     csv_writer.writerows(cursor)
-        string_vacuum_into = f'VACUUM INTO "{self.dlg.qgsFileWidget_vectorPoint.filePath()}//pointsampled_basemap.sqlite";'
+        string_vacuum_into = f'VACUUM INTO "{save_directory}//pointsampled_basemap.sqlite";'
         cursor.execute(string_vacuum_into)
         conn.commit()
         QgsMessageLog.logMessage("Points sampling using spatialite finished", 'MSA_QGIS', Qgis.Info)
@@ -1378,7 +1279,7 @@ class MsaQgis:
         return sql_map_name
 
 #** POLLEN MODELLING
-    def simulatePollen(self, output_map,iteration, conn, cursor):
+    def simulatePollen(self, output_map,iteration, conn, cursor, save_directory):
         """Simulates the pollen per map, per site and determines whether the fit between the simulated pollen and actual
          pollen is close enough to retain the map if the user selected to retain only fitted maps.
 
@@ -1451,7 +1352,7 @@ class MsaQgis:
         # Adjust pollen load by 0.25 for pseudopoints (which contain 0.25 the area of a "normal" point)
             for row in range(self.dlg.tableWidget_taxa.rowCount()):
                 taxon = self.dlg.tableWidget_taxa.item(row, 0).text()
-                update_table_string = f'UPDATE {site_name+output_map} SET {taxon}_PL = (SELECT "{taxon}_PL" * 0.25) WHERE'\
+                update_table_string = f'UPDATE {site_name+output_map} SET {taxon}_PL = (SELECT "{taxon}_PL" * 0.25) WHERE '\
                                       f'pseudo_id IS NOT NULL'
                 cursor.execute(update_table_string)
             conn.commit()
@@ -1622,7 +1523,7 @@ class MsaQgis:
 
         # Save saved maps to .csv
         cursor.execute(f'SELECT * FROM "{output_map}"')
-        with open (f'{self.dlg.qgsFileWidget_vectorPoint.filePath()}//{output_map}.csv', 'w', newline = '') as csv_file:
+        with open (f'{save_directory}//{output_map}.csv', 'w', newline = '') as csv_file:
             csv_writer = csv.writer(csv_file)
             csv_writer.writerow([i[0] for i in cursor.description])
             csv_writer.writerows(cursor)
@@ -1631,7 +1532,7 @@ class MsaQgis:
 
 #** MISC
 
-    def writeLogMessage(self, message, tag, level): # TODO currently triggers on all log messages, should only trigger at runtime
+    def writeLogMessage(self, message, tag, level):
         """ Writes all log messages received during runtime to a file.
 
         :class params: self.dlg
@@ -1644,7 +1545,7 @@ class MsaQgis:
         :param level: Level of priority of the message (info, warning, critical)
         :type level: int"""
         if tag == 'MSA_QGIS':
-            file_name = self.dlg.qgsFileWidget_vectorPoint.filePath() + '/MSA_QGIS_log.txt'
+            file_name = self.dlg.save_directory + '/MSA_QGIS_log.txt'
             with open(file_name, 'a') as logfile:
                 logfile.write(f'{time.strftime("D[%Y-%m-%d] T[%H:%M:%S]", time.localtime())} {tag}({level}): {message}\n')
         else:
@@ -1698,7 +1599,7 @@ class MsaQgis:
             self.succesdlg.tableWidget_stats.setItem(row_counter+1,0, QTableWidgetItem(str(worst_site_fit)))
             row_counter +=2
 
-    def loadMapsToQGIS(self, cursor):
+    def loadMapsToQGIS(self, cursor, save_directory):
         """ Loads chosen maps into QGIS
 
         :class params: self.succesdlg, self.crs, self.dlg
@@ -1715,7 +1616,7 @@ class MsaQgis:
             current_best_fit_string = f'SELECT likelihood_cumul FROM maps WHERE map_id = "{fit_map}"'
             cursor.execute(current_best_fit_string)
             current_best_fit = cursor.fetchone()[0]
-            uri = f'file:///{self.dlg.qgsFileWidget_vectorPoint.filePath()}/{fit_map}.csv' + \
+            uri = f'file:///{save_directory}/{fit_map}.csv' + \
                   '?delimiter=,&xField=geom_x&yField=geom_y'
             csv_layer = QgsVectorLayer(uri, f'{fit_map} fit{current_best_fit}', "delimitedtext")
             csv_layer.setCrs(self.crs)
@@ -1741,7 +1642,7 @@ class MsaQgis:
                 for map in range(user_given_n):
                     fit_map = fit_map_list[map][0]
                     QgsMessageLog.logMessage(f'opening {fit_map}', 'MSA_QGIS', Qgis.Info)
-                    uri = f'file:///{self.dlg.qgsFileWidget_vectorPoint.filePath()}/{fit_map}.csv' + \
+                    uri = f'file:///{save_directory}/{fit_map}.csv' + \
                           '?delimiter=,&xField=geom_x&yField=geom_y'
                     csv_layer = QgsVectorLayer(uri, f'{fit_map} fit{current_best_fit}', "delimitedtext")
                     csv_layer.setCrs(self.crs)
@@ -1755,7 +1656,7 @@ class MsaQgis:
                 for map in range(number_of_same_fit):
                     fit_map = fit_map_list[map][0]
                     QgsMessageLog.logMessage(f'opening {fit_map}', 'MSA_QGIS', Qgis.Info)
-                    uri = f'file:///{self.dlg.qgsFileWidget_vectorPoint.filePath()}/{fit_map}.csv' + \
+                    uri = f'file:///{save_directory}/{fit_map}.csv' + \
                           '?delimiter=,&xField=geom_x&yField=geom_y'
                     csv_layer = QgsVectorLayer(uri, f'{fit_map} fit{current_best_fit}', "delimitedtext")
                     csv_layer.setCrs(self.crs)
@@ -1781,7 +1682,7 @@ class MsaQgis:
                             return
                         fit_map = map[0]
                         QgsMessageLog.logMessage(f'opening {fit_map}', 'MSA_QGIS', Qgis.Info)
-                        uri = f'file:///{self.dlg.qgsFileWidget_vectorPoint.filePath()}/{fit_map}.csv' + \
+                        uri = f'file:///{save_directory}/{fit_map}.csv' + \
                               '?delimiter=,&xField=geom_x&yField=geom_y'
                         csv_layer = QgsVectorLayer(uri, f'{fit_map} fit{current_best_fit}', "delimitedtext")
                         csv_layer.setCrs(self.crs)
@@ -1801,7 +1702,7 @@ class MsaQgis:
                 cursor.execute(current_best_fit_string)
                 current_best_fit = cursor.fetchone()[0]
                 QgsMessageLog.logMessage(f'opening {fit_map}', 'MSA_QGIS', Qgis.Info)
-                uri = f'file:///{self.dlg.qgsFileWidget_vectorPoint.filePath()}/{fit_map}.csv' + \
+                uri = f'file:///{save_directory}/{fit_map}.csv' + \
                       '?delimiter=,&xField=geom_x&yField=geom_y'
                 csv_layer = QgsVectorLayer(uri, f'{fit_map} fit{current_best_fit}', "delimitedtext")
                 csv_layer.setCrs(self.crs)
@@ -1821,7 +1722,7 @@ class MsaQgis:
                 cursor.execute(current_best_fit_string)
                 current_best_fit = cursor.fetchone()[0]
                 QgsMessageLog.logMessage(f'opening {map_to_load}', 'MSA_QGIS', Qgis.Info)
-                uri = f'file:///{self.dlg.qgsFileWidget_vectorPoint.filePath()}/{map_to_load}.csv' + \
+                uri = f'file:///{save_directory}/{map_to_load}.csv' + \
                       '?delimiter=,&xField=geom_x&yField=geom_y'
                 csv_layer = QgsVectorLayer(uri, f'{map_to_load} fit{current_best_fit}', "delimitedtext")
                 csv_layer.setCrs(self.crs)
@@ -1832,9 +1733,138 @@ class MsaQgis:
         else:
             pass  # Do not load anything
 
+    def loadPointMap(self, point_sampled_file, save_directory, conn, cursor, file_name = '//pointsampled_basemap.sqlite'):
+        """ Loads the point layer csv file given by the user, checks if it's valid and changes into an SQLite file
+        with the name pointsampled_basemap.sql so it can be used further on in the process."""
+        if not point_sampled_file[-4:] == '.csv':  # Only allow loading of .csv files #TODO add .shp etc
+            QgsMessageLog.logMessage(f'Input point sampled file invalid, not a .csv file ',
+                                     'MSA_QGIS', Qgis.Critical)
+            QgsMessageLog.logMessage(f'run of MSA_QGIS unsuccesful',
+                                     'MSA_QGIS', Qgis.Critical)
+
+        with open(point_sampled_file, 'r', newline='') as csv_file:
+            reader = csv.reader(csv_file)
+            header_row = reader.__next__()
+            # Check presence of necessary headers
+            if (header_row[0] == 'msa_id' and header_row[1] == 'geom_x' and header_row[2] == 'geom_y'
+                    and header_row[3] == 'veg_com' and header_row[4] == 'chance_to_happen'):
+                pass
+            else:
+                QgsMessageLog.logMessage(f'Input point sampled file invalid, missing essential header ',
+                                         'MSA_QGIS', Qgis.Critical)
+                QgsMessageLog.logMessage(f'run of MSA_QGIS unsuccesful',
+                                         'MSA_QGIS', Qgis.Critical)
+            # Check presence of included environmental variables
+            for row in range(self.dlg.tableWidget_selected.rowCount()):
+                if self.dlg.tableWidget_selected.item(row, 1).text() in header_row:
+                    continue
+                else:
+                    QgsMessageLog.logMessage(f'Input point sampled file invalid, missing header '
+                                             f'{self.dlg.tableWidget_selected.item(row, 1).text()}',
+                                             'MSA_QGIS', Qgis.Critical)
+                    QgsMessageLog.logMessage(f'run of MSA_QGIS unsuccesful',
+                                             'MSA_QGIS', Qgis.Critical)
+                    return
+            # Check if veg_com only contains Empty
+            for row in reader:
+                if not row[3] == 'Empty':
+                    QgsMessageLog.logMessage(f'Input point sampled file invalid, veg_com not empty'
+                                             f'{self.dlg.tableWidget_selected.item(row, 1).text()}',
+                                             'MSA_QGIS', Qgis.Critical)
+                    QgsMessageLog.logMessage(f'run of MSA_QGIS unsuccesful',
+                                             'MSA_QGIS', Qgis.Critical)
+                    return
+            # Import into SQLite TODO Check whether this gets slow with large files
+
+            csv_file = pd.read_csv(point_sampled_file)
+            csv_file.to_sql('empty_basemap', conn, if_exists='fail', index=False, chunksize=10000)
+            string_vacuum_into = f'VACUUM INTO "{save_directory}{file_name}";'
+            cursor.execute(string_vacuum_into)
+            conn.close()
+
+    def loadBaseMap(self, conn, cursor, basemap_file, basemap_table):
+        #check whether file is valid
+
+        if not basemap_file[-4:] == '.csv':  # Only allow loading of .csv files #TODO add .shp etc
+            QgsMessageLog.logMessage(f'Input point sampled file invalid, not a .csv file ',
+                                     'MSA_QGIS', Qgis.Critical)
+            QgsMessageLog.logMessage(f'run of MSA_QGIS unsuccesful',
+                                     'MSA_QGIS', Qgis.Critical)
+
+        with open(basemap_file, 'r', newline='') as csv_file:
+            reader = csv.reader(csv_file)
+            header_row = reader.__next__()
+            # Check presence of necessary headers
+            if (header_row[0] == 'msa_id' and header_row[1] == 'geom_x' and header_row[2] == 'geom_y'
+                    and header_row[3] == 'veg_com' and header_row[4] == 'chance_to_happen'):
+                pass
+            else:
+                QgsMessageLog.logMessage(f'Input basemap file invalid, missing essential header ',
+                                         'MSA_QGIS', Qgis.Critical)
+                QgsMessageLog.logMessage(f'run of MSA_QGIS unsuccesful',
+                                         'MSA_QGIS', Qgis.Critical)
+            # Check presence of included environmental variables
+            for row in range(self.dlg.tableWidget_selected.rowCount()):
+                if self.dlg.tableWidget_selected.item(row, 1).text() in header_row:
+                    continue
+                else:
+                    QgsMessageLog.logMessage(f'Input basemap file invalid, missing header '
+                                             f'{self.dlg.tableWidget_selected.item(row, 1).text()}',
+                                             'MSA_QGIS', Qgis.Critical)
+                    QgsMessageLog.logMessage(f'run of MSA_QGIS unsuccesful',
+                                             'MSA_QGIS', Qgis.Critical)
+                    return
+            # Check if all of veg_com contains NO empty
+            for row in reader:
+                if row[3] == 'Empty':
+                    QgsMessageLog.logMessage(f'Input basemap file invalid, veg_com contains "Empty"'
+                                             f'{self.dlg.tableWidget_selected.item(row, 1).text()}',
+                                             'MSA_QGIS', Qgis.Critical)
+                    QgsMessageLog.logMessage(f'run of MSA_QGIS unsuccesful',
+                                             'MSA_QGIS', Qgis.Critical)
+                    return
+        #convert to csv
+        csv_file = pd.read_csv(basemap_file)
+        csv_file.to_sql(basemap_table, conn, if_exists='fail', index=False, chunksize=10000)
+
 #** RUN METHOD
     def run(self):
-        """Run method that performs all the real work. This is what happens when the user presses "ok" on the main dialog"""
+        """Run method that performs all the real work. First, the dialog is run, and once the user presses ok, the MSA
+        simulations run:
+        1. The initial vector layer that contains points to the users given extent is generated.
+        2. The maps given by the user are point sampled into the created vector point layer, either using QGIS native
+        processing algorithms, or by using spatialite.
+        3. The SQLite database that will contain the maps is generated.
+        4. The basemap, using the rules for vegetation community assignment that would be the same for every scenario
+        and iteration, is generated, filling the SQLite vector point map with the first set of vegetation communities.
+        5a. The rules for vegetation community assignment are applied per scenario, per iteration, generating multiple
+        SQLite vector point maps with the basemap as its basis.
+        5b. Per map generated, the pollen load and pollen percentages are generated, and the fit is calculated compared
+        to the pollen percentages given by the user. Depending on choices made by the user, pollen load, percentages,
+        and/or the map are deleted if they do not fit.
+        6. The kept maps and statistics on maps are generated and saved to .csv files.
+        7. Simple statistics on the maps are generated, and if the user desired the simulated vegetation maps can be
+        loaded into QGIS.
+
+        :Class params related to plugin: self.first_start, self.dlg, self.succesdlg
+        :Class params related to MSA: self.crs, self.spacing
+        :Class methods called:
+        self.createPointLayer,
+        self.pointSampleNative,
+        self.convertVectorToSql,
+        self.pointSampleSQL
+        self.createSiteTables,
+        self.createTaxonTables,
+        self.createTableDistanceToSite,
+        self.createTablePseudoPoints,
+        self.createTableOfMaps,
+        self.createTablePollenLookupBasin,
+        self.createTableWindrose,
+        self.assignVegetationSQL,
+        self.simulatePollen
+        self.reportStatsOnSucces
+        self.loadMapsToQGIS
+        """
         # Create the dialog with elements (after translation) and keep reference
         # Only create GUI ONCE in callback, so that it will only load when the plugin is started
         if self.first_start == True:
@@ -1849,126 +1879,197 @@ class MsaQgis:
         result = self.dlg.exec_() #TODO change so that window stays open while running main analysis
         # See if OK was pressed
         if result:
+            startTime = time.time()
+            # Things that are required independent on the type of run
+            self.crs = iface.activeLayer().crs()
+            self.spacing = self.dlg.spinBox_resolution.value()
+            save_directory = self.dlg.save_directory
+
+            # Start printing log messages to file
+            QgsApplication.messageLog().messageReceived.connect(self.writeLogMessage)
+
             QgsMessageLog.logMessage("MSA_QGIS started", 'MSA_QGIS',
                                      Qgis.Info)
-            startTime = time.time()
-
-    ### Create the base point layer with resolution and extent given by user
-            self.crs = iface.activeLayer().crs()
-            self.spacing = self.dlg.spinBox_resolution.value()  # Takes input from user in "resolution" to set spacing
-            vector_point_base = self.createPointLayer()
-
-            #timer
-            create_points_time = (time.time() - startTime)
-            create_points_time_end = time.time()
-            QgsMessageLog.logMessage('Vector point creation, Execution time in seconds: ' + str(create_points_time), 'MSA_QGIS',
-                                     Qgis.Info)
-    ### Point sample natively and convert to sql, or create sql directly using spatialite
-            if self.dlg.radioButton_qgis_native.isChecked():
+### point map and point sample (make or load)
+            # MAKE point layer
+            if self.dlg.radioButton_createMap.isChecked():
+                vector_point_base = self.createPointLayer()
+                # Point sample natively and convert to sql, or create sql directly using spatialite
+                if self.dlg.radioButton_qgis_native.isChecked():
+                    try:
+                        self.pointSampleNative(vector_point_base)
+                        self.convertVectorToSql(save_directory)
+                    except Exception as e:
+                        QgsMessageLog.logMessage("Exception raised, native point sampling could not run, abort run",
+                                                 'MSA_QGIS',
+                                                 Qgis.Warning)
+                        QgsMessageLog.logMessage(str(e), 'SQLite error', Qgis.Critical)
+                        message = 'Point sampling failed'
+                        self.dlg.runAbortedPopup(message, e)
+                else:
+                    try:
+                        import spatialite  # Import only here for people who have not installed it
+                        conn = spatialite.connect(":memory:")
+                        cursor = conn.cursor()
+                        self.pointSampleSQL(vector_point_base, conn, cursor, save_directory)
+                    except Exception as e:
+                        QgsMessageLog.logMessage("Exception raised, point sample using spatialite could not run,  " /
+                                                 "trying native point sample instead",
+                                                 'SQLite error',
+                                                 Qgis.Warning)
+                        QgsMessageLog.logMessage(str(e), 'SQLite error', Qgis.Warning)
+                        try:
+                            conn.close()  # If the error was within pointSampleSQL, the connection still needs to be closed.
+                        except:
+                            pass
+                        return
+                # Write empty_basemap csv file
+                cursor.execute('select * from empty_basemap')
+                with open(save_directory + '//empty_basemap.csv', 'w',
+                          newline='') as csv_file:
+                    csv_writer = csv.writer(csv_file)
+                    csv_writer.writerow([i[0] for i in cursor.description])
+                    csv_writer.writerows(cursor)
+            # LOAD point sampled layer
+            elif self.dlg.radioButton_loadPointMap.isChecked():
+                point_sampled_file = self.dlg.mQgsFileWidget_startingPoint.filePath()
                 try:
-                    self.pointSampleNative(vector_point_base)
-                    self.convertToSQL()
+                    conn = sqlite3.connect(':memory:')
+                    cursor = conn.cursor()
+                    self.loadPointMap(point_sampled_file, save_directory, conn, cursor)
                 except Exception as e:
-                    QgsMessageLog.logMessage("Exception raised, native point sampling could not run, abort run",
+                    QgsMessageLog.logMessage("Exception raised, loading point sampled file could not run, abort run",
                                              'MSA_QGIS',
                                              Qgis.Warning)
-                    QgsMessageLog.logMessage(str(e), 'SQLite error', Qgis.Critical)
-                    message = 'Point sampling failed'
-                    self.dlg.runAbortedPopup(message, e)
-                    return
-                # timer
-                point_sample_time = (time.time() - create_points_time_end)
-                point_sample_time_end = time.time()
-                QgsMessageLog.logMessage('point sampling native, Execution time in seconds: ' + str(point_sample_time),
-                                         'MSA_QGIS',
-                                         Qgis.Info)
-            else:
-                try:
-                    import spatialite  # This is imported here so that if the user only wants to use the native packages,
-                                       # they can without running into an error because they have not installed spatialite
-                    conn = spatialite.connect(":memory:")
-                    cursor = conn.cursor()
-                    self.pointSampleSQL(vector_point_base, conn, cursor)
-                except Exception as e:
-                    QgsMessageLog.logMessage("Exception raised, point sample using spatialite could not run,  "/
-                                             "trying native point sample instead",
-                                             'SQLite error',
-                                             Qgis.Warning)
-                    QgsMessageLog.logMessage(str(e), 'SQLite error', Qgis.Warning)
+                    QgsMessageLog.logMessage(str(e), 'MSA_QGIS', Qgis.Warning)
                     try:
-                        conn.close()  # If the error was within pointSampleSQL, the connection still needs to be closed.
+                        conn.close()
                     except:
                         pass
                     return
-                # timer
-                point_sample_time = (time.time() - create_points_time_end)
-                point_sample_time_end = time.time()
-                QgsMessageLog.logMessage('point sampling, Execution time in seconds: ' + str(point_sample_time),
-                                         'MSA_QGIS',
-                                         Qgis.Info)
+            # timer
+            point_sample_time = (time.time() - startTime)
+            point_sample_time_end = time.time()
+            QgsMessageLog.logMessage('point sampling, Execution time in seconds: ' + str(point_sample_time),
+                                     'MSA_QGIS',
+                                     Qgis.Info)
+            if self.dlg.run_type < 1:
+                conn.close()
+                executionTime = (time.time() - startTime)
+                QgsMessageLog.logMessage(
+                    'Total execution time in seconds: ' + str(executionTime), 'MSA_QGIS', Qgis.Info)
+                QgsMessageLog.logMessage("MSA_QGIS finished sucessfully", 'MSA_QGIS', Qgis.Info)
+                return  # End run here if only a point sampled map is desired
 
-    ### Processing the rules
+### Basemap (load or make)
             list_base_group_ids = []
             list_final_rule_ids = []
-            number_of_iters = self.dlg.spinBox_iter.value()
-            dict_of_rules_widgets = self.dlg.dict_ruleTreeWidgets.copy() # copy so original is still available at save
-            #process rulestreewidgets that are in the basegroup
-            #create the list of basegroups
+            dict_of_rules_widgets = self.dlg.dict_ruleTreeWidgets.copy() #  Copy so original is still available at save
+            # Process rulestreewidgets that are in the basegroup
+            # Create the list of basegroups
             for key in dict_of_rules_widgets:
                 if dict_of_rules_widgets[key].isBaseGroup:
                     list_base_group_ids.append(key)
             list_base_group_ids.sort()
-            #create the map with basegroup
+            # Create the map with basegroup
             list_to_remove = []
-
-
-            #create conn and cursor for memory
+            # Create conn and cursor for memory, to be used for everything until the end of the MSA
             conn = sqlite3.connect(":memory:")
             cursor = conn.cursor()
-            #create first map ( = copy of empty basemap)
-            string_attach_empty_basemap = 'ATTACH DATABASE "' + self.dlg.qgsFileWidget_vectorPoint.filePath()+\
-                                          '\pointsampled_basemap.sqlite" AS "empty_basemap";'
-            string_copy_empty_basemap = 'CREATE TABLE basemap AS SELECT * FROM "empty_basemap";'
-            string_drop_empty_basemap = 'DROP TABLE IF EXISTS "empty_basemap";'
-            string_detach_empty_basemap = 'DETACH DATABASE "empty_basemap"'
-            cursor.execute(string_attach_empty_basemap)
-            cursor.execute(string_copy_empty_basemap)
-            cursor.execute(string_drop_empty_basemap)
-            cursor.execute(string_detach_empty_basemap)
-            conn.commit()
 
-            #get number of entries (necessary for processing chance)
-            cursor.execute('SELECT * FROM "basemap"')
-            number_of_entries = len(cursor.fetchall())
-            QgsMessageLog.logMessage('number of points is: '+ str(number_of_entries),
-                                     'MSA_QGIS',
-                                     Qgis.Info)
-            self.createSiteTables(conn, cursor) # creates both table with site and tables with pollen counts
-            self.createTaxonTables(conn,cursor)
-            self.createTableDistanceToSite(conn,cursor, number_of_entries)
-            self.createTablePseudoPoints(conn,cursor)
-            self.createTableOfMaps(conn,cursor)
-            self.createTablePollenLookupBasin(conn, cursor)
-            self.createTableWindrose(conn,cursor)
-            # TODO create a table with lakes
+            #Make or Load basemap
+            if self.dlg.radioButton_loadPointMap.isChecked() or self.dlg.radioButton_createMap.isChecked(): #  MAKE basemap
+                #TODO
 
+                # Create first map ( = copy of empty basemap)
+                string_attach_empty_basemap = f'ATTACH DATABASE "{save_directory}' + \
+                                              f'\pointsampled_basemap.sqlite" AS "empty_basemap";'
+                string_copy_empty_basemap = 'CREATE TABLE basemap AS SELECT * FROM "empty_basemap";'
+                string_drop_empty_basemap = 'DROP TABLE IF EXISTS "empty_basemap";'
+                string_detach_empty_basemap = 'DETACH DATABASE "empty_basemap"'
+                cursor.execute(string_attach_empty_basemap)
+                cursor.execute(string_copy_empty_basemap)
+                cursor.execute(string_drop_empty_basemap)
+                cursor.execute(string_detach_empty_basemap)
+                conn.commit()
+                cursor.execute(f'SELECT * FROM "basemap"')
+                number_of_entries = len(cursor.fetchall())
+                QgsMessageLog.logMessage('number of points is: ' + str(number_of_entries),
+                                         'MSA_QGIS',
+                                         Qgis.Info)
 
-            #process the base rules and save it, if there is no base group, set basemap_table to 0
-            basemap_table = 0
+                self.createSiteTables(conn, cursor, 'basemap')  # creates both table with site and tables with pollen counts
+                self.createTaxonTables(conn, cursor)
+                self.createTableDistanceToSite(conn, cursor, number_of_entries, 'basemap')
+                self.createTablePseudoPoints(conn, cursor, 'basemap')
+                self.createTableOfMaps(conn, cursor)
+                self.createTablePollenLookupBasin(conn, cursor)
+                self.createTableWindrose(conn, cursor)
+                # TODO create a table with lakes
+
+                # process the base rules and save it, if there is no base group, set basemap_table to 0
+                basemap_table = 0
+                for widget in list_base_group_ids:
+                    basemap_table = self.assignVegetationSQL(widget, 'basemap', 'basemap', conn, cursor, 0,
+                                                             number_of_entries)  # what is returned is actually the name of the table
+
+                # Save basemap to CSV
+                cursor.execute('select * from "basemap"')
+                with open(save_directory + '//basemap.csv', 'w', newline='') as csv_file:
+                    csv_writer = csv.writer(csv_file)
+                    csv_writer.writerow([i[0] for i in cursor.description])
+                    csv_writer.writerows(cursor)
+
+            elif self.dlg.radioButton_loadBaseMap.isChecked():  # LOAD basemap
+                basemap_file = self.dlg.mQgsFileWidget_startingPoint.filePath()
+                basemap_table = max(list_base_group_ids)
+                try:
+                    self.loadBaseMap(conn, cursor, basemap_file, basemap_table)
+
+                    cursor.execute(f'SELECT * FROM "{basemap_table}"')
+                    number_of_entries = len(cursor.fetchall())
+                    QgsMessageLog.logMessage('number of points is: ' + str(number_of_entries),
+                                             'MSA_QGIS',
+                                             Qgis.Info)
+                    self.createSiteTables(conn, cursor, basemap_table)  # creates both table with site and tables with pollen counts
+                    self.createTaxonTables(conn, cursor)
+                    self.createTableDistanceToSite(conn, cursor, number_of_entries, basemap_table)
+                    self.createTablePseudoPoints(conn, cursor, basemap_table)
+                    self.createTableOfMaps(conn, cursor)
+                    self.createTablePollenLookupBasin(conn, cursor)
+                    self.createTableWindrose(conn, cursor)
+                    # TODO create a table with lakes
+
+                except Exception as e:
+                    QgsMessageLog.logMessage("Exception raised, loading basemap file could not run, abort run",
+                                             'MSA_QGIS',
+                                             Qgis.Warning)
+                    QgsMessageLog.logMessage(str(e), 'MSA_QGIS', Qgis.Warning)
+                    conn.close()
+                    return
+
+            # Remove rules in basegroup from rule list so they are not computed again in the full MSA loop
             for widget in list_base_group_ids:
-                basemap_table = self.assignVegetationSQL(widget, 'basemap', 'basemap', conn, cursor, 0, number_of_entries) # what is returned is actually the name of the table
-                list_to_remove.append(widget)
-
-            #remove rules in basegroup from rule list so they are not computed again in the main loop.
-            for widget in list_to_remove:
                 dict_of_rules_widgets.pop(widget)
 
-                #timer
+
+            # Timer
             basemap_time = (time.time() - point_sample_time_end)
             basemap_time_end = time.time()
-            QgsMessageLog.logMessage('empty basemap to filled basemap in sql, Execution time in seconds: ' + str(basemap_time),
-                                     'MSA_QGIS',
-                                     Qgis.Info)
+            QgsMessageLog.logMessage(
+                'empty basemap to filled basemap in sql, Execution time in seconds: ' + str(basemap_time),
+                'MSA_QGIS',
+                Qgis.Info)
+            # If only the basemap was desired, end the run here.
+            if self.dlg.run_type <2:
+                conn.close()
+                executionTime = (time.time() - startTime)
+                QgsMessageLog.logMessage(
+                    'Total execution time in seconds: ' + str(executionTime), 'MSA_QGIS', Qgis.Info)
+                QgsMessageLog.logMessage("MSA_QGIS finished sucessfully", 'MSA_QGIS', Qgis.Info)
+                return
+    ### Full MSA
+            number_of_iters = self.dlg.spinBox_iter.value()
 
             #process the main rules
             #make a list of all the end-points in the rule tree
@@ -2034,7 +2135,7 @@ class MsaQgis:
                             string_drop_table = 'DROP TABLE "' + str(prev_id) + 'run' + str(iteration) + '";'
                             cursor.execute(string_drop_table)
                             conn.commit()
-                    self.simulatePollen(output_map,iteration, conn, cursor)
+                    self.simulatePollen(output_map,iteration, conn, cursor, save_directory)
 
                 #drop all maps made as branchpoints
                 for key in dict_of_rules_widgets:
@@ -2049,7 +2150,7 @@ class MsaQgis:
                     'iteration '+ str(iteration)+ ' took '+ str(iteration_time)+ ' to run','MSA_QGIS', Qgis.Info)
 
             #vacuum memory database to disk database
-            string_vacuum_into = 'VACUUM INTO "'+ self.dlg.qgsFileWidget_vectorPoint.filePath()+ '//outcome.sqlite";'
+            string_vacuum_into = f'VACUUM INTO "{save_directory}//outcome.sqlite";'
             cursor.execute(string_vacuum_into)
             conn.commit()
 
@@ -2057,7 +2158,7 @@ class MsaQgis:
             self.succesdlg.show()
             self.reportStatsOnSucces(conn, cursor)
             if self.succesdlg.exec_():
-                    self.loadMapsToQGIS(cursor)
+                    self.loadMapsToQGIS(cursor, save_directory)
 
             conn.close()
 
