@@ -1923,13 +1923,13 @@ class MsaQgis:
                         except:
                             pass
                         return
-                # Write empty_basemap csv file
-                cursor.execute('select * from empty_basemap')
-                with open(save_directory + '//empty_basemap.csv', 'w',
-                          newline='') as csv_file:
-                    csv_writer = csv.writer(csv_file)
-                    csv_writer.writerow([i[0] for i in cursor.description])
-                    csv_writer.writerows(cursor)
+                    # Write empty_basemap csv file
+                    cursor.execute('select * from empty_basemap')
+                    with open(save_directory + '//empty_basemap.csv', 'w',
+                              newline='') as csv_file:
+                        csv_writer = csv.writer(csv_file)
+                        csv_writer.writerow([i[0] for i in cursor.description])
+                        csv_writer.writerows(cursor)
             # LOAD point sampled layer
             elif self.dlg.radioButton_loadPointMap.isChecked():
                 point_sampled_file = self.dlg.mQgsFileWidget_startingPoint.filePath()
