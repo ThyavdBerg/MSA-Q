@@ -360,6 +360,7 @@ class MsaQgis:
             # sample_y = table_sites.item(row,2).text()
             # If using snapped x & y #TODO create version that uses non-snapped x,y and option to choose.
             cursor.execute('SELECT snapped_x FROM sampling_sites WHERE site_name = "'+sample_site+'"')
+            print('SELECT snapped_x FROM sampling_sites WHERE site_name = "'+sample_site+'"')
             snapped_x = str(cursor.fetchone()[0])
             cursor.execute('SELECT snapped_y FROM sampling_sites WHERE site_name = "'+sample_site+'"')
             snapped_y = str(cursor.fetchone()[0])
@@ -602,39 +603,67 @@ class MsaQgis:
         # Create fields
             QgsMessageLog.logMessage("Initiate point creation", 'MSA_QGIS', Qgis.Info)
             # Add fields with x and y geometry and the feature id
-            data_provider.addAttributes([QgsField('geom_X', QVariant.Double, 'double', 20, 5),
-                                         QgsField('geom_Y', QVariant.Double, 'double', 20, 5),
-                                         QgsField('veg_com', QVariant.String),
-                                         QgsField('chance_to_happen', QVariant.Double, 'double', 3, 2)])
-            if self.dlg.radioButton_qgis_native.isChecked():  # only necessary for the native algorithm as non-native method
-                # will assign row id as msa_id instead
-                data_provider.addAttributes([QgsField('msa_id', QVariant.Int)])
+            if self.dlg.radioButton_qgis_native.isChecked():
+                # will assign row id as msa_id
+                print('add 5 attributes')
+                data_provider.addAttributes([QgsField('geom_X', QVariant.Double, 'double', 20, 5),
+                                            QgsField('geom_Y', QVariant.Double, 'double', 20, 5),
+                                            QgsField('veg_com', QVariant.String),
+                                            QgsField('chance_to_happen', QVariant.Double, 'double', 3, 2),
+                                            QgsField('msa_id', QVariant.Int)])
+                print('5 attributes added')
+            else:
+                data_provider.addAttributes([QgsField('geom_X', QVariant.Double, 'double', 20, 5),
+                                            QgsField('geom_Y', QVariant.Double, 'double', 20, 5),
+                                             QgsField('veg_com', QVariant.String),
+                                            QgsField('chance_to_happen', QVariant.Double, 'double', 3, 2)])
 
-            # Create the point features and immediately fill with coordinates and default values.
-            y = y_max
-            while y >= y_min:
-                x = x_min
-                while x <= x_max:
-                    geom = QgsGeometry.fromPointXY(QgsPointXY(x, y))
-                    feat = QgsFeature()
-                    feat.setGeometry(geom)
-                    if self.dlg.radioButton_qgis_native.isChecked():
+
+            if self.dlg.radioButton_qgis_native.isChecked():
+                feat_id_generator = 1  #QGIS 3.16 generated its own IDs, but it seems this is not the case anymore
+                y = y_max
+                while y >= y_min:
+                    x = x_min
+                    while x <= x_max:
+                        geom = QgsGeometry.fromPointXY(QgsPointXY(x, y))
+                        feat = QgsFeature()
+                        feat.setGeometry(geom)
                         feat.initAttributes(5)
-                    else:
+                        feat.setAttribute(0, geom.asPoint().x())
+                        feat.setAttribute(1, geom.asPoint().y())
+                        feat.setAttribute(2, 'Empty')
+                        feat.setAttribute(3, 100.0)
+                        feat.setAttribute(4, feat_id_generator)
+                        feat_id_generator += 1
+                        del geom
+                        x += self.spacing
+                        data_provider.addFeature(feat)
+                        del feat
+                    y = y - self.spacing
+                    vector_point_base.updateExtents()
+                    vector_point_base.updateFields()
+            else:
+                # Create the point features and immediately fill with coordinates and default values.
+                y = y_max
+                while y >= y_min:
+                    x = x_min
+                    while x <= x_max:
+                        geom = QgsGeometry.fromPointXY(QgsPointXY(x, y))
+                        feat = QgsFeature()
+                        feat.setGeometry(geom)
                         feat.initAttributes(4)
-                    feat.setAttribute(0, geom.asPoint().x())
-                    feat.setAttribute(1, geom.asPoint().y())
-                    feat.setAttribute(2, 'Empty')
-                    feat.setAttribute(3, 100.0)
-                    if self.dlg.radioButton_qgis_native.isChecked():
-                        feat.setAttribute(4, feat.id())
-                    del geom
-                    x += self.spacing
-                    data_provider.addFeature(feat)
-                    del feat
-                y = y - self.spacing
-                vector_point_base.updateExtents()
-                vector_point_base.updateFields()
+                        feat.setAttribute(0, geom.asPoint().x())
+                        feat.setAttribute(1, geom.asPoint().y())
+                        feat.setAttribute(2, 'Empty')
+                        feat.setAttribute(3, 100.0)
+                        print('feat id spatialite', feat.id())
+                        del geom
+                        x += self.spacing
+                        data_provider.addFeature(feat)
+                        del feat
+                    y = y - self.spacing
+                    vector_point_base.updateExtents()
+                    vector_point_base.updateFields()
 
         QgsMessageLog.logMessage("All points created", 'MSA_QGIS', Qgis.Info)
         return vector_point_base
@@ -801,9 +830,9 @@ class MsaQgis:
         QgsMessageLog.logMessage("Native points sampling finished", 'MSA_QGIS', Qgis.Info)
 
         # Save the map to csv (not necessary except for testing)
-        # QgsVectorFileWriter.writeAsVectorFormat(self.vector_point_filled_ras,
-        #                                         self.dlg.qgsFileWidget_vectorPoint.filePath() + '\_basemap_empty.csv',
-        #                                         'utf-8', driverName='CSV')
+        QgsVectorFileWriter.writeAsVectorFormat(self.vector_point_filled_ras,
+                                                self.dlg.save_directory + '\_basemap_empty_test.csv',
+                                                'utf-8', driverName='CSV')
 
     def convertVectorToSql(self, save_directory):
         """ Converts QgsVectorLayer to SQLite database entry. Only used if pointSampleNative was also used.
@@ -1894,6 +1923,7 @@ class MsaQgis:
             # MAKE point layer
             if self.dlg.radioButton_createMap.isChecked():
                 vector_point_base = self.createPointLayer()
+
                 # Point sample natively and convert to sql, or create sql directly using spatialite
                 if self.dlg.radioButton_qgis_native.isChecked():
                     try:

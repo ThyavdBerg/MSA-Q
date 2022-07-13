@@ -2092,6 +2092,20 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         #to the changelog, however one should be able to fix typoes...
         self.listWidget_changeLog.takeItem(self.listWidget_changeLog.count()-1)
 
+    def runAbortedPopup(self, message, e): # TODO implement!
+        """ Opens a popup that shows why the run was aborted
+
+        :param message: message that explains why the run was aborted
+        :type message: str
+
+        :param e: exception raised in the code
+        :type e: Exception"""
+        print(f'open messagebox error \n{message}\n {e}')
+        self.messageBox = QMessageBox()
+        self.messageBox.setWindowTitle('Critical Error, run aborted.')
+        self.messageBox.setText(f'{message}\n {e} \n Check MSA_QGIS.log in your output folder for more information')
+        self.messageBox.setStandardButtons(QMessageBox.Ok)
+
 
 class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
     def __init__(self, rule_number, tableWidget_vegCom, tableWidget_selected, tableWidget_selRaster, parent = None):
@@ -2517,18 +2531,6 @@ class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
             self.messageBox.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
         #TODO Can probably think of more warnings
 
-    def runAbortedPopup(self, message, e): # TODO implement!
-        """ Opens a popup that shows why the run was aborted
-
-        :param message: message that explains why the run was aborted
-        :type message: str
-
-        :param e: exception raised in the code
-        :type e: Exception"""
-        self.messageBox = QMessageBox()
-        self.messageBox.setWindowTitle('Critical Error, run aborted.')
-        self.messageBox.setText(f'{message}\n {e} \n Check MSA_QGIS.log in your output folder for more information')
-        self.messageBox.setStandardButtons(QMessageBox.Ok)
 
 
 class MsaQgisAddTaxonPopup (QtWidgets.QDialog, FORM_CLASS_TAXA):
