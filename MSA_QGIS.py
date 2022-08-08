@@ -360,7 +360,6 @@ class MsaQgis:
             # sample_y = table_sites.item(row,2).text()
             # If using snapped x & y #TODO create version that uses non-snapped x,y and option to choose.
             cursor.execute('SELECT snapped_x FROM sampling_sites WHERE site_name = "'+sample_site+'"')
-            print('SELECT snapped_x FROM sampling_sites WHERE site_name = "'+sample_site+'"')
             snapped_x = str(cursor.fetchone()[0])
             cursor.execute('SELECT snapped_y FROM sampling_sites WHERE site_name = "'+sample_site+'"')
             snapped_y = str(cursor.fetchone()[0])
@@ -605,13 +604,11 @@ class MsaQgis:
             # Add fields with x and y geometry and the feature id
             if self.dlg.radioButton_qgis_native.isChecked():
                 # will assign row id as msa_id
-                print('add 5 attributes')
                 data_provider.addAttributes([QgsField('geom_X', QVariant.Double, 'double', 20, 5),
                                             QgsField('geom_Y', QVariant.Double, 'double', 20, 5),
                                             QgsField('veg_com', QVariant.String),
                                             QgsField('chance_to_happen', QVariant.Double, 'double', 3, 2),
                                             QgsField('msa_id', QVariant.Int)])
-                print('5 attributes added')
             else:
                 data_provider.addAttributes([QgsField('geom_X', QVariant.Double, 'double', 20, 5),
                                             QgsField('geom_Y', QVariant.Double, 'double', 20, 5),
@@ -656,7 +653,6 @@ class MsaQgis:
                         feat.setAttribute(1, geom.asPoint().y())
                         feat.setAttribute(2, 'Empty')
                         feat.setAttribute(3, 100.0)
-                        print('feat id spatialite', feat.id())
                         del geom
                         x += self.spacing
                         data_provider.addFeature(feat)
@@ -668,6 +664,7 @@ class MsaQgis:
         QgsMessageLog.logMessage("All points created", 'MSA_QGIS', Qgis.Info)
         return vector_point_base
 
+
     def pointSampleNative(self, point_layer):
         """ Uses native QGIS processing algorithms (joinattributesbylocation and rastersampling) to point sample
         user-selected raster and polygon layers. Method the user should use if they cannot/don't want to install
@@ -678,11 +675,13 @@ class MsaQgis:
 
          :param point_layer: vector point layer with equally spaced vector points as made in createPointLayer.
          :type point_layer: QgsVectorLayer"""
+
         #create destination layers for vector and raster layer
         QgsMessageLog.logMessage("Native points sampling initiated", 'MSA_QGIS', Qgis.Info)
         point_layer.selectAll()
         vector_point_polygon = processing.run("native:saveselectedfeatures", {'INPUT': point_layer, 'OUTPUT': 'memory:'})['OUTPUT']
         vector_point_raster = processing.run("native:saveselectedfeatures", {'INPUT': point_layer, 'OUTPUT': 'memory:'})['OUTPUT']
+
 
         selection_table = self.dlg.tableWidget_selected
         for rows_column1 in range(selection_table.rowCount()):
@@ -713,13 +712,17 @@ class MsaQgis:
             if (previous_row == None or previous_row.text() != layer_name) \
                     and next_row != None:
                 layer = QgsProject.instance().mapLayersByName(layer_name)[0]
+                #clone layer to memory for speed improvement
+                layer.selectAll()
+                clone_layer = processing.run("native:saveselectedfeatures", {'INPUT': layer, 'OUTPUT': 'memory:'})['OUTPUT']
+                layer.removeSelection()
                 for rows_column2 in range(selection_table.rowCount()):
                     if selection_table.item(rows_column2, 0).text() == layer_name:
                         field = selection_table.item(rows_column2, 1).text()
                         fields.append(field)
                 vector_point_polygon = processing.run('qgis:joinattributesbylocation',
                                                   {'INPUT': vector_point_polygon,
-                                                   'JOIN': layer,
+                                                   'JOIN': clone_layer,
                                                    'METHOD': 0,
                                                    'PREDICATE': 0,
                                                    'JOIN_FIELDS': fields,
@@ -729,13 +732,17 @@ class MsaQgis:
             elif next_row == None:
                 # Then print the last added layer to an actual output file
                 layer = QgsProject.instance().mapLayersByName(layer_name)[0]
+                #clone layer to memory for speed improvement
+                layer.selectAll()
+                clone_layer = processing.run("native:saveselectedfeatures", {'INPUT': layer, 'OUTPUT': 'memory:'})['OUTPUT']
+                layer.removeSelection()
                 for rows_column2 in range(selection_table.rowCount()):
                     if selection_table.item(rows_column2, 0).text() == layer_name:
                         field = selection_table.item(rows_column2, 1).text()
                         fields.append(field)
                 self.vector_point_filled_vec= processing.run('qgis:joinattributesbylocation',
                                {'INPUT': vector_point_polygon,
-                                'JOIN': layer,
+                                'JOIN': clone_layer,
                                 'METHOD': 0,
                                 'PREDICATE': 0,
                                 'JOIN_FIELDS': fields,
