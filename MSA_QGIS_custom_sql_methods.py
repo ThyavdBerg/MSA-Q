@@ -1,9 +1,9 @@
 
-from numpy import sqrt, linalg,array
+from numpy import sqrt, linalg, array
 
 
 def SqlSqrt(real_number):
-    """Used to import the python sqrt function to sqlite.
+    """Used to import the numpy sqrt function to sqlite.
 
     :param real_number: The number of which the square root will be calculated.
     :type real_number: float"""

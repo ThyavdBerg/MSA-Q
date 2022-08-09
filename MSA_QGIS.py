@@ -26,29 +26,27 @@ import random
 import re
 import time
 import sqlite3
-import math
-import pandas as pd
-
+import sys
+from os.path import expanduser, join, dirname, exists
+from os import remove
+from numpy import sqrt
+from pandas import read_csv
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, QVariant
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
-from qgis.core import *
+from qgis.core import QgsApplication, QgsMessageLog, Qgis,  QgsVectorLayer, QgsField, QgsGeometry, QgsPointXY, QgsFeature,QgsVectorLayerJoinInfo, QgsProject, QgsRaster, QgsVectorFileWriter, NULL
 from qgis.utils import iface
-
-from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QTableWidgetItem
 
-# Initialize Qt resources from file resources.py
+# Initialize Qt resources from file resources.py. IDE will tell you it's not importing anything, IDE is wrong.
 from .resources import *
 # Import the code for the dialog
 from .MSA_QGIS_dialog import MsaQgisDialog, MsaQgisSuccesDialog
 from .MSA_QGIS_custom_sql_methods import SqlSqrt, SqlCardinalDir
 from .MSA_QGIS_distance_weighting_sql_methods import SqlDwPrenticeSugita
-import os.path
-import sys
+
 
 # Import processing tools from Qgis (make sure python interpreter contains path C:\OSGeo4W64\apps\qgis\python\plugins)
-from os.path import expanduser
 home = expanduser("~")
 sys.path.append(home + '\OSGeo4W64\apps\qgis\python\plugins')
 import processing
@@ -71,15 +69,15 @@ class MsaQgis:
         # Save reference to the QGIS interface
         self.iface = iface
         # initialize plugin directory
-        self.plugin_dir = os.path.dirname(__file__)
+        self.plugin_dir = dirname(__file__)
         # initialize locale
         locale = QSettings().value('locale/userLocale')[0:2]
-        locale_path = os.path.join(
+        locale_path = join(
             self.plugin_dir,
             'i18n',
             'MsaQgis_{}.qm'.format(locale))
 
-        if os.path.exists(locale_path):
+        if exists(locale_path):
             self.translator = QTranslator()
             self.translator.load(locale_path)
             QCoreApplication.installTranslator(self.translator)
@@ -345,10 +343,7 @@ class MsaQgis:
                               'geom_y REAL, distance REAL, direction TEXT VARCHAR(5), PRIMARY KEY(msa_id, site_name))'
         cursor.execute(create_table_string)
         conn.commit()
-        # Create new (math) functions from python to SQLite that are not normally available.
-        # conn.create_function("SQRT", 1, self._SqlSqrt) #TODO OLD
-        # conn.create_function("CARDDIR", 2, self._SqlCardinalDir) # TODO OLD
-
+        # Create new (math) functions from python to SQLite that are not normally available. See MSA_QGIS_custom_sql_methods
         conn.create_function("SQRT", 1, SqlSqrt)
         conn.create_function("CARDDIR", 2, SqlCardinalDir)
 
@@ -443,7 +438,7 @@ class MsaQgis:
         cursor.execute(create_table_string)
 
         #fill table 4 points at a time
-        distance = math.sqrt(((self.spacing*0.5)**2)+((self.spacing*0.5)**2))
+        distance = sqrt(((self.spacing*0.5)**2)+((self.spacing*0.5)**2))
         table_sites = self.dlg.tableWidget_sites
         counter = 0
         cursor.execute('BEGIN TRANSACTION')
@@ -676,7 +671,7 @@ class MsaQgis:
          :param point_layer: vector point layer with equally spaced vector points as made in createPointLayer.
          :type point_layer: QgsVectorLayer"""
 
-        #create destination layers for vector and raster layer
+        #create destination layers for vector and raster layer in memory
         QgsMessageLog.logMessage("Native points sampling initiated", 'MSA_QGIS', Qgis.Info)
         point_layer.selectAll()
         vector_point_polygon = processing.run("native:saveselectedfeatures", {'INPUT': point_layer, 'OUTPUT': 'memory:'})['OUTPUT']
@@ -687,7 +682,6 @@ class MsaQgis:
         for rows_column1 in range(selection_table.rowCount()):
             layer_name = selection_table.item(rows_column1, 0).text()
             previous_row = selection_table.item(rows_column1 - 1, 0)
-            fields = []
 
             # find the next layer name in the list, if it exists
             for rows_column3 in range((selection_table.rowCount()) + 1):
@@ -716,10 +710,11 @@ class MsaQgis:
                 layer.selectAll()
                 clone_layer = processing.run("native:saveselectedfeatures", {'INPUT': layer, 'OUTPUT': 'memory:'})['OUTPUT']
                 layer.removeSelection()
-                for rows_column2 in range(selection_table.rowCount()):
-                    if selection_table.item(rows_column2, 0).text() == layer_name:
-                        field = selection_table.item(rows_column2, 1).text()
-                        fields.append(field)
+
+                fields = [selection_table.item(rows_column2, 1).text() for
+                          rows_column2 in range(selection_table.rowCount()) if
+                                                selection_table.item(rows_column2, 0).text() == layer_name]
+
                 vector_point_polygon = processing.run('qgis:joinattributesbylocation',
                                                   {'INPUT': vector_point_polygon,
                                                    'JOIN': clone_layer,
@@ -736,10 +731,9 @@ class MsaQgis:
                 layer.selectAll()
                 clone_layer = processing.run("native:saveselectedfeatures", {'INPUT': layer, 'OUTPUT': 'memory:'})['OUTPUT']
                 layer.removeSelection()
-                for rows_column2 in range(selection_table.rowCount()):
-                    if selection_table.item(rows_column2, 0).text() == layer_name:
-                        field = selection_table.item(rows_column2, 1).text()
-                        fields.append(field)
+                fields = [selection_table.item(rows_column2, 1).text()
+                          for rows_column2 in range(selection_table.rowCount())
+                          if selection_table.item(rows_column2, 0).text() == layer_name]
                 self.vector_point_filled_vec= processing.run('qgis:joinattributesbylocation',
                                {'INPUT': vector_point_polygon,
                                 'JOIN': clone_layer,
@@ -789,10 +783,6 @@ class MsaQgis:
             if (previous_row == None or previous_row.text() != layer_name) \
                     and next_row != None:
                 layer = QgsProject.instance().mapLayersByName(layer_name)[0]
-                for rows_column2 in range(selection_table.rowCount()):
-                    if selection_table.item(rows_column2, 0).text() == layer_name:
-                        field = selection_table.item(rows_column2, 1).text()
-                        fields.append(field)
                 vector_point_raster = processing.run('qgis:rastersampling',
                                                   {'INPUT': vector_point_raster,
                                                    'RASTERCOPY': layer,
@@ -802,10 +792,6 @@ class MsaQgis:
             # Make sure that the last layer in the list has been reached
             elif next_row == None:
                 layer = QgsProject.instance().mapLayersByName(layer_name)[0]
-                for rows_column2 in range(selection_table.rowCount()):
-                    if selection_table.item(rows_column2, 0).text() == layer_name:
-                        field = selection_table.item(rows_column2, 1).text()
-                        fields.append(field)
                 self.vector_point_filled_ras = processing.run('qgis:rastersampling',
                                {'INPUT': vector_point_raster,
                                 'RASTERCOPY': layer,
@@ -1112,7 +1098,7 @@ class MsaQgis:
         conn.commit()
         QgsMessageLog.logMessage("Copying spatialite db to memory finished", 'MSA_QGIS', Qgis.Info)
         # Delete file once copied
-        os.remove(file_name)
+        remove(file_name)
 
 #** SIMULATING VEGETATION MAPS
     def assignVegetationSQL(self, order_id, input_table, output_table, conn, cursor, iteration, table_length):
@@ -1332,7 +1318,7 @@ class MsaQgis:
 
          :param cursor: SQLite cursor attached to the connection
          type cursor: SQLite cursor"""
-
+        start_time = time.time()
         QgsMessageLog.logMessage(f"Simulation of pollen for {output_map} started", 'MSA_QGIS',
                                  Qgis.Info)
     # Calculate pollen load per point per site
@@ -1463,6 +1449,11 @@ class MsaQgis:
         conn.commit()
         cumul_fit = 0
 
+        end_time_pol = time.time() - start_time
+        QgsMessageLog.logMessage(f'assigning pollen percentages for {output_map}took {str(end_time_pol)} to run',
+                                 'MSA_QGIS',
+                                 Qgis.Info)
+        start_time = time.time()
         # Fit calculation: squared chord distance
         like_thres_met = 'Yes'
         for row_sites in range(self.dlg.tableWidget_sites.rowCount()):
@@ -1564,6 +1555,10 @@ class MsaQgis:
             csv_writer.writerow([i[0] for i in cursor.description])
             csv_writer.writerows(cursor)
 
+        end_time_pol = time.time() - start_time
+        QgsMessageLog.logMessage(f'assigning fit for {output_map}took {str(end_time_pol)} to run',
+                                 'MSA_QGIS',
+                                 Qgis.Info)
         QgsMessageLog.logMessage(f"Calculation of fit {output_map} finished", 'MSA_QGIS', Qgis.Info)
 
 #** MISC
@@ -1812,7 +1807,7 @@ class MsaQgis:
                     return
             # Import into SQLite TODO Check whether this gets slow with large files
 
-            csv_file = pd.read_csv(point_sampled_file)
+            csv_file = read_csv(point_sampled_file)
             csv_file.to_sql('empty_basemap', conn, if_exists='fail', index=False, chunksize=10000)
             string_vacuum_into = f'VACUUM INTO "{save_directory}{file_name}";'
             cursor.execute(string_vacuum_into)
@@ -1860,7 +1855,7 @@ class MsaQgis:
                                              'MSA_QGIS', Qgis.Critical)
                     return
         #convert to csv
-        csv_file = pd.read_csv(basemap_file)
+        csv_file = read_csv(basemap_file)
         csv_file.to_sql(basemap_table, conn, if_exists='fail', index=False, chunksize=10000)
 
 #** RUN METHOD
@@ -1999,14 +1994,10 @@ class MsaQgis:
                 return  # End run here if only a point sampled map is desired
 
 ### Basemap (load or make)
-            list_base_group_ids = []
-            list_final_rule_ids = []
             dict_of_rules_widgets = self.dlg.dict_ruleTreeWidgets.copy() #  Copy so original is still available at save
-            # Process rulestreewidgets that are in the basegroup
+            # Process rulestreewidgets that are in the basegroup separately from the full MSA
             # Create the list of basegroups
-            for key in dict_of_rules_widgets:
-                if dict_of_rules_widgets[key].isBaseGroup:
-                    list_base_group_ids.append(key)
+            list_base_group_ids = [key for key in dict_of_rules_widgets if dict_of_rules_widgets[key].isBaseGroup]
             list_base_group_ids.sort()
             # Create the map with basegroup
             list_to_remove = []
@@ -2016,9 +2007,7 @@ class MsaQgis:
 
             #Make or Load basemap
             if self.dlg.radioButton_loadPointMap.isChecked() or self.dlg.radioButton_createMap.isChecked(): #  MAKE basemap
-                #TODO
-
-                # Create first map ( = copy of empty basemap)
+                 # Create first map ( = copy of empty basemap)
                 string_attach_empty_basemap = f'ATTACH DATABASE "{save_directory}' + \
                                               f'\pointsampled_basemap.sqlite" AS "empty_basemap";'
                 string_copy_empty_basemap = 'CREATE TABLE basemap AS SELECT * FROM "empty_basemap";'
@@ -2044,11 +2033,11 @@ class MsaQgis:
                 self.createTableWindrose(conn, cursor)
                 # TODO create a table with lakes
 
-                # process the base rules and save it, if there is no base group, set basemap_table to 0
+                # Process the base rules and save it, if there is no base group, set basemap_table to 0
                 basemap_table = 0
                 for widget in list_base_group_ids:
                     basemap_table = self.assignVegetationSQL(widget, 'basemap', 'basemap', conn, cursor, 0,
-                                                             number_of_entries)  # what is returned is actually the name of the table
+                                                             number_of_entries)
 
                 # Save basemap to CSV
                 cursor.execute('select * from "basemap"')
@@ -2089,7 +2078,6 @@ class MsaQgis:
             for widget in list_base_group_ids:
                 dict_of_rules_widgets.pop(widget)
 
-
             # Timer
             basemap_time = (time.time() - point_sample_time_end)
             basemap_time_end = time.time()
@@ -2105,45 +2093,48 @@ class MsaQgis:
                     'Total execution time in seconds: ' + str(executionTime), 'MSA_QGIS', Qgis.Info)
                 QgsMessageLog.logMessage("MSA_QGIS finished sucessfully", 'MSA_QGIS', Qgis.Info)
                 return
-    ### Full MSA
+### Full MSA
             number_of_iters = self.dlg.spinBox_iter.value()
-
             #process the main rules
             #make a list of all the end-points in the rule tree
-            for key in dict_of_rules_widgets:
-                if dict_of_rules_widgets[key].next_ruleTreeWidgets == []:
-                    list_final_rule_ids.append(key)
-
-            ##iteration for loop
+            list_final_rule_ids = [key for key in dict_of_rules_widgets if dict_of_rules_widgets[key].next_ruleTreeWidgets == []]
+            ## Iterate over the given iterations
             for iteration in range(number_of_iters):
-                start_time = (time.time())
+                start_time = time.time()
                 #create list of branch points
-                list_branchpoints = []
-                for key in dict_of_rules_widgets:
-                    if len(dict_of_rules_widgets[key].next_ruleTreeWidgets) > 1:
-                        list_branchpoints.append(str(dict_of_rules_widgets[key]))
-                ##final points in rule tree for loop
+                list_branchpoints = [key for key in dict_of_rules_widgets if len(dict_of_rules_widgets[key].next_ruleTreeWidgets) > 1]
+                ## Iterate over scenarios (=each final point in the rule tree)
                 for final_id in list_final_rule_ids:
                     prev_ruleTreeWidgets = dict_of_rules_widgets[final_id].prev_ruleTreeWidgets.copy()
-                    #check if prev_ruleTreeWidget is in list_branchpoints AND the map in question exists. If yes, set the map as a starting point and take all > than that map out of the list of previous ruleTreeWidgets
+                    # Check if prev_ruleTreeWidget is in list_branchpoints AND the map in question exists.
+                    # If yes, set the map as a starting point and take all > than that map out of the list of previous ruleTreeWidgets
                     save_point = 1
                     for prev_id in prev_ruleTreeWidgets:
                         if prev_id in list_branchpoints:
-                            string_check_map_existence = 'SELECT 1 FROM sqlite_master WHERE type = "table" AND name = "'+str(prev_id)+'run'+str(iteration)+'"'
-                            if cursor.execute(string_check_map_existence) == 1:
-                                if prev_id > save_point:
+                            string_check_map_existence = f'SELECT 1 FROM sqlite_schema WHERE type = "table" AND name = "{prev_id}run{iteration}";'
+                            QgsMessageLog.logMessage(
+                                f'{string_check_map_existence}',
+                                'MSA_QGIS',
+                                Qgis.Info)
+
+                            cursor.execute(string_check_map_existence)
+                            table_exists =cursor.fetchone()
+                            if table_exists == None: # Needs to be included because None cannot be subscipted
+                                pass # map does not exist yet, and so continue with save_point = 1.
+                            elif table_exists[0] == 1:
+                                 if prev_id > save_point:
                                     save_point = prev_id # ensures that the highest/most recent out of the branchpoint order ids is chosen
 
                     # if there is a branch point, remove all prev_id < branch point
-                    prev_ruleTreeWidgets[:] = [prev_id for prev_id in prev_ruleTreeWidgets if prev_id >= save_point] # should delete nothing if no save_point was made
+                    prev_ruleTreeWidgets[:] = [prev_id for prev_id in prev_ruleTreeWidgets if prev_id > save_point] # should delete nothing if no save_point was made
                     # remove all the basemap prev_id from the list
                     prev_ruleTreeWidgets[:] = [prev_id for prev_id in prev_ruleTreeWidgets if prev_id not in list_base_group_ids]
 
-                    #determine start input map
+                    #determine start input map (can be map 1, basemap, or a save_point)
                     if save_point > 1:
-                        input_map = str(save_point) + 'run'+str(iteration-1)
+                        input_map = f'{save_point}run{iteration}'
                         QgsMessageLog.logMessage(
-                            'input map is branch point ' + save_point,
+                            f'input map is branch point {save_point}',
                             'MSA_QGIS',
                             Qgis.Info)
                     elif basemap_table != 0:
@@ -2155,12 +2146,11 @@ class MsaQgis:
                     else:
                         input_map = self.assignVegetationSQL(final_id, 1, 1, conn, cursor, iteration, number_of_entries)
                         QgsMessageLog.logMessage(
-                            'input map is first in tree',
+                            'input map is first map',
                             'MSA_QGIS',
                             Qgis.Info)
-                    ## previous rule tree widgets of final_id for loop
+                    ## iterate over all prev_rule_tree_widgets of the final ID
                     for running_id in prev_ruleTreeWidgets:
-                        #assign vegetation
                         output_map = self.assignVegetationSQL(running_id, input_map, running_id, conn, cursor,
                                                               iteration, number_of_entries)
                         input_map = output_map
@@ -2186,22 +2176,23 @@ class MsaQgis:
                 QgsMessageLog.logMessage(
                     'iteration '+ str(iteration)+ ' took '+ str(iteration_time)+ ' to run','MSA_QGIS', Qgis.Info)
 
+            final_time = (time.time() - basemap_time_end)
+            QgsMessageLog.logMessage(
+                'all iterations completed, Execution time in seconds: ' + str(final_time),'MSA_QGIS', Qgis.Info)
+
             #vacuum memory database to disk database
             string_vacuum_into = f'VACUUM INTO "{save_directory}//outcome.sqlite";'
             cursor.execute(string_vacuum_into)
             conn.commit()
 
-            #alternatively, if not run succesfully, report exception with a popup and show log #TODO
+            # show dialog upon succes
             self.succesdlg.show()
             self.reportStatsOnSucces(conn, cursor)
             if self.succesdlg.exec_():
                     self.loadMapsToQGIS(cursor, save_directory)
+            # alternatively, if not run succesfully, report exception with a popup and show log #TODO
 
             conn.close()
-
-            final_time = (time.time() - basemap_time_end)
-            QgsMessageLog.logMessage(
-                'all iterations completed, Execution time in seconds: ' + str(final_time),'MSA_QGIS', Qgis.Info)
 
             #...
             executionTime = (time.time() - startTime)
