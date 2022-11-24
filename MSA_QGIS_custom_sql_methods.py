@@ -25,16 +25,16 @@ def SqlCardinalDir(x, y):
     # Create normalized vectors for cardinal directions
     vecN = array([1, 0])
     vecNE = array([1, 1])
-    norm_vecNE = vecNE / linalg.norm(vecNE)
+    norm_vecNE = array([0.70710678, 0.70710678])
     vecE = array([0, 1])
     vecSE = array([-1, 1])
-    norm_vecSE = vecSE / linalg.norm(vecSE)
+    norm_vecSE = array([[-0.70710678,  0.70710678]])
     vecS = array([-1, 0])
     vecSW = array([-1, -1])
-    norm_vecSW = vecSW / linalg.norm(vecSW)
+    norm_vecSW = array([[-0.70710678, -0.70710678]])
     vecW = array([0, -1])
     vecNW = array([1, -1])
-    norm_vecNW = vecSE / linalg.norm(vecNW)
+    norm_vecNW = array([-0.70710678,  0.70710678])
 
     vecPoint = array([x, y])
     # Calculate euclidean distances to all normalized vectors of cardinal directions
