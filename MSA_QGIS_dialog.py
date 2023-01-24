@@ -761,7 +761,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.add_rule_popup.show()
         if self.add_rule_popup.exec_():
             # Add the rule to the dictionary and rule description to the rule listWidget
-            self.nest_dict_rules['Rule ' + str(rule_number)] = self.add_rule_popup.dict_rules_list
+            self.nest_dict_rules['Rule ' + str(rule_number)] = self.add_rule_popup.list_for_rules_dict
             self.listWidget_rules.addItem(self.nest_dict_rules['Rule ' + str(rule_number)][1])
 
     def deleteRule(self):
@@ -1743,7 +1743,6 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             #notes
             writer.writerow(['Notes:', self.plainTextEdit_notes.toPlainText()])
 
-
     def saveImageRuleTree(self,  file_name_input):
         """ Saves an image of the rule tree that can be used for reference outside of the programme. """
         file_name = file_name_input
@@ -1910,7 +1909,6 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             if self.popup_save_file.checkBox_loadImageRuleTree.isChecked():
                 self.saveImageRuleTree(file_name_image_rule_tree)
 
-
     def loadFiles(self):
         self.popup_load_file = MsaQgisSaveLoadDialog('load')
         self.popup_load_file.show()
@@ -1934,7 +1932,6 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             iface.messageBar().pushMessage('Cancelled operation, no files saved', level=1)
 
         self.checkChecklist()  # check the checklist for which bits were loaded
-
 
     def clearLayout(self, layout):
         """ Recurively clears a layout of all its widgets and layouts."""
@@ -2124,7 +2121,7 @@ class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
         # Dictionaries & lists
         self.list_prevVegCom = []
         self.dict_envVar = {}
-        self.dict_rules_list = []
+        self.list_for_rules_dict = []
 
         # Set (in)visible
         self.label_rangeMinMax.hide()
@@ -2398,27 +2395,27 @@ class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
     def updateDictionary(self):
         """ Fills in all of the parameters the user has given in the UI in a list to be added to the dictionary in the
         main dialog"""
-        self.dict_rules_list.clear()
+        self.list_for_rules_dict.clear()
         #lists and dicts
         list_prevVegCom = []
         dict_envVar = {}
         # insert from static objects
-        self.dict_rules_list.append(self.rule_number)
-        self.dict_rules_list.append(self.updateRuleDescription())
-        self.dict_rules_list.append(self.comboBox_ruleVegCom.currentText())
-        self.dict_rules_list.append(self.comboBox_rule.currentText())
-        self.dict_rules_list.append(self.doubleSpin_chance.value())
-        self.dict_rules_list.append(self.spinBox_nOfPoints.value())
-        self.dict_rules_list.append(self.n_of_vegcom)
-        self.dict_rules_list.append(self.n_of_envvar)
-        self.dict_rules_list.append(self.radioButton_all.isChecked())
+        self.list_for_rules_dict.append(self.rule_number)
+        self.list_for_rules_dict.append(self.updateRuleDescription())
+        self.list_for_rules_dict.append(self.comboBox_ruleVegCom.currentText())
+        self.list_for_rules_dict.append(self.comboBox_rule.currentText())
+        self.list_for_rules_dict.append(self.doubleSpin_chance.value())
+        self.list_for_rules_dict.append(self.spinBox_nOfPoints.value())
+        self.list_for_rules_dict.append(self.n_of_vegcom)
+        self.list_for_rules_dict.append(self.n_of_envvar)
+        self.list_for_rules_dict.append(self.radioButton_all.isChecked())
 
         # insert from dynamically added widgets
         # previous vegetation communities
         list_prevVegCom.append(self.comboBox_prevVegCom.currentText())
         for vegcoms in self.list_prevVegCom:
             list_prevVegCom.append(vegcoms.currentText())
-        self.dict_rules_list.append(list_prevVegCom)
+        self.list_for_rules_dict.append(list_prevVegCom)
         # environmental variables
         # add the static env var to the dict
         if self.comboBox_category.currentText() == '':
@@ -2438,7 +2435,7 @@ class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
                     dict_envVar[key.currentText() + ' - '+self.dict_envVar[key][2].currentText()] = self.dict_envVar[key][2].currentText()
                 else:
                     dict_envVar[key.currentText()] = self.dict_envVar[key][2].currentText()
-        self.dict_rules_list.append(dict_envVar)
+        self.list_for_rules_dict.append(dict_envVar)
 
 
     def updateRuleDescription(self, writtenRule = None): #TODO get the description to be gramatically correct
@@ -2742,7 +2739,7 @@ class MsaQgisRunDialog(QtWidgets.QDialog,FORM_CLASS_RUN):
         """Changes the run type based on which radiobutton is checked.
         1 = only point sample
         2 = only basemap
-        3 = runn full msa
+        3 = run full msa
         -1 = invalid input"""
 
         if self.radioButton_pointSample.isChecked():

@@ -70,7 +70,7 @@
         <string notr="true">tab_rules {background-color: rgb(240, 240, 240)};</string>
        </property>
        <property name="currentIndex">
-        <number>0</number>
+        <number>1</number>
        </property>
        <widget class="QWidget" name="tab_envAndSpatial">
         <attribute name="title">
@@ -114,7 +114,7 @@
              <rect>
               <x>0</x>
               <y>0</y>
-              <width>692</width>
+              <width>486</width>
               <height>652</height>
              </rect>
             </property>
@@ -560,12 +560,12 @@
                  </column>
                  <column>
                   <property name="text">
-                   <string>Full name</string>
+                   <string>Full Name</string>
                   </property>
                  </column>
                  <column>
                   <property name="text">
-                   <string>Fall speed</string>
+                   <string>Fall Speed</string>
                   </property>
                  </column>
                  <column>
@@ -812,8 +812,8 @@
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>533</width>
-                <height>591</height>
+                <width>81</width>
+                <height>16</height>
                </rect>
               </property>
               <layout class="QHBoxLayout" name="horizontalLayout_18">
@@ -987,8 +987,8 @@
              <rect>
               <x>0</x>
               <y>0</y>
-              <width>709</width>
-              <height>630</height>
+              <width>322</width>
+              <height>481</height>
              </rect>
             </property>
             <layout class="QGridLayout" name="gridLayout_3" rowstretch="0,0,0,0,0">
