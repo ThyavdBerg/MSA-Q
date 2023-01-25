@@ -218,7 +218,14 @@ class MsaQgis:
             nested_list.append(self.dlg.dict_ruleTreeWidgets[key].next_ruleTreeWidgets)
             nested_list.append(self.dlg.dict_ruleTreeWidgets[key].prev_ruleTreeWidgets)
             nested_list.append(self.dlg.dict_ruleTreeWidgets[key].duplicate_ruleTreeWidgets)
-            nested_list.append(self.dlg.dict_ruleTreeWidgets[key].comboBox_name.currentText())
+            if self.dlg.dict_ruleTreeWidgets[key].duplicate_ruleTreeWidgets == [] or \
+                    key < min(self.dlg.dict_ruleTreeWidgets[key].duplicate_ruleTreeWidgets):
+                nested_list.append(self.dlg.dict_ruleTreeWidgets[key].comboBox_name.currentText())
+            else:
+                # if there are duplicate ruletreewidgets, rule name needs to be taken from the non-duplicate rule which
+                # has the correct rule given in the UI by the user
+                visible_duplicate = min(self.dlg.dict_ruleTreeWidgets[key].duplicate_ruleTreeWidgets)
+                nested_list.append(self.dlg.dict_ruleTreeWidgets[visible_duplicate].comboBox_name.currentText())
             nested_list.append(self.dlg.dict_ruleTreeWidgets[key].isBaseGroup)
             dict_nest_rule_tree[key] = nested_list
 
@@ -348,7 +355,7 @@ class MsaQgis:
         QgsMessageLog.logMessage("Creation of taxon tables finished", 'MSA_QGIS',
                                  Qgis.Info)
 
-    def createTableDistanceToSite(self,conn, cursor, basemap):
+    def createTableDistanceToSite(self,conn, cursor, basemap): #TODO problematically slow
         """Creates new tables based on the coordinates of msa_id and sites ann calculates the distance and direction
         to said sites. One table is created per site
 
@@ -371,9 +378,8 @@ class MsaQgis:
         number_of_entries = len(cursor.fetchall())
         #TODO make it work for lakes
         table_sites = self.dlg.tableWidget_sites
-        create_table_string = 'CREATE TABLE dist_dir(msa_id INT,site_name TEXT VARCHAR(50),geom_x REAL, ' \
-                              'geom_y REAL, distance REAL, direction TEXT VARCHAR(5), PRIMARY KEY(msa_id, site_name))'
-        cursor.execute(create_table_string)
+        cursor.execute('CREATE TABLE dist_dir(msa_id INT,site_name TEXT VARCHAR(50),geom_x REAL, ' \
+                              'geom_y REAL, distance REAL, direction TEXT VARCHAR(5), PRIMARY KEY(msa_id, site_name))')
         conn.commit()
         # Create new (math) functions from python to SQLite that are not normally available. See MSA_QGIS_custom_sql_methods
         conn.create_function("SQRT", 1, SqlSqrt)
@@ -1350,6 +1356,8 @@ class MsaQgis:
             conn.commit()
             cursor.execute('DETACH DATABASE "copy"')
             conn.commit()
+            cursor.execute('CREATE INDEX "basemap_idx" ON basemap(msa_id);')
+            conn.commit()
             self.createSiteTables(conn, cursor, "basemap")
             self.createTaxonTables(conn, cursor)
             self.createTableDistanceToSite(conn, cursor, "basemap")
@@ -1361,11 +1369,9 @@ class MsaQgis:
             cursor.execute(f'VACUUM INTO "{save_directory}//temp_file_sql_input.sqlite";')
             conn.commit()
 
-
-
 ### full MSA
             # Requires opening a python subprocess that is not dependent on QGIS
-            # As QGIS has a bug that makes multiprocessing impossible
+            # As QGIS has a bug that makes multiprocessing in a plugin impossible
 
             #Things to send to the subprocess, must be made into str: from_basemap, number_of_iters, run_type
             if self.dlg.radioButton_loadPointMap.isChecked() or self.dlg.radioButton_createMap.isChecked(): #from_basemap
@@ -1385,13 +1391,14 @@ class MsaQgis:
                 pass
 
 
+
             QgsMessageLog.logMessage("starting subprocess", 'MSA_QGIS', Qgis.Info)
             from subprocess import Popen, PIPE
             basepath = dirname(abspath(__file__))
             file_to_run = basepath + "\MSA_QGIS_Main_msa_subprocess.py"
             running_msa = Popen(["python", file_to_run], stdout= PIPE, stdin=PIPE, stderr=PIPE, text= True)
             subprocess_input_save_dir = running_msa.communicate(
-                input=  f"{save_directory}\n{from_basemap}\n{run_type}\n{number_of_iters}")[0]
+                input=  f"{save_directory}\n{from_basemap}\n{run_type}\n{number_of_iters}\n{str(self.spacing)}")[0]
 
             subprocess_output, subprocess_error = running_msa.communicate()
             QgsMessageLog.logMessage(f'output = {subprocess_output} \n error = {subprocess_error}', 'subprocess', Qgis.Info)
