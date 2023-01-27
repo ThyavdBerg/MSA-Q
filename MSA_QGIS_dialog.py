@@ -811,7 +811,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         """ Adds a RuleTreeWidget to the RuleTreeFrame with a 'normal' connection type (not in series, and not a duplicate)
         Based on a selected ruleTreeWidget, unless no ruleTreeWidgets exist, in which case it places the first
         ruleTreeWidget in the emply frame. If the rule is added to a scenario where a series exists, the appropriate
-        'duplicate' ruleTreeWidges are also added. A maximum of 9 rules can be connected to a single rule.
+        'duplicate' ruleTreeWidgets are also added. A maximum of 9 rules can be connected to a single rule.
 
         :class params: self.x, self.y, self.nest_dict_rules, self.dict_ruleTreeWidgets
         :params from UI files: self.scrollArea_ruleTree, self.tabl_top, self.ruleTreeLayout, self.frame_ruleTree
@@ -885,6 +885,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                         self.dict_ruleTreeWidgets[rule_id_duplicate] = ruleTreeWidget_duplicate
                         # Determine previous
                         self.dict_ruleTreeWidgets[rule_id_duplicate].prev_ruleTreeWidgets = self.dict_ruleTreeWidgets[duplicate].prev_ruleTreeWidgets.copy()
+                        self.dict_ruleTreeWidgets[rule_id_duplicate].prev_ruleTreeWidgets.append(duplicate)
                         # Add to next
                         self.dict_ruleTreeWidgets[duplicate].next_ruleTreeWidgets.append(rule_id_duplicate)
                         # Add to duplicates
@@ -1164,6 +1165,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                     prev_rule_id = int(str(rule_id_duplicate)[:len(str(rule_id_duplicate))-1])
                     self.dict_ruleTreeWidgets[rule_id_duplicate].prev_ruleTreeWidgets = self.dict_ruleTreeWidgets[
                         prev_rule_id].prev_ruleTreeWidgets.copy()
+                    self.dict_ruleTreeWidgets[rule_id_duplicate].prev_ruleTreeWidgets.append(prev_rule_id)
 
                     # Add to next widgets
                     self.dict_ruleTreeWidgets[prev_rule_id].next_ruleTreeWidgets.append(rule_id_duplicate)
