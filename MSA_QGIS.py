@@ -23,8 +23,6 @@
 """
 import csv
 import pickle
-import random
-import re
 import time
 import sqlite3
 import sys
@@ -357,6 +355,10 @@ class MsaQgis:
                 taxon_code = vegcom_table.horizontalHeaderItem(column).text()
                 cursor.execute((f'{insert_string}{veg_com}", "{taxon_code}", {veg_com_percent})'))
         cursor.execute('COMMIT')
+
+        cursor.execute(f'CREATE TABLE vegcom_list(veg_com TEXT VARCHAR(50))')
+        cursor.execute(f'INSERT INTO vegcom_list(veg_com) SELECT DISTINCT "veg_com" FROM "vegcom"')
+
         QgsMessageLog.logMessage("Creation of taxon tables finished", 'MSA_QGIS',
                                  Qgis.Info)
 
@@ -646,64 +648,35 @@ class MsaQgis:
         # Create fields
             QgsMessageLog.logMessage("Initiate point creation", 'MSA_QGIS', Qgis.Info)
             # Add fields with x and y geometry and the feature id
-            if self.dlg.radioButton_qgis_native.isChecked():
-                # will assign row id as msa_id
-                data_provider.addAttributes([QgsField('geom_X', QVariant.Double, 'double', 20, 5),
-                                            QgsField('geom_Y', QVariant.Double, 'double', 20, 5),
-                                            QgsField('veg_com', QVariant.String),
-                                            QgsField('chance_to_happen', QVariant.Double, 'double', 3, 2),
-                                            QgsField('msa_id', QVariant.Int)])
-            else:
-                data_provider.addAttributes([QgsField('geom_X', QVariant.Double, 'double', 20, 5),
-                                            QgsField('geom_Y', QVariant.Double, 'double', 20, 5),
-                                             QgsField('veg_com', QVariant.String),
-                                            QgsField('chance_to_happen', QVariant.Double, 'double', 3, 2)])
+            data_provider.addAttributes([QgsField('geom_X', QVariant.Double, 'double', 20, 5),
+                                        QgsField('geom_Y', QVariant.Double, 'double', 20, 5),
+                                        QgsField('veg_com', QVariant.String),
+                                        QgsField('chance_to_happen', QVariant.Double, 'double', 3, 2),
+                                        QgsField('msa_id', QVariant.Int)])
 
+            feat_id_generator = 1  #QGIS 3.16 generated its own IDs, but it seems this is not the case anymore
+            y = y_max
+            while y >= y_min:
+                x = x_min
+                while x <= x_max:
+                    geom = QgsGeometry.fromPointXY(QgsPointXY(x, y))
+                    feat = QgsFeature()
+                    feat.setGeometry(geom)
+                    feat.initAttributes(5)
+                    feat.setAttribute(0, geom.asPoint().x())
+                    feat.setAttribute(1, geom.asPoint().y())
+                    feat.setAttribute(2, 'Empty')
+                    feat.setAttribute(3, 100.0)
+                    feat.setAttribute(4, feat_id_generator)
+                    feat_id_generator += 1
+                    del geom
+                    x += self.spacing
+                    data_provider.addFeature(feat)
+                    del feat
+                y = y - self.spacing
+                vector_point_base.updateExtents()
+                vector_point_base.updateFields()
 
-            if self.dlg.radioButton_qgis_native.isChecked():
-                feat_id_generator = 1  #QGIS 3.16 generated its own IDs, but it seems this is not the case anymore
-                y = y_max
-                while y >= y_min:
-                    x = x_min
-                    while x <= x_max:
-                        geom = QgsGeometry.fromPointXY(QgsPointXY(x, y))
-                        feat = QgsFeature()
-                        feat.setGeometry(geom)
-                        feat.initAttributes(5)
-                        feat.setAttribute(0, geom.asPoint().x())
-                        feat.setAttribute(1, geom.asPoint().y())
-                        feat.setAttribute(2, 'Empty')
-                        feat.setAttribute(3, 100.0)
-                        feat.setAttribute(4, feat_id_generator)
-                        feat_id_generator += 1
-                        del geom
-                        x += self.spacing
-                        data_provider.addFeature(feat)
-                        del feat
-                    y = y - self.spacing
-                    vector_point_base.updateExtents()
-                    vector_point_base.updateFields()
-            else:
-                # Create the point features and immediately fill with coordinates and default values.
-                y = y_max
-                while y >= y_min:
-                    x = x_min
-                    while x <= x_max:
-                        geom = QgsGeometry.fromPointXY(QgsPointXY(x, y))
-                        feat = QgsFeature()
-                        feat.setGeometry(geom)
-                        feat.initAttributes(4)
-                        feat.setAttribute(0, geom.asPoint().x())
-                        feat.setAttribute(1, geom.asPoint().y())
-                        feat.setAttribute(2, 'Empty')
-                        feat.setAttribute(3, 100.0)
-                        del geom
-                        x += self.spacing
-                        data_provider.addFeature(feat)
-                        del feat
-                    y = y - self.spacing
-                    vector_point_base.updateExtents()
-                    vector_point_base.updateFields()
 
         processing.run("native:createspatialindex", {'INPUT': vector_point_base})
         QgsMessageLog.logMessage("All points created", 'MSA_QGIS', Qgis.Info)
