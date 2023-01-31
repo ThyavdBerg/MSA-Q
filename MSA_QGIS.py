@@ -205,7 +205,12 @@ class MsaQgis:
 #** CREATE SAVEFILES
     def saveRuleTreeDict(self,file_name):
         """Simplifies and saves dict_ruleTreeWidgets from the dialog, so that all UI elements are removed
-        and it is optimized for use for the MSA
+        and it is optimized for use for the MSA. Things are added to a list as follows:
+        [0] = next_ruleTreeWidgets (list)
+        [1] = prev_ruleTreeWidgets (list)
+        [2] = duplicate_ruleTreeWidgets (list)
+        [3] = rule name (str)
+        [4] = isBaseGroup (bool)
 
         :class params: self.dlg.dict_ruleTreeWidgets
 
@@ -1155,55 +1160,71 @@ class MsaQgis:
         else:
             pass  # Do not load anything
 
-    def loadPointMap(self, point_sampled_file, save_directory, conn, cursor, file_name = '//pointsampled_basemap.sqlite'):
-        """ Loads the point layer csv file given by the user, checks if it's valid and changes into an SQLite file
-        with the name pointsampled_basemap.sql so it can be used further on in the process."""
-        if not point_sampled_file[-4:] == '.csv':  # Only allow loading of .csv files #TODO add .shp etc
-            QgsMessageLog.logMessage(f'Input point sampled file invalid, not a .csv file ',
+    def loadPointMap(self, point_sampled_file, save_directory, file_name = '//pointsampled_basemap.sqlite', point_or_base = 'point'):
+        """ Loads a point layer csv file given by the user, checks if it's valid and changes into an SQLite file
+        so it can be used further on in the process."""
+        conn= sqlite3.connect(point_sampled_file)
+        cursor= conn.cursor()
+
+
+        if point_sampled_file[-4:] == ".csv":
+            with open(point_sampled_file, 'r', newline='') as csv_file:
+                reader = csv.reader(csv_file)
+                header_row = reader.__next__()
+                # Check presence of necessary headers
+                if (header_row[0] == 'msa_id' and header_row[1] == 'geom_X' and header_row[2] == 'geom_Y'
+                        and header_row[3] == 'veg_com' and header_row[4] == 'chance_to_happen'):
+                    pass
+                else:
+                    QgsMessageLog.logMessage(f'Input point sampled file invalid, missing essential header ',
+                                             'MSA_QGIS', Qgis.Critical)
+                    QgsMessageLog.logMessage(f'run of MSA_QGIS unsuccesful',
+                                             'MSA_QGIS', Qgis.Critical)
+                    return
+                # Check presence of included environmental variables
+                for row in range(self.dlg.tableWidget_selected.rowCount()):
+                    if self.dlg.tableWidget_selected.item(row, 1).text() in header_row:
+                        continue
+                    else:
+                        QgsMessageLog.logMessage(f'Input point sampled file invalid, missing header '
+                                                 f'{self.dlg.tableWidget_selected.item(row, 1).text()}',
+                                                 'MSA_QGIS', Qgis.Critical)
+                        QgsMessageLog.logMessage(f'run of MSA_QGIS unsuccesful',
+                                                 'MSA_QGIS', Qgis.Critical)
+                        return
+                if point_or_base == 'point':
+                    # Check if veg_com only contains Empty
+                    for row in reader:
+                        if not row[3] == 'Empty':
+                            QgsMessageLog.logMessage(f'Input point sampled file invalid, veg_com not empty'
+                                                     f'{self.dlg.tableWidget_selected.item(row, 1).text()}',
+                                                     'MSA_QGIS', Qgis.Critical)
+                            QgsMessageLog.logMessage(f'run of MSA_QGIS unsuccesful',
+                                                     'MSA_QGIS', Qgis.Critical)
+                            return "fail"
+                elif point_or_base == 'basemap':
+                    # Check if veg_com contains any Empty
+                    for row in reader:
+                        if row[3] == 'Empty':
+                            QgsMessageLog.logMessage(f'Input basemap file invalid, veg_com contains empty'
+                                                     f'{self.dlg.tableWidget_selected.item(row, 1).text()}',
+                                                     'MSA_QGIS', Qgis.Critical)
+                            QgsMessageLog.logMessage(f'run of MSA_QGIS unsuccesful',
+                                                     'MSA_QGIS', Qgis.Critical)
+                            return "fail"
+                else:
+                    csv_file = read_csv(point_sampled_file)
+                    csv_file.to_sql('empty_basemap', conn, if_exists='fail', index=False, chunksize=10000)
+                    string_vacuum_into = f'VACUUM INTO "{save_directory}{file_name}";'
+                    cursor.execute(string_vacuum_into)
+                    conn.close()
+                    return save_directory+file_name
+        else:
+            QgsMessageLog.logMessage(f'Input point sampled file invalid, not a .sqlite file ',
                                      'MSA_QGIS', Qgis.Critical)
             QgsMessageLog.logMessage(f'run of MSA_QGIS unsuccesful',
                                      'MSA_QGIS', Qgis.Critical)
-
-        with open(point_sampled_file, 'r', newline='') as csv_file:
-            reader = csv.reader(csv_file)
-            header_row = reader.__next__()
-            # Check presence of necessary headers
-            if (header_row[0] == 'msa_id' and header_row[1] == 'geom_X' and header_row[2] == 'geom_Y'
-                    and header_row[3] == 'veg_com' and header_row[4] == 'chance_to_happen'):
-                pass
-            else:
-                QgsMessageLog.logMessage(f'Input point sampled file invalid, missing essential header ',
-                                         'MSA_QGIS', Qgis.Critical)
-                QgsMessageLog.logMessage(f'run of MSA_QGIS unsuccesful',
-                                         'MSA_QGIS', Qgis.Critical)
-                return
-            # Check presence of included environmental variables
-            for row in range(self.dlg.tableWidget_selected.rowCount()):
-                if self.dlg.tableWidget_selected.item(row, 1).text() in header_row:
-                    continue
-                else:
-                    QgsMessageLog.logMessage(f'Input point sampled file invalid, missing header '
-                                             f'{self.dlg.tableWidget_selected.item(row, 1).text()}',
-                                             'MSA_QGIS', Qgis.Critical)
-                    QgsMessageLog.logMessage(f'run of MSA_QGIS unsuccesful',
-                                             'MSA_QGIS', Qgis.Critical)
-                    return
-            # Check if veg_com only contains Empty
-            for row in reader:
-                if not row[3] == 'Empty':
-                    QgsMessageLog.logMessage(f'Input point sampled file invalid, veg_com not empty'
-                                             f'{self.dlg.tableWidget_selected.item(row, 1).text()}',
-                                             'MSA_QGIS', Qgis.Critical)
-                    QgsMessageLog.logMessage(f'run of MSA_QGIS unsuccesful',
-                                             'MSA_QGIS', Qgis.Critical)
-                    return
-            # Import into SQLite TODO Check whether this gets slow with large files
-
-            csv_file = read_csv(point_sampled_file)
-            csv_file.to_sql('empty_basemap', conn, if_exists='fail', index=False, chunksize=10000)
-            string_vacuum_into = f'VACUUM INTO "{save_directory}{file_name}";'
-            cursor.execute(string_vacuum_into)
-            conn.close()
+            #TODO this error should be moved to UI/dialog to prevent setup of unsuccesful runs.
 
 #** RUN METHOD
     def run(self):
@@ -1275,47 +1296,20 @@ class MsaQgis:
                 try:
                     self.pointSampleNative(vector_point_base)
                     self.convertVectorToSql(save_directory)
+                    QgsMessageLog.logMessage(f'point sampling, Execution time in seconds: {time.time() - startTime}',
+                                             'MSA_QGIS',
+                                             Qgis.Info)
                 except Exception as e:
                     QgsMessageLog.logMessage("Exception raised, native point sampling could not run, abort run",
                                              'MSA_QGIS',
                                              Qgis.Warning)
-                    QgsMessageLog.logMessage(str(e), 'SQLite error', Qgis.Critical)
+                    QgsMessageLog.logMessage(str(e), 'MSA_QGIS', Qgis.Critical)
                     message = 'Point sampling failed'
                     self.dlg.runAbortedPopup(message, e)
-
-            # LOAD point sampled layer
-            elif self.dlg.radioButton_loadPointMap.isChecked():
-                point_sampled_file = self.dlg.mQgsFileWidget_startingPoint.filePath()
-                try:
-                    conn = sqlite3.connect(':memory:')
-                    cursor = conn.cursor()
-                    self.loadPointMap(point_sampled_file, save_directory, conn, cursor)
-                except Exception as e:
-                    QgsMessageLog.logMessage("Exception raised, loading point sampled file could not run, abort run",
-                                             'MSA_QGIS',
-                                             Qgis.Warning)
-                    QgsMessageLog.logMessage(str(e), 'MSA_QGIS', Qgis.Warning)
-                    try:
-                        conn.close()
-                    except:
-                        pass
-                    return
-            # timer
-            point_sample_time = (time.time() - startTime)
-            point_sample_time_end = time.time()
-            QgsMessageLog.logMessage('point sampling, Execution time in seconds: ' + str(point_sample_time),
-                                     'MSA_QGIS',
-                                     Qgis.Info)
             if self.dlg.run_type < 1:
-                try:
-                    conn.close()
-                except:
-                    QgsMessageLog.logMessage("Connection already closed", 'MSA_QGIS', Qgis.Info)
-                    pass
-                executionTime = (time.time() - startTime)
                 QgsMessageLog.logMessage(
-                    'Total execution time in seconds: ' + str(executionTime), 'MSA_QGIS', Qgis.Info)
-                QgsMessageLog.logMessage("MSA_QGIS finished sucessfully", 'MSA_QGIS', Qgis.Info)
+                    f'Total execution time in seconds: {time.time() - startTime}', 'MSA_QGIS', Qgis.Info)
+                QgsMessageLog.logMessage("MSA_QGIS finished sucessfully, point_sampled map created", 'MSA_QGIS', Qgis.Info)
                 return  # End run here if only a point sampled map is desired
 
 ### Make and save SQL tables and dictionaries
@@ -1323,32 +1317,36 @@ class MsaQgis:
             self.saveRuleTreeDict(save_directory+"/temp_save_ruletree_dict.pkl")
             conn = sqlite3.connect(":memory:")
             cursor = conn.cursor()
-            #TODO open the sql file and (re-)add the tables
 
             if self.dlg.radioButton_createMap.isChecked():
-                file_name = save_directory + "/pointsampled_basemap.sqlite"
+                file_name = save_directory + "//pointsampled_basemap.sqlite"
                 table_name = "Empty_basemap"
-                pass
             elif self.dlg.radioButton_loadPointMap.isChecked():
                 #attach pointmap sql given by user and create relevant tables (check if exist and wipe first)
-                file_name= self.dlg.mQgsFileWidget_startingPoint.filePath()
+                file_name = self.dlg.mQgsFileWidget_startingPoint.filePath()
                 table_name = "Empty_basemap"
-                if file_name[-7:] != ".sqlite": #TODO this error check should be moved to the UI
+                if file_name[-7:] == ".sqlite":
                     pass
-                else:
-                    QgsMessageLog.logMessage("Error, point sampled map not of type .sqlite", 'MSA_QGIS', Qgis.Info)
-                    return
-                pass
+                    #can be opened directly, and passed on to the subprocess
+                elif file_name[-4:] == ".csv":
+                    #needs to be converted to .sqlite file first
+                    table_name = "Empty_basemap"
+                    file_name = self.loadPointMap(file_name, save_directory, '//temp_pointmap.sqlite')
+                    if file_name == "fail":
+                        return
             elif self.dlg.radioButton_loadBaseMap.isChecked():
                 file_name = self.dlg.mQgsFileWidget_startingPoint.filePath()
                 table_name = "Basemap"
-                if file_name[-7:] != ".sqlite":
+                if file_name[-7:] == ".sqlite":
                     pass
+                    #can be opened directly, and passed on to the subprocess
+                elif file_name[-4:] == ".csv":
+                    file_name = self.loadPointMap(file_name, save_directory, '//temp_basemap.sqlite')
+                    if file_name == "fail":
+                        return
                 else:
                     QgsMessageLog.logMessage("Error, basemap not of type .sqlite", 'MSA_QGIS', Qgis.Info)
                     return
-
-                #attach basemap sql given by user and create relevant tables (check if exist and wipe first)
             #attach recently created map and create relevant tables
             cursor.execute(f'ATTACH DATABASE "{file_name}" AS "copy"')
             conn.commit()
@@ -1363,9 +1361,9 @@ class MsaQgis:
             self.createTableDistanceToSite(conn, cursor, "basemap")
             self.createTableOfMaps(conn, cursor)
             self.createTablePseudoPoints(conn, cursor, "basemap")
-            self.createTableWindrose(conn, cursor)
+            if self.dlg.checkBox_enableWindrose.isChecked():
+                self.createTableWindrose(conn, cursor)
             self.createTablePollenLookupBasin(conn, cursor)
-            #vacuum to file
             cursor.execute(f'VACUUM INTO "{save_directory}//temp_file_sql_input.sqlite";')
             conn.commit()
 
@@ -1378,31 +1376,33 @@ class MsaQgis:
                 from_basemap = "0" #subprocess should start from point sampled map and create a basemap
             elif self.dlg.radioButton_loadBaseMap.isChecked():
                 from_basemap = self.dlg.mQgsFileWidget_startingPoint.filePath() #subprocess should start from basemap
-            if self.dlg.run_type == 2: #run type
+            if self.dlg.run_type == 1: #run type
                 #create only a basemap
-                run_type = "2"
+                run_type = "1"
                 number_of_iters = "0"
-            elif self.dlg.run_type == 3:
+            elif self.dlg.run_type == 2:
                 #runs full MSA
-                run_type = "3"
+                run_type = "2"
                 number_of_iters = str(self.dlg.spinBox_iter.value())
             else:
-                #TODO error, code should not have gotten to this point in the first place...
-                pass
-
-
+                QgsMessageLog.logMessage("Error, run_type incorrect", 'MSA_QGIS', Qgis.Info)
+                return
 
             QgsMessageLog.logMessage("starting subprocess", 'MSA_QGIS', Qgis.Info)
+            subprocess_time=time.time()
             from subprocess import Popen, PIPE
             basepath = dirname(abspath(__file__))
             file_to_run = basepath + "\MSA_QGIS_Main_msa_subprocess.py"
             running_msa = Popen(["python", file_to_run], stdout= PIPE, stdin=PIPE, stderr=PIPE, text= True)
             subprocess_input_save_dir = running_msa.communicate(
-                input=  f"{save_directory}\n{from_basemap}\n{run_type}\n{number_of_iters}\n{str(self.spacing)}")[0]
+                input=  f"{save_directory}\n{from_basemap}\n{run_type}\n{number_of_iters}\n{self.spacing}\n"
+                        f"{self.dlg.checkBox_enableWindrose.isChecked()}\n{self.dlg.doubleSpinBox_fit.value()}\n"
+                        f"{self.dlg.doubleSpinBox_cumulFit.value()}\n{self.dlg.comboBox_fit.currentText()}\n"
+                        f"{self.dlg.radioButton_keepFitted.isChecked()}\n{self.dlg.radioButton_keepTwo.isChecked()}")[0]
 
             subprocess_output, subprocess_error = running_msa.communicate()
             QgsMessageLog.logMessage(f'output = {subprocess_output} \n error = {subprocess_error}', 'subprocess', Qgis.Info)
-
+            QgsMessageLog.logMessage(f"subprocess time = {time.time()-subprocess_time}", 'MSA_QGIS', Qgis.Info)
 
 
 

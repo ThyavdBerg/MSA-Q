@@ -2739,9 +2739,9 @@ class MsaQgisRunDialog(QtWidgets.QDialog,FORM_CLASS_RUN):
 
     def changeRunType(self):
         """Changes the run type based on which radiobutton is checked.
-        1 = only point sample
-        2 = only basemap
-        3 = run full msa
+        0 = only point sample
+        1 = only basemap
+        2 = run full msa
         -1 = invalid input"""
 
         if self.radioButton_pointSample.isChecked():
