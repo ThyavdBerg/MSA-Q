@@ -1,5 +1,6 @@
 
-from numpy import sqrt, linalg, array
+from numpy import linalg, array
+from math import sqrt
 
 
 def SqlSqrt(real_number):

@@ -21,14 +21,14 @@
  *                                                                         *
  ***************************************************************************/
 """
-import csv
-import pickle
-import time
+from csv import reader as csvreader
+from pickle import dump as pickledump
+from time import time, strftime, localtime
 import sqlite3
 import sys
 from os.path import expanduser, join, dirname, exists, abspath
 from os import remove
-from numpy import sqrt
+from math import sqrt
 from pandas import read_csv
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, QVariant
 from qgis.PyQt.QtGui import QIcon
@@ -48,7 +48,7 @@ from .MSA_QGIS_distance_weighting_sql_methods import SqlDwPrenticeSugita
 # Import processing tools from Qgis (make sure python interpreter contains path C:\OSGeo4W64\apps\qgis\python\plugins)
 home = expanduser("~")
 sys.path.append(home + r'\OSGeo4W64\apps\qgis\python\plugins')
-import processing
+from processing import run as runqgisprocess
 from processing.core.Processing import Processing
 Processing.initialize()
 
@@ -233,7 +233,7 @@ class MsaQgis:
             dict_nest_rule_tree[key] = nested_list
 
         with open (file_name, 'wb') as pkl_file:
-            pickle.dump(dict_nest_rule_tree, pkl_file)
+            pickledump(dict_nest_rule_tree, pkl_file)
 
 
 
@@ -285,7 +285,7 @@ class MsaQgis:
                     file_name = table_files.item(row2,1).text()
                     if file_name[-4:] == '.csv':
                         with open(file_name, mode='r') as file:
-                            pollen_counts_reader = csv.reader(file)
+                            pollen_counts_reader = csvreader(file)
                             next(pollen_counts_reader)  # Skip the first line
                             for line in pollen_counts_reader:  # Read rest of file for pollen data
                                 if line[0] == 'Code':
@@ -377,7 +377,7 @@ class MsaQgis:
 
         :param number_of_entries: Number of entries in the database map table = number of vector points
         :type number_of_entries: int"""
-        start_time = time.time()
+        start_time = time()
         QgsMessageLog.logMessage("Creation of distance and direction tables initiated", 'MSA_QGIS',
                                  Qgis.Info)
         #count number of entries in basemap
@@ -399,9 +399,9 @@ class MsaQgis:
             # sample_x = table_sites.item(row,1).text()
             # sample_y = table_sites.item(row,2).text()
             # If using snapped x & y #TODO create version that uses non-snapped x,y and option to choose.
-            cursor.execute('SELECT snapped_x FROM sampling_sites WHERE site_name = "'+sample_site+'"')
+            cursor.execute(f'SELECT snapped_x FROM sampling_sites WHERE site_name = "{sample_site}"')
             snapped_x = str(cursor.fetchone()[0])
-            cursor.execute('SELECT snapped_y FROM sampling_sites WHERE site_name = "'+sample_site+'"')
+            cursor.execute(f'SELECT snapped_y FROM sampling_sites WHERE site_name = "{sample_site}"')
             snapped_y = str(cursor.fetchone()[0])
 
             for entry in range(1,number_of_entries+1):  #  No msa_id 1 is made, so exclude it. +1 because range is exclusive
@@ -425,7 +425,7 @@ class MsaQgis:
         cursor.execute('CREATE INDEX dist_dir_dist_name_dir_idx ON dist_dir(distance, direction, site_name);')
         conn.commit()
 
-        end_time = time.time() - start_time
+        end_time = time() - start_time
         QgsMessageLog.logMessage(f"Creation of distance and direction tables finished after {end_time} seconds" , 'MSA_QGIS',
                                  Qgis.Info)
 
@@ -536,22 +536,29 @@ class MsaQgis:
         create_table_string = 'CREATE TABLE windrose(direction TEXT PRIMARY KEY, windrose_weight REAL)'
         cursor.execute(create_table_string)
         conn.commit()
-        cursor.execute('BEGIN TRANSACTION')
-        insert_into_string = 'INSERT INTO windrose("direction", "windrose_weight") ' \
-                             'VALUES ("N", ' + str(self.dlg.doubleSpin_north.value()) + '),' \
-                                                                                        '("NE", ' + str(
-            self.dlg.doubleSpin_northEast.value()) + '),' \
-                                                     '("E", ' + str(self.dlg.doubleSpin_east.value()) + '),' \
-                                                                                                        '("SE", ' + str(
-            self.dlg.doubleSpin_southEast.value()) + '),' \
-                                                     '("S", ' + str(self.dlg.doubleSpin_south.value()) + '),' \
-                                                                                                         '("SW", ' + str(
-            self.dlg.doubleSpin_southWest.value()) + '),' \
-                                                     '("W", ' + str(self.dlg.doubleSpin_west.value()) + '),' \
-                                                                                                        '("NW", ' + str(
-            self.dlg.doubleSpin_northWest.value()) + ');'
-        cursor.execute(insert_into_string)
-        cursor.execute('COMMIT')
+        # insert_into_string = 'INSERT INTO windrose("direction", "windrose_weight") ' \
+        #                      'VALUES ("N", ' + str(self.dlg.doubleSpin_north.value()) + '),' \
+        #                                                                                 '("NE", ' + str(
+        #     self.dlg.doubleSpin_northEast.value()) + '),' \
+        #                                              '("E", ' + str(self.dlg.doubleSpin_east.value()) + '),' \
+        #                                                                                                 '("SE", ' + str(
+        #     self.dlg.doubleSpin_southEast.value()) + '),' \
+        #                                              '("S", ' + str(self.dlg.doubleSpin_south.value()) + '),' \
+        #                                                                                                  '("SW", ' + str(
+        #     self.dlg.doubleSpin_southWest.value()) + '),' \
+        #                                              '("W", ' + str(self.dlg.doubleSpin_west.value()) + '),' \
+        #                                                                                                 '("NW", ' + str(
+        #     self.dlg.doubleSpin_northWest.value()) + ');'
+        #
+        cursor.execute(f'INSERT INTO windrose("direction", "windrose_weight") VALUES ("N", {self.dlg.doubleSpin_north.value()}),' \
+                             f'("NE", {self.dlg.doubleSpin_northEast.value()}),' \
+                             f'("E", {self.dlg.doubleSpin_east.value()}),' \
+                             f'("SE", {self.dlg.doubleSpin_southEast.value()}),' \
+                             f'("S", {self.dlg.doubleSpin_south.value()}),' \
+                             f'("SW", {self.dlg.doubleSpin_southWest.value()}),' \
+                             f'("W", {self.dlg.doubleSpin_west.value()}),' \
+                             f'("NW", {self.dlg.doubleSpin_northWest.value()});')
+        conn.commit()
 
         QgsMessageLog.logMessage("Creation of windrose tables finished", 'MSA_QGIS',
                                  Qgis.Info)
@@ -572,7 +579,7 @@ class MsaQgis:
         QgsMessageLog.logMessage("Creation of distance weighted plant abundance tables initiated", 'MSA_QGIS',
                                  Qgis.Info)
         # Create table
-        create_table_string = 'CREATE TABLE PollenLookup(distance REAL, '
+        create_table_string = 'CREATE TABLE PollenLookup(distance REAL PRIMARY KEY, '
         for row in range(self.dlg.tableWidget_taxa.rowCount()):
             taxon = self.dlg.tableWidget_taxa.item(row, 0).text()
             if row+1 == self.dlg.tableWidget_taxa.rowCount():
@@ -673,12 +680,12 @@ class MsaQgis:
                     x += self.spacing
                     data_provider.addFeature(feat)
                     del feat
-                y = y - self.spacing
+                y -= self.spacing
                 vector_point_base.updateExtents()
                 vector_point_base.updateFields()
 
 
-        processing.run("native:createspatialindex", {'INPUT': vector_point_base})
+        runqgisprocess("native:createspatialindex", {'INPUT': vector_point_base})
         QgsMessageLog.logMessage("All points created", 'MSA_QGIS', Qgis.Info)
         return vector_point_base
 
@@ -697,10 +704,10 @@ class MsaQgis:
         #TODO speed up possible with spatial index?
         QgsMessageLog.logMessage("Native points sampling initiated", 'MSA_QGIS', Qgis.Info)
         point_layer.selectAll()
-        vector_point_polygon = processing.run("native:saveselectedfeatures", {'INPUT': point_layer, 'OUTPUT': 'memory:'})['OUTPUT']
-        vector_point_raster = processing.run("native:saveselectedfeatures", {'INPUT': point_layer, 'OUTPUT': 'memory:'})['OUTPUT']
-        processing.run("native:createspatialindex", {'INPUT': vector_point_polygon})
-        processing.run("native:createspatialindex", {'INPUT': vector_point_raster})
+        vector_point_polygon = runqgisprocess("native:saveselectedfeatures", {'INPUT': point_layer, 'OUTPUT': 'memory:'})['OUTPUT']
+        vector_point_raster = runqgisprocess("native:saveselectedfeatures", {'INPUT': point_layer, 'OUTPUT': 'memory:'})['OUTPUT']
+        runqgisprocess("native:createspatialindex", {'INPUT': vector_point_polygon})
+        runqgisprocess("native:createspatialindex", {'INPUT': vector_point_raster})
 
         selection_table = self.dlg.tableWidget_selected
         for rows_column1 in range(selection_table.rowCount()):
@@ -732,22 +739,22 @@ class MsaQgis:
                 layer = QgsProject.instance().mapLayersByName(layer_name)[0]
                 #clone layer to memory for speed improvement
                 layer.selectAll()
-                clone_layer = processing.run("native:saveselectedfeatures", {'INPUT': layer, 'OUTPUT': 'memory:'})['OUTPUT']
-                processing.run("native:createspatialindex", {'INPUT': clone_layer})
+                clone_layer = runqgisprocess("native:saveselectedfeatures", {'INPUT': layer, 'OUTPUT': 'memory:'})['OUTPUT']
+                runqgisprocess("native:createspatialindex", {'INPUT': clone_layer})
                 layer.removeSelection()
 
                 fields = [selection_table.item(rows_column2, 1).text() for
                           rows_column2 in range(selection_table.rowCount()) if
                                                 selection_table.item(rows_column2, 0).text() == layer_name]
 
-                vector_point_polygon = processing.run('qgis:joinattributesbylocation',
+                vector_point_polygon = runqgisprocess('qgis:joinattributesbylocation',
                                                   {'INPUT': vector_point_polygon,
                                                    'JOIN': clone_layer,
                                                    'METHOD': 0,
                                                    'PREDICATE': 0,
                                                    'JOIN_FIELDS': fields,
                                                    'OUTPUT': 'memory:'})['OUTPUT']
-                processing.run("native:createspatialindex", {'INPUT': vector_point_polygon})
+                runqgisprocess("native:createspatialindex", {'INPUT': vector_point_polygon})
 
             # Make sure that the last layer in the list has been reached
             elif next_row == None:
@@ -755,20 +762,20 @@ class MsaQgis:
                 layer = QgsProject.instance().mapLayersByName(layer_name)[0]
                 #clone layer to memory for speed improvement
                 layer.selectAll()
-                clone_layer = processing.run("native:saveselectedfeatures", {'INPUT': layer, 'OUTPUT': 'memory:'})['OUTPUT']
-                processing.run("native:createspatialindex", {'INPUT': clone_layer})
+                clone_layer = runqgisprocess("native:saveselectedfeatures", {'INPUT': layer, 'OUTPUT': 'memory:'})['OUTPUT']
+                runqgisprocess("native:createspatialindex", {'INPUT': clone_layer})
                 layer.removeSelection()
                 fields = [selection_table.item(rows_column2, 1).text()
                           for rows_column2 in range(selection_table.rowCount())
                           if selection_table.item(rows_column2, 0).text() == layer_name]
-                self.vector_point_filled_vec= processing.run('qgis:joinattributesbylocation',
+                self.vector_point_filled_vec= runqgisprocess('qgis:joinattributesbylocation',
                                {'INPUT': vector_point_polygon,
                                 'JOIN': clone_layer,
                                 'METHOD': 0,
                                 'PREDICATE': 0,
                                 'JOIN_FIELDS': fields,
                                 'OUTPUT': 'memory:'})['OUTPUT']
-                processing.run("native:createspatialindex", {'INPUT': self.vector_point_filled_vec})
+                runqgisprocess("native:createspatialindex", {'INPUT': self.vector_point_filled_vec})
 
                 break
 
@@ -812,23 +819,23 @@ class MsaQgis:
             if (previous_row == None or previous_row.text() != layer_name) \
                     and next_row != None:
                 layer = QgsProject.instance().mapLayersByName(layer_name)[0]
-                vector_point_raster = processing.run('qgis:rastersampling',
+                vector_point_raster = runqgisprocess('qgis:rastersampling',
                                                   {'INPUT': vector_point_raster,
                                                    'RASTERCOPY': layer,
                                                    'COLUMN_PREFIX': layer_name[:8],
                                                    'OUTPUT': 'memory:'})['OUTPUT']
-                processing.run("native:createspatialindex", {'INPUT': vector_point_raster})
+                runqgisprocess("native:createspatialindex", {'INPUT': vector_point_raster})
 
 
             # Make sure that the last layer in the list has been reached
             elif next_row == None:
                 layer = QgsProject.instance().mapLayersByName(layer_name)[0]
-                self.vector_point_filled_ras = processing.run('qgis:rastersampling',
+                self.vector_point_filled_ras = runqgisprocess('qgis:rastersampling',
                                {'INPUT': vector_point_raster,
                                 'RASTERCOPY': layer,
                                 'COLUMN_PREFIX': layer_name[:8],
                                 'OUTPUT': 'memory:'})['OUTPUT']
-                processing.run("native:createspatialindex", {'INPUT': self.vector_point_filled_ras})
+                runqgisprocess("native:createspatialindex", {'INPUT': self.vector_point_filled_ras})
 
                 break
 
@@ -878,22 +885,23 @@ class MsaQgis:
             elif field.type() == QVariant.String or field.type() == QVariant.Char:
                 length = str(field.length())
                 current_column_string = f', "{field.name()}" VARCHAR({length}) '
-                columns_string = columns_string + current_column_string
+                columns_string +=current_column_string
+
                 pass
             elif field.type() == QVariant.Int or field.type() == QVariant.LongLong:
                 current_column_string = f', "{field.name()}" INT '
-                columns_string = columns_string + current_column_string
+                columns_string +=current_column_string
                 pass
             elif field.type() == QVariant.Double:
                 current_column_string = f', "{field.name()}" FLOAT '
-                columns_string = columns_string + current_column_string
+                columns_string +=current_column_string
                 pass
             else:  # I doubt anyone will be using blobs or anything... and geometry is already stored in a double
                 QgsMessageLog.logMessage(f'variable of {field.name()} is wrong datatype for sql, look up Qvariant: {field.type()}',
                                          'MSA_QGIS', Qgis.Warning)
 
         # create the table columns
-        create_table_string = start_string + primary_key_string + columns_string + ');'
+        create_table_string = f'{start_string}{primary_key_string}{columns_string});'
         cursor.execute(create_table_string)
         conn.commit()
 
@@ -908,17 +916,18 @@ class MsaQgis:
             end_string = ');'
             for field in map_fields:
                 if map_fields.indexFromName(field.name()) != n_of_fields - 1:
-                    columns_string = columns_string + f'"{field.name()}",'
+                    columns_string += f'"{field.name()}",'
+                    #columns_string = columns_string + f'"{field.name()}",'
                     if feature.attribute(field.name()) == None: # None becomes empty space so it is the same as in the spatialite version. Otherwise it fills with None strings
-                        values_string = values_string + '"", '
+                        values_string += '"", '
                     else:
-                        values_string = values_string + f'"{str(feature.attribute(field.name()))}", '
+                        values_string += f'"{str(feature.attribute(field.name()))}", '
                 else:
-                    columns_string = columns_string + f'"{field.name()}"'
+                    columns_string += f'"{field.name()}"'
                     if feature.attribute(field.name()) == None:
-                        values_string = values_string + '""'
+                        values_string +='""'
                     else:
-                        values_string = values_string + f'"{str(feature.attribute(field.name()))}"'
+                        values_string += f'"{str(feature.attribute(field.name()))}"'
 
             insert_string = start_string + columns_string + middle_string + values_string + end_string
             cursor.execute(insert_string)
@@ -947,7 +956,7 @@ class MsaQgis:
         if tag == 'MSA_QGIS':
             file_name = self.dlg.save_directory + '/MSA_QGIS_log.txt'
             with open(file_name, 'a') as logfile:
-                logfile.write(f'{time.strftime("D[%Y-%m-%d] T[%H:%M:%S]", time.localtime())} {tag}({level}): {message}\n')
+                logfile.write(f'{strftime("D[%Y-%m-%d] T[%H:%M:%S]", localtime())} {tag}({level}): {message}\n')
         else:
             pass
 
@@ -999,26 +1008,24 @@ class MsaQgis:
             self.succesdlg.tableWidget_stats.setItem(row_counter+1,0, QTableWidgetItem(str(worst_site_fit)))
             row_counter +=2
 
-    def loadMapsToQGIS(self, cursor, save_directory):
+    def loadMapsToQGIS(self, conn, cursor,save_directory):
         """ Loads chosen maps into QGIS
 
         :class params: self.succesdlg, self.crs, self.dlg
 
         :param cursor: SQLite cursor
         :type cursor: SQLite cursor"""
-        # Save the maps as .csv files
+
 
         if self.succesdlg.radioButton_loadBest.isChecked():
             # Get map with best cumulative fit
             best_cumul_fit_map_string = f'SELECT map_id FROM maps WHERE likelihood_cumul = (SELECT MIN(likelihood_cumul) FROM maps)'
             cursor.execute(best_cumul_fit_map_string)
             fit_map = cursor.fetchone()[0]
-            current_best_fit_string = f'SELECT likelihood_cumul FROM maps WHERE map_id = "{fit_map}"'
-            cursor.execute(current_best_fit_string)
-            current_best_fit = cursor.fetchone()[0]
-            uri = f'file:///{save_directory}/{fit_map}.csv' + \
-                  '?delimiter=,&xField=geom_x&yField=geom_y'
-            csv_layer = QgsVectorLayer(uri, f'{fit_map} fit{current_best_fit}', "delimitedtext")
+            #uri = f'file:///{save_directory}/{fit_map}.csv' + \
+             #     '?delimiter=,&xField=geom_x&yField=geom_y'
+            uri= f'file:///{save_directory}/{fit_map}.csv?delimiter=,&xField=geom_x&yField=geom_y'
+            csv_layer = QgsVectorLayer(uri, f'{fit_map}', "delimitedtext")
             csv_layer.setCrs(self.crs)
             if not csv_layer.isValid():
                 QgsMessageLog.logMessage('Layer not loaded', 'MSA_QGIS', Qgis.Warning)
@@ -1042,9 +1049,8 @@ class MsaQgis:
                 for map in range(user_given_n):
                     fit_map = fit_map_list[map][0]
                     QgsMessageLog.logMessage(f'opening {fit_map}', 'MSA_QGIS', Qgis.Info)
-                    uri = f'file:///{save_directory}/{fit_map}.csv' + \
-                          '?delimiter=,&xField=geom_x&yField=geom_y'
-                    csv_layer = QgsVectorLayer(uri, f'{fit_map} fit{current_best_fit}', "delimitedtext")
+                    uri = f'file:///{save_directory}/{fit_map}.csv?delimiter=,&xField=geom_x&yField=geom_y'
+                    csv_layer = QgsVectorLayer(uri, f'{fit_map}', "delimitedtext")
                     csv_layer.setCrs(self.crs)
                     if not csv_layer.isValid():
                         QgsMessageLog.logMessage('Layer not loaded', 'MSA_QGIS', Qgis.Warning)
@@ -1056,9 +1062,8 @@ class MsaQgis:
                 for map in range(number_of_same_fit):
                     fit_map = fit_map_list[map][0]
                     QgsMessageLog.logMessage(f'opening {fit_map}', 'MSA_QGIS', Qgis.Info)
-                    uri = f'file:///{save_directory}/{fit_map}.csv' + \
-                          '?delimiter=,&xField=geom_x&yField=geom_y'
-                    csv_layer = QgsVectorLayer(uri, f'{fit_map} fit{current_best_fit}', "delimitedtext")
+                    uri = f'file:///{save_directory}/{fit_map}.csv?delimiter=,&xField=geom_x&yField=geom_y'
+                    csv_layer = QgsVectorLayer(uri, f'{fit_map}', "delimitedtext")
                     csv_layer.setCrs(self.crs)
                     if not csv_layer.isValid():
                         QgsMessageLog.logMessage('Layer not loaded', 'MSA_QGIS', Qgis.Warning)
@@ -1082,9 +1087,8 @@ class MsaQgis:
                             return
                         fit_map = map[0]
                         QgsMessageLog.logMessage(f'opening {fit_map}', 'MSA_QGIS', Qgis.Info)
-                        uri = f'file:///{save_directory}/{fit_map}.csv' + \
-                              '?delimiter=,&xField=geom_x&yField=geom_y'
-                        csv_layer = QgsVectorLayer(uri, f'{fit_map} fit{current_best_fit}', "delimitedtext")
+                        uri =f'file:///{save_directory}/{fit_map}.csv?delimiter=,&xField=geom_x&yField=geom_y'
+                        csv_layer = QgsVectorLayer(uri, f'{fit_map}', "delimitedtext")
                         csv_layer.setCrs(self.crs)
                         if not csv_layer.isValid():
                             QgsMessageLog.logMessage('Layer not loaded', 'MSA_QGIS', Qgis.Warning)
@@ -1098,13 +1102,9 @@ class MsaQgis:
             fit_maps_list = cursor.fetchall()
             for map in fit_maps_list:
                 fit_map = map[0]
-                current_best_fit_string = f'SELECT likelihood_cumul FROM maps WHERE map_id = "{fit_map}"'
-                cursor.execute(current_best_fit_string)
-                current_best_fit = cursor.fetchone()[0]
                 QgsMessageLog.logMessage(f'opening {fit_map}', 'MSA_QGIS', Qgis.Info)
-                uri = f'file:///{save_directory}/{fit_map}.csv' + \
-                      '?delimiter=,&xField=geom_x&yField=geom_y'
-                csv_layer = QgsVectorLayer(uri, f'{fit_map} fit{current_best_fit}', "delimitedtext")
+                uri = f'file:///{save_directory}/{fit_map}.csv?delimiter=,&xField=geom_x&yField=geom_y'
+                csv_layer = QgsVectorLayer(uri, f'{fit_map}', "delimitedtext")
                 csv_layer.setCrs(self.crs)
                 if not csv_layer.isValid():
                     QgsMessageLog.logMessage('Layer not loaded', 'MSA_QGIS', Qgis.Warning)
@@ -1118,13 +1118,9 @@ class MsaQgis:
             all_maps_list = cursor.fetchall()
             for map in all_maps_list:
                 map_to_load = map[0]
-                current_best_fit_string = f'SELECT likelihood_cumul FROM maps WHERE map_id = "{map_to_load}"'
-                cursor.execute(current_best_fit_string)
-                current_best_fit = cursor.fetchone()[0]
                 QgsMessageLog.logMessage(f'opening {map_to_load}', 'MSA_QGIS', Qgis.Info)
-                uri = f'file:///{save_directory}/{map_to_load}.csv' + \
-                      '?delimiter=,&xField=geom_x&yField=geom_y'
-                csv_layer = QgsVectorLayer(uri, f'{map_to_load} fit{current_best_fit}', "delimitedtext")
+                uri = f'file:///{save_directory}/{map_to_load}.csv?delimiter=,&xField=geom_x&yField=geom_y'
+                csv_layer = QgsVectorLayer(uri, f'{map_to_load}', "delimitedtext")
                 csv_layer.setCrs(self.crs)
                 if not csv_layer.isValid():
                     QgsMessageLog.logMessage('Layer not loaded', 'MSA_QGIS', Qgis.Warning)
@@ -1142,7 +1138,7 @@ class MsaQgis:
 
         if point_sampled_file[-4:] == ".csv":
             with open(point_sampled_file, 'r', newline='') as csv_file:
-                reader = csv.reader(csv_file)
+                reader = csvreader(csv_file)
                 header_row = reader.__next__()
                 # Check presence of necessary headers
                 if (header_row[0] == 'msa_id' and header_row[1] == 'geom_X' and header_row[2] == 'geom_Y'
@@ -1251,7 +1247,7 @@ class MsaQgis:
         result = self.dlg.exec_() #TODO change so that window stays open while running main analysis
         # See if OK was pressed
         if result:
-            startTime = time.time()
+            startTime = time()
             # Things that are required independent of the type of run
             self.crs = iface.activeLayer().crs()
             self.spacing = self.dlg.spinBox_resolution.value()
@@ -1269,7 +1265,7 @@ class MsaQgis:
                 try:
                     self.pointSampleNative(vector_point_base)
                     self.convertVectorToSql(save_directory)
-                    QgsMessageLog.logMessage(f'point sampling, Execution time in seconds: {time.time() - startTime}',
+                    QgsMessageLog.logMessage(f'point sampling, Execution time in seconds: {time() - startTime}',
                                              'MSA_QGIS',
                                              Qgis.Info)
                 except Exception as e:
@@ -1281,7 +1277,7 @@ class MsaQgis:
                     self.dlg.runAbortedPopup(message, e)
             if self.dlg.run_type < 1:
                 QgsMessageLog.logMessage(
-                    f'Total execution time in seconds: {time.time() - startTime}', 'MSA_QGIS', Qgis.Info)
+                    f'Total execution time in seconds: {time() - startTime}', 'MSA_QGIS', Qgis.Info)
                 QgsMessageLog.logMessage("MSA_QGIS finished sucessfully, point_sampled map created", 'MSA_QGIS', Qgis.Info)
                 return  # End run here if only a point sampled map is desired
 
@@ -1327,7 +1323,7 @@ class MsaQgis:
             conn.commit()
             cursor.execute('DETACH DATABASE "copy"')
             conn.commit()
-            cursor.execute('CREATE INDEX "basemap_idx" ON basemap(msa_id);')
+            cursor.execute('CREATE UNIQUE INDEX "basemap_idx" ON basemap(msa_id);')
             conn.commit()
             self.createSiteTables(conn, cursor, "basemap")
             self.createTaxonTables(conn, cursor)
@@ -1362,7 +1358,7 @@ class MsaQgis:
                 return
 
             QgsMessageLog.logMessage("starting subprocess", 'MSA_QGIS', Qgis.Info)
-            subprocess_time=time.time()
+            subprocess_time=time()
             from subprocess import Popen, PIPE
             basepath = dirname(abspath(__file__))
             file_to_run = basepath + "\MSA_QGIS_Main_msa_subprocess.py"
@@ -1375,36 +1371,40 @@ class MsaQgis:
 
             subprocess_output, subprocess_error = running_msa.communicate()
             QgsMessageLog.logMessage(f'output = {subprocess_output} \n error = {subprocess_error}', 'subprocess', Qgis.Info)
-            QgsMessageLog.logMessage(f"subprocess time = {time.time()-subprocess_time}", 'MSA_QGIS', Qgis.Info)
-
-
-
+            QgsMessageLog.logMessage(f"subprocess time = {time()-subprocess_time}", 'MSA_QGIS', Qgis.Info)
+            QgsMessageLog.logMessage(f"processing time = {time()-startTime}", 'MSA_QGIS', Qgis.Info)
 
 ### Cleanup
-
-            # final_time = (time.time() - basemap_time_end)
-            # QgsMessageLog.logMessage(
-            #     'all iterations completed, Execution time in seconds: ' + str(final_time),'MSA_QGIS', Qgis.Info)
-
-            #vacuum memory database to disk database
-            # string_vacuum_into = f'VACUUM INTO "{save_directory}//outcome.sqlite";'
-            # cursor.execute(string_vacuum_into)
-            # conn.commit()
-
-            # show dialog upon succes
-            # self.succesdlg.show()
-            # self.reportStatsOnSucces(conn, cursor)
-            # if self.succesdlg.exec_():
-            #         self.loadMapsToQGIS(cursor, save_directory)
-            # alternatively, if not run succesfully, report exception with a popup and show log #TODO
+            #Let user load data after finishing
+            conn = sqlite3.connect(f'{save_directory}//MSA_output.sqlite')
+            cursor = conn.cursor()
+            self.succesdlg.show()
+            self.reportStatsOnSucces(conn, cursor)
+            if self.succesdlg.exec_():
+                try:
+                    self.loadMapsToQGIS(conn, cursor, save_directory)
+                except Exception as e:
+                    QgsMessageLog.logMessage("Could not open maps to QGIS interface", 'MSA_QGIS', Qgis.Critical)
+                    QgsMessageLog.logMessage(str(e), 'MSA_QGIS', Qgis.Critical)
+            # Clean up connections and temporary files
             try:
                 conn.close()
             except:
-                QgsMessageLog.logMessage("Connection already closed- end", 'MSA_QGIS', Qgis.Info)
-                None
+                pass
+            try:
+                remove(rf'{save_directory}\temp_file_sql_input.sqlite')
+            except:
+                QgsMessageLog.logMessage("Could not delete temp file temp_file_sql_input.sqlite, delete this file manually", 'MSA_QGIS', Qgis.Warning)
+            try:
+                remove(rf'{save_directory}\temp_save_rule_dict.pkl')
+            except:
+                QgsMessageLog.logMessage("Could not delete temp file temp_save_rule_dict.pkl, delete this file manually", 'MSA_QGIS', Qgis.Warning)
+            try:
+                remove(rf'{save_directory}\temp_save_ruletree_dict.pkl')
+            except:
+                QgsMessageLog.logMessage("Could not delete temp file temp_save_ruletree_dict.pkl, delete this file manually", 'MSA_QGIS', Qgis.Warning)
 
-            #...
-            executionTime = (time.time() - startTime)
+            executionTime = (time() - startTime)
             QgsMessageLog.logMessage(
                 'Total execution time in seconds: ' + str(executionTime),'MSA_QGIS',Qgis.Info)
             QgsMessageLog.logMessage("MSA_QGIS finished sucessfully", 'MSA_QGIS', Qgis.Info)

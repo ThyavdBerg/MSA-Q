@@ -1,13 +1,14 @@
 import sys
 import time
-from os.path import exists, isdir
 import sqlite3
-import pickle
-import multiprocessing
-import random
+from os.path import exists, isdir
+from pickle import load
+from multiprocessing import Process
+from random import randint
 from re import split
 import csv
 from math import sqrt
+from numpy import random
 
 def SqlSqrt(real_number): # TODO this function is also in MSA_QGIS_custom_sql_methods.py, but I cannot import it here.
     """Used to import the numpy sqrt function to sqlite.
@@ -76,10 +77,10 @@ def loadFiles(save_directory):
     as created in MSA_QGIS.py
     :type save_directory: str"""
     with open(save_directory+"/temp_save_rule_dict.pkl", 'rb') as pkl_file:
-        dict_nest_rule = pickle.load(pkl_file)
+        dict_nest_rule = load(pkl_file)
 
     with open(save_directory + "/temp_save_ruletree_dict.pkl", 'rb') as pkl_file:
-        dict_rule_tree = pickle.load(pkl_file)
+        dict_rule_tree = load(pkl_file)
 
     return dict_nest_rule, dict_rule_tree
 
@@ -139,12 +140,16 @@ def prepareMSA(dict_rule_tree):
         if dict_rule_tree[key][0] == []: #is final rule
             is_final_rule = True
             list_possible_start_points = []
-            for entry in dict_rule_tree[key][1]:
-                if entry in list_branch_points_ids:
-                    list_possible_start_points.append(int(entry))
-            start_point = max(list_possible_start_points)
-            run_list = [item for item in dict_rule_tree[key][1] if item not in list_base_group_ids and int(item) > start_point]
-            run_list.append(key)
+            if list_branch_points_ids == []:
+                run_list = [item for item in dict_rule_tree[key][1] if item not in list_base_group_ids]
+                run_list.append(key)
+            else:
+                for entry in dict_rule_tree[key][1]:
+                    if entry in list_branch_points_ids:
+                        list_possible_start_points.append(int(entry))
+                start_point = max(list_possible_start_points)
+                run_list = [item for item in dict_rule_tree[key][1] if item not in list_base_group_ids and int(item) > start_point]
+                run_list.append(key)
             scenario_dict[key] = [str(start_point),is_final_rule, run_list]
     #sort the dictionary by key
     scenario_dict= dict(sorted(scenario_dict.items()))
@@ -170,7 +175,7 @@ def setupMSA(dict_rule_tree, dict_nest_rule, spacing, save_directory, file_name,
     :type file_name: str"""
     # Create an output file
     output_conn = sqlite3.connect(save_directory + "//MSA_output.sqlite")
-    conn = sqlite3.connect(save_directory + "//output_basemap.sqlite")
+    conn = sqlite3.connect(save_directory + file_name)
     conn.backup(output_conn)
     conn.close()
     output_conn.close()
@@ -179,11 +184,11 @@ def setupMSA(dict_rule_tree, dict_nest_rule, spacing, save_directory, file_name,
     scenario_dict = prepareMSA(dict_rule_tree)
     process_list = []
     for iteration in range(1, int(number_of_iters) + 1):
-        process = multiprocessing.Process(target=runMSA,
-                                          args=(
-                                              iteration, spacing, scenario_dict, save_directory,
-                                              dict_nest_rule,
-                                              dict_rule_tree, file_name, windrose, fit_stats))
+        process = Process(target=runMSA,
+                          args=(
+                              iteration, spacing, scenario_dict, save_directory,
+                              dict_nest_rule,
+                              dict_rule_tree, file_name, windrose, fit_stats))
         process_list.append(process)
 
     for process in process_list:
@@ -214,10 +219,11 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
 
     :param dict_rule_tree: nested, simplefied dictionary derived from rule tree widgets given by user
     :type dict_rule_tree: dict """
-
+    retries = 100 # number of times the connection will retry to save the table to file.
     # Open a connection to the basemap to copy everything.
     try:
         conn = copySqlitetoMem(save_directory,file)
+
     except Exception as e:
         error_statement = f"{e}\nFor run {iteration}"
         print(error_statement, flush = True)
@@ -233,9 +239,10 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
         for item in scenario_dict[key][2]:
             assignVegCom(dict_nest_rule, conn, cursor, map_name, dict_rule_tree[item][3], spacing)
         if scenario_dict[key][1]:
-            simulatePollen(map_name, iteration, conn,cursor, save_directory, windrose, fit_stats)
+            simulatePollen(map_name, iteration, conn,cursor, windrose, fit_stats)
 
     cursor.execute(f"ATTACH DATABASE '{save_directory}/MSA_output.sqlite' as file_db")
+
     if fit_stats[3] == 'True':
         # Only save maps that made fit
         cursor.execute(f'SELECT map_id FROM maps WHERE (likelihood_met = "Yes")')
@@ -252,15 +259,42 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
         sampling_sites = cursor.fetchall()
         for map in maps_to_save:
             for site in sampling_sites:
-                cursor.execute('BEGIN TRANSACTION')
-                cursor.execute(f'CREATE TABLE file_db.[{site[0]}{map[0]}] AS SELECT * FROM [{site[0]}{map[0]}]')
-                cursor.execute('COMMIT')
+                for increment in range(retries):
+                    try:
+                        cursor.execute(f'CREATE TABLE file_db.[{site[0]}{map[0]}] AS SELECT * FROM [{site[0]}{map[0]}]')
+                        break
+                    except sqlite3.OperationalError: # TODO needs to catch only database locked
+                        print("retry connection 3...", flush=True)
+                        time.sleep(increment)
+                conn.commit()
     for map in maps_to_save:
-        cursor.execute('BEGIN TRANSACTION')
-        cursor.execute(f"CREATE TABLE file_db.[{map[0]}] AS SELECT * FROM [{map[0]}]")
-        cursor.execute('COMMIT')
-    cursor.execute(f'INSERT INTO file_db.[maps] SELECT * FROM [maps]')
-    conn.commit()
+        for increment in range(retries):
+            try:
+                cursor.execute(f"CREATE TABLE file_db.[{map[0]}] AS SELECT * FROM [{map[0]}]")
+                break
+            except sqlite3.OperationalError: # TODO needs to catch only database locked
+                print("retry connection 2...", flush=True)
+                time.sleep(increment)
+        conn.commit()
+        cursor.execute(f'SELECT * FROM "{map[0]}"')
+        with open(f'{save_directory}//{map[0]}.csv', 'w', newline='') as csv_file:
+            csv_writer = csv.writer(csv_file)
+            csv_writer.writerow([i[0] for i in cursor.description])
+            csv_writer.writerows(cursor)
+    for increment in range(retries):
+        try:
+            cursor.execute(f'INSERT INTO file_db.[maps] SELECT * FROM [maps]')
+            conn.commit()
+            break
+        except Exception as e: # TODO needs to catch only database locked
+            print(f"retry connection 1 for {map_name}...\n{e}", flush=True)
+            cursor.execute(f"DETACH DATABASE file_db")
+            conn.commit()
+            time.sleep(increment)
+            cursor.execute(f"ATTACH DATABASE '{save_directory}/MSA_output.sqlite' as file_db")
+            conn.commit()
+
+
     cursor.execute(f"DETACH DATABASE file_db")
     conn.commit()
     conn.close()
@@ -320,19 +354,24 @@ def assignVegCom(dict_nest_rule, conn, cursor, map_name, rule, spacing):
     cursor.execute(f'SELECT * FROM "{map_name}"')
     number_of_entries = len(cursor.fetchall())
 
-    #set chance, if necessary
-    if chance == 100:
-        pass
-    else:
-        chance = chance * 100  # in order to avoid using decimals
-        cursor.execute('BEGIN TRANSACTION')
-        for msa_id in range(1, number_of_entries + 1):
-            random_number = random.randint(1, 10000)
-            cursor.execute(f'UPDATE "{map_name}" SET "chance_to_happen" = {random_number}' \
-                                   f' WHERE (msa_id = {msa_id});')
-        cursor.execute('COMMIT')
-    pass
+    save_time = time.time()
 
+    cursor.execute('BEGIN TRANSACTION')
+    if chance == 100:
+        string_chance = ''
+    else:
+        cursor.execute(f'UPDATE "{map_name}" SET "chance_to_happen" = 0')
+        string_chance = f'("chance_to_happen" = "1") AND '
+        chance *=100 # to make compatible with rng.random, which is between 0 and 1
+        print(f'chance is {chance}', flush=True)
+        random_numbers = random.randint(1, 10000, size=number_of_entries)
+        for msa_id in range(number_of_entries):
+            if random_numbers.item(msa_id) < chance:
+                cursor.execute(f'UPDATE "{map_name}" SET "chance_to_happen" = 1 WHERE (msa_id = {msa_id+1})')
+    cursor.execute('COMMIT')
+
+    print(f'chance time {map_name} took {time.time()-save_time} to run', flush=True)
+    save_time = time.time()
 
     start_string = f'UPDATE "{map_name}" SET "veg_com" = "{veg_com}" WHERE '
     #create conditional update string
@@ -345,7 +384,7 @@ def assignVegCom(dict_nest_rule, conn, cursor, map_name, rule, spacing):
             string_condition_prev_veg_com = '"veg_com" = "Empty" AND '
         else:
             for prev_veg_com in list_of_prev_vegcom:
-                string_condition_prev_veg_com = string_condition_prev_veg_com+f'"veg_com" = "{prev_veg_com}" AND '
+                string_condition_prev_veg_com +=f'"veg_com" = "{prev_veg_com}" AND '
     elif rule_type == 'Encroach':
         # Get n_of_points and calculate the distance within which the encroachable points must be. Should be very clear in the manual what is included per encroach!
         n_of_points = dict_nest_rule[rule][5]
@@ -364,9 +403,8 @@ def assignVegCom(dict_nest_rule, conn, cursor, map_name, rule, spacing):
         return
     elif rule_type == 'Extent':  # TODO needs significant changes to the UI. Postpone as a workaround by drawing the extent in QGIS is possible.
         return
-
-    string_chance = f'("chance_to_happen" >= "{str(chance)}") AND '
-
+    print(f'rule type {map_name} took {time.time()-save_time} to run', flush=True)
+    save_time = time.time()
     # Find the conditions that apply to the same column, add them to a dict by column name
     dict_env_var = {}
     for key in dict_nest_rule[rule][10]:
@@ -405,6 +443,8 @@ def assignVegCom(dict_nest_rule, conn, cursor, map_name, rule, spacing):
                 dict_env_var[associated_column_name] = [dict_nest_rule[rule][10][key][0],
                                                         dict_nest_rule[rule][10][key][1]]
 
+    print(f'condition dict {map_name} took {time.time()-save_time} to run', flush=True)
+    save_time = time.time()
     # Create the conditional update string(take into account that having multiple of the same env_var need to be treated as OR not AND
     string_condition_env_var = ''
     for key in dict_env_var:
@@ -418,32 +458,34 @@ def assignVegCom(dict_nest_rule, conn, cursor, map_name, rule, spacing):
                 string_to_insert = f'("{key}" = "'
                 for entry in dict_env_var[key]:
                     string_to_insert = f'{string_to_insert}{entry}" OR "'
-                string_to_insert = string_to_insert + '") AND '
-                string_condition_env_var = string_condition_env_var + string_to_insert
+                string_to_insert +='") AND '
+                string_condition_env_var +=string_to_insert
             elif len(dict_env_var[key]) == 2:  # Column with a single range to select between
-                string_condition_env_var = f'{string_condition_env_var}("{key}" BETWEEN {str(dict_env_var[key][0])} ' \
+
+                string_condition_env_var += f'("{key}" BETWEEN {str(dict_env_var[key][0])} ' \
                                                                       f'AND {str(dict_env_var[key][1])}) AND '
             else:  # Column with multiple ranges to select between
                 string_to_insert = '("'
                 for index in range(len(dict_env_var[key]), 2):
-                    string_to_insert = f'{string_to_insert}{key}" BETWEEN {str(dict_env_var[key][index])} AND ' \
+
+                    string_to_insert += f'{key}" BETWEEN {str(dict_env_var[key][index])} AND ' \
                                                           f'{str(dict_env_var[key][index + 1])} OR "'
 
                 string_to_insert = string_to_insert[:-4] + ') AND'
-                string_condition_env_var = string_condition_env_var + string_to_insert
-
-    string_condition_env_var = string_condition_env_var
+                string_condition_env_var += string_to_insert
     string_condition_rule = start_string + string_condition_prev_veg_com + string_chance + string_condition_env_var
     string_condition_rule = string_condition_rule[:-4] + ';'
+    print(f'condition string {map_name} took {time.time()-save_time} to run', flush=True)
+    save_time = time.time()
     cursor.execute(string_condition_rule)
-
     conn.commit()
+    print(f'running rule {map_name} took {time.time()-save_time} to run', flush=True)
 
     # If the enroach rule was run, the temp table needs to be dropped
     cursor.execute('DROP TABLE IF EXISTS "temp";')
-    print(f"{time.time()} assigning vegcom for {map_name} with {rule} took {vegcom_start_time-time.time()}", flush = True)
+    print(f"assigning vegcom for {map_name} with {rule} took {time.time()-vegcom_start_time}", flush = True)
 
-def simulatePollen(map_name,iteration, conn, cursor, save_directory,windrose, fit_stats):
+def simulatePollen(map_name,iteration, conn, cursor, windrose, fit_stats):
     """Simulates the pollen per map, per site and determines whether the fit between the simulated pollen and actual
      pollen is close enough to retain the map if the user selected to retain only fitted maps.
 
@@ -466,7 +508,6 @@ def simulatePollen(map_name,iteration, conn, cursor, save_directory,windrose, fi
     start_time = time.time()
     print(f"Simulation of pollen and fit calculation for {map_name} started", flush=True)
 
-    # Create a new table per site
     cursor.execute('SELECT * FROM "sampling_sites"')
     n_of_sites = len(cursor.fetchall())
     cursor.execute('SELECT * FROM "taxa"')
@@ -477,7 +518,10 @@ def simulatePollen(map_name,iteration, conn, cursor, save_directory,windrose, fi
 
     conn.commit()
 
+    time_polload = time.time()
+    # Calculate the pollen loadings
     for row in range(n_of_sites):
+        # Create a new table per site
         cursor.execute(f'SELECT site_name FROM "sampling_sites" WHERE rowid IS {row+1}')
         site_name = cursor.fetchone()[0]
         create_table_str = f'CREATE TABLE {site_name}{map_name}(msa_id INT, pseudo_id INT, '
@@ -490,8 +534,8 @@ def simulatePollen(map_name,iteration, conn, cursor, save_directory,windrose, fi
                 create_table_str = f'{create_table_str}{taxon}_PL REAL, '
         cursor.execute(create_table_str)
         conn.commit()
-
         #fill table
+        cursor.execute('BEGIN TRANSACTION')
         cursor.execute(f'INSERT INTO {site_name}{map_name}(msa_id) '
                        f'SELECT "msa_id" FROM "dist_dir" WHERE ("site_name" = "{site_name}") AND ("distance" != 0)')
         cursor.execute(f'INSERT INTO {site_name}{map_name}(pseudo_id) '
@@ -499,12 +543,10 @@ def simulatePollen(map_name,iteration, conn, cursor, save_directory,windrose, fi
         cursor.execute(f'UPDATE "{site_name}{map_name}" SET "msa_id" = '
                        f'(SELECT "msa_id" FROM "pseudo_points" WHERE "site_name" = "{site_name}") '
                        f'WHERE pseudo_id >= 0')
-
-
-
-        conn.commit()
+        cursor.execute('COMMIT')
         #calculate pollen load
-        for row2 in range(n_of_taxa):
+        cursor.execute('BEGIN TRANSACTION')
+        for row2 in range(n_of_taxa):  #FIXME: This part of the code is a speed bottleneck, but I don't see how it could be improved.
             cursor.execute(f'SELECT taxon_code FROM "taxa" WHERE rowid IS {row2+1}')
             taxon = cursor.fetchone()[0]
             update_table_str = f'UPDATE {site_name}{map_name} SET "{taxon}_PL" = (SELECT(' \
@@ -517,6 +559,7 @@ def simulatePollen(map_name,iteration, conn, cursor, save_directory,windrose, fi
                                f'AND (site_name = "{site_name}"))) * (' \
                                f'SELECT "distance" FROM dist_dir WHERE (msa_id = {site_name}{map_name}.msa_id) ' \
                                f'AND (site_name = "{site_name}")'
+
             if windrose == "True":
                 find_windrose_str=(f') * ( SELECT "windrose_weight" FROM windrose WHERE('
                                    f'CASE WHEN {site_name}{map_name}.pseudo_id is NULL THEN "direction" = ('
@@ -527,8 +570,8 @@ def simulatePollen(map_name,iteration, conn, cursor, save_directory,windrose, fi
             else:
                 update_table_str += '))'
             cursor.execute(update_table_str)
-        conn.commit()
-
+        cursor.execute('COMMIT')
+        # conn.commit()
         #Adjust pollen load by 0.25 for pseudopoints (which contain 0.25 of the area of a "normal" point)
         for row2 in range(n_of_taxa):
             cursor.execute(f'SELECT taxon_code FROM "taxa" WHERE rowid IS {row2+1}')
@@ -536,8 +579,9 @@ def simulatePollen(map_name,iteration, conn, cursor, save_directory,windrose, fi
             cursor.execute(f'UPDATE {site_name}{map_name} SET {taxon}_PL = ('
                            f'SELECT "{taxon}_PL" * 0.25) WHERE pseudo_id IS NOT NULL')
         conn.commit()
+    print(f'calculating pollen loadings for {map_name}took {time.time()-time_polload} to run', flush=True)
 
-    #Calculate pollen percentages
+    # Create table for calculating pollen percentages
     create_table_str = f'CREATE TABLE simpol_{map_name}(site_name TEXT, '
     for row in range(n_of_taxa):
         cursor.execute(f'SELECT taxon_code FROM "taxa" WHERE rowid IS {row + 1}')
@@ -592,7 +636,6 @@ def simulatePollen(map_name,iteration, conn, cursor, save_directory,windrose, fi
                    f'VALUES("{map_name}", "{iteration}", "{fit_stats[0]}", "{fit_stats[1]}")')
     conn.commit()
     cumul_fit = 0
-
     # Fit calculation: squared chord distance
     like_thres_met = 'Yes'
     for row_sites in range(n_of_sites):
@@ -627,7 +670,6 @@ def simulatePollen(map_name,iteration, conn, cursor, save_directory,windrose, fi
             if like_thres_met == 'Yes' and fit > float(fit_stats[0]):
                 like_thres_met = 'No'
             print(f"Fit for {map_name} site {site_name} is {fit}", flush=True)
-
     # Calculate cumulative fit
     cursor.execute(f'UPDATE maps SET "likelihood_cumul" = {cumul_fit} WHERE map_id = "{map_name}"')
 
@@ -644,13 +686,6 @@ def simulatePollen(map_name,iteration, conn, cursor, save_directory,windrose, fi
         cursor.execute(f'UPDATE maps SET "percent_{veg_com}" = (SELECT (SELECT(SELECT COUNT(*) FROM "{map_name}" WHERE veg_com = "{veg_com}")*1.0)/' \
                                      f'(SELECT(SELECT COUNT(*) FROM "{map_name}")*1.0)* 100.0)')
     conn.commit()
-
-    # Save map to .csv
-    # cursor.execute(f'SELECT * FROM "{map_name}"')
-    # with open (f'{save_directory}//{map_name}.csv', 'w', newline = '') as csv_file:
-    #     csv_writer = csv.writer(csv_file)
-    #     csv_writer.writerow([i[0] for i in cursor.description])
-    #     csv_writer.writerows(cursor)
     end_time_pol = time.time() - start_time
     print(f'assigning fit for {map_name}took {str(end_time_pol)} to run', flush=True)
 
@@ -703,3 +738,5 @@ if __name__ == "__main__":
     except:
         #connection already closed, do nothing
         pass
+    print(f'end reached', flush=True)
+
