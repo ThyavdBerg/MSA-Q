@@ -70,7 +70,7 @@
         <string notr="true">tab_rules {background-color: rgb(240, 240, 240)};</string>
        </property>
        <property name="currentIndex">
-        <number>5</number>
+        <number>0</number>
        </property>
        <widget class="QWidget" name="tab_envAndSpatial">
         <attribute name="title">
@@ -115,7 +115,7 @@
               <x>0</x>
               <y>0</y>
               <width>692</width>
-              <height>652</height>
+              <height>709</height>
              </rect>
             </property>
             <layout class="QGridLayout" name="gridLayout">
@@ -134,30 +134,45 @@
              <property name="spacing">
               <number>10</number>
              </property>
-             <item row="1" column="1" colspan="2">
-              <widget class="QgsFileWidget" name="mQgsFileWidget_startingPoint"/>
-             </item>
-             <item row="1" column="0">
-              <widget class="QLabel" name="label_mapFile">
-               <property name="text">
-                <string>Map file:</string>
-               </property>
-              </widget>
-             </item>
-             <item row="2" column="1" colspan="2">
-              <widget class="QgsExtentGroupBox" name="mExtentGroupBox"/>
-             </item>
-             <item row="2" column="0">
-              <widget class="QLabel" name="label_areaOfInterest">
-               <property name="toolTip">
-                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The area of interest is the extent of the main grid for which the simulation of vegetation communities and pollen counts based thereon will take place. Please make sure that all input maps are at least as large as the area of interest or larger.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-               </property>
-               <property name="text">
-                <string>Area of Interest</string>
-               </property>
-              </widget>
+             <item row="0" column="1" colspan="2">
+              <layout class="QHBoxLayout" name="horizontalLayout_22">
+               <item>
+                <widget class="QRadioButton" name="radioButton_createMap">
+                 <property name="text">
+                  <string>Create map from scratch</string>
+                 </property>
+                 <property name="checked">
+                  <bool>true</bool>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QRadioButton" name="radioButton_loadPointMap">
+                 <property name="text">
+                  <string>Load point sampled map</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QRadioButton" name="radioButton_loadBaseMap">
+                 <property name="text">
+                  <string>Load basemap</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
              </item>
              <item row="4" column="0">
+              <widget class="QLabel" name="label_resolution">
+               <property name="toolTip">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The resolution dictates how far apart each vector point will be spaced. The unit of distance is determined by the projection (e.g. British National Grid will be in meters).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               </property>
+               <property name="text">
+                <string>Resolution (Simple)</string>
+               </property>
+              </widget>
+             </item>
+             <item row="6" column="0">
               <widget class="QLabel" name="label_fieldsAndBands">
                <property name="toolTip">
                 <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;All fields and bands that are suitable as input will be shown in these two tables, with column 1 indicating layer and column 2 indicating field or band.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
@@ -170,79 +185,10 @@
                </property>
               </widget>
              </item>
-             <item row="4" column="2" rowspan="2">
-              <layout class="QVBoxLayout" name="verticalLayout_raster">
-               <property name="spacing">
-                <number>10</number>
-               </property>
-               <item>
-                <widget class="QLabel" name="label_raster">
-                 <property name="font">
-                  <font>
-                   <pointsize>10</pointsize>
-                   <weight>75</weight>
-                   <bold>true</bold>
-                  </font>
-                 </property>
-                 <property name="text">
-                  <string>Raster</string>
-                 </property>
-                 <property name="alignment">
-                  <set>Qt::AlignCenter</set>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QTableWidget" name="tableWidget_raster">
-                 <property name="frameShape">
-                  <enum>QFrame::StyledPanel</enum>
-                 </property>
-                 <property name="editTriggers">
-                  <set>QAbstractItemView::DoubleClicked|QAbstractItemView::SelectedClicked</set>
-                 </property>
-                 <property name="dragDropMode">
-                  <enum>QAbstractItemView::NoDragDrop</enum>
-                 </property>
-                 <property name="alternatingRowColors">
-                  <bool>true</bool>
-                 </property>
-                 <property name="selectionMode">
-                  <enum>QAbstractItemView::MultiSelection</enum>
-                 </property>
-                 <property name="selectionBehavior">
-                  <enum>QAbstractItemView::SelectRows</enum>
-                 </property>
-                 <property name="wordWrap">
-                  <bool>true</bool>
-                 </property>
-                 <attribute name="horizontalHeaderCascadingSectionResizes">
-                  <bool>false</bool>
-                 </attribute>
-                 <column>
-                  <property name="text">
-                   <string>Layer</string>
-                  </property>
-                 </column>
-                 <column>
-                  <property name="text">
-                   <string>Band</string>
-                  </property>
-                 </column>
-                </widget>
-               </item>
-              </layout>
-             </item>
              <item row="3" column="1" colspan="2">
-              <widget class="QSpinBox" name="spinBox_resolution">
-               <property name="maximum">
-                <number>1000000</number>
-               </property>
-               <property name="value">
-                <number>0</number>
-               </property>
-              </widget>
+              <widget class="QgsExtentGroupBox" name="mExtentGroupBox"/>
              </item>
-             <item row="4" column="1" rowspan="2">
+             <item row="6" column="1" rowspan="2">
               <layout class="QVBoxLayout" name="verticalLayout_vector">
                <property name="spacing">
                 <number>10</number>
@@ -304,17 +250,24 @@
                </item>
               </layout>
              </item>
-             <item row="3" column="0">
-              <widget class="QLabel" name="label_resolution">
+             <item row="2" column="1">
+              <widget class="QRadioButton" name="radioButton_simpleMap">
                <property name="toolTip">
-                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The resolution dictates how far apart each vector point will be spaced. The unit of distance is determined by the projection (e.g. British National Grid will be in meters).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                <string>The &quot;Simple&quot; map style creates a map that is a simple square grid of the area of interest with equally spaced vector points based on the given resolution</string>
                </property>
                <property name="text">
-                <string>Resolution</string>
+                <string>Simple</string>
                </property>
               </widget>
              </item>
-             <item row="6" column="2">
+             <item row="1" column="0">
+              <widget class="QLabel" name="label_mapFile">
+               <property name="text">
+                <string>Map file:</string>
+               </property>
+              </widget>
+             </item>
+             <item row="8" column="2">
               <widget class="QTableWidget" name="tableWidget_selRaster">
                <property name="editTriggers">
                 <set>QAbstractItemView::NoEditTriggers</set>
@@ -337,7 +290,96 @@
                </column>
               </widget>
              </item>
-             <item row="6" column="1">
+             <item row="6" column="2" rowspan="2">
+              <layout class="QVBoxLayout" name="verticalLayout_raster">
+               <property name="spacing">
+                <number>10</number>
+               </property>
+               <item>
+                <widget class="QLabel" name="label_raster">
+                 <property name="font">
+                  <font>
+                   <pointsize>10</pointsize>
+                   <weight>75</weight>
+                   <bold>true</bold>
+                  </font>
+                 </property>
+                 <property name="text">
+                  <string>Raster</string>
+                 </property>
+                 <property name="alignment">
+                  <set>Qt::AlignCenter</set>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QTableWidget" name="tableWidget_raster">
+                 <property name="frameShape">
+                  <enum>QFrame::StyledPanel</enum>
+                 </property>
+                 <property name="editTriggers">
+                  <set>QAbstractItemView::DoubleClicked|QAbstractItemView::SelectedClicked</set>
+                 </property>
+                 <property name="dragDropMode">
+                  <enum>QAbstractItemView::NoDragDrop</enum>
+                 </property>
+                 <property name="alternatingRowColors">
+                  <bool>true</bool>
+                 </property>
+                 <property name="selectionMode">
+                  <enum>QAbstractItemView::MultiSelection</enum>
+                 </property>
+                 <property name="selectionBehavior">
+                  <enum>QAbstractItemView::SelectRows</enum>
+                 </property>
+                 <property name="wordWrap">
+                  <bool>true</bool>
+                 </property>
+                 <attribute name="horizontalHeaderCascadingSectionResizes">
+                  <bool>false</bool>
+                 </attribute>
+                 <column>
+                  <property name="text">
+                   <string>Layer</string>
+                  </property>
+                 </column>
+                 <column>
+                  <property name="text">
+                   <string>Band</string>
+                  </property>
+                 </column>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item row="0" column="0">
+              <widget class="QLabel" name="label_startingPoint">
+               <property name="text">
+                <string>Starting point:</string>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="2">
+              <widget class="QRadioButton" name="radioButton_nestedMap">
+               <property name="toolTip">
+                <string>The &quot;Nested&quot; maps creates, in addition to the simple map, small areas around the sampling sites with given, higher resolution than the resolution of the simple grid.</string>
+               </property>
+               <property name="text">
+                <string>Nested</string>
+               </property>
+              </widget>
+             </item>
+             <item row="3" column="0">
+              <widget class="QLabel" name="label_areaOfInterest">
+               <property name="toolTip">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The area of interest is the extent of the main grid for which the simulation of vegetation communities and pollen counts based thereon will take place. Please make sure that all input maps are at least as large as the area of interest or larger.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               </property>
+               <property name="text">
+                <string>Area of Interest</string>
+               </property>
+              </widget>
+             </item>
+             <item row="8" column="1">
               <widget class="QTableWidget" name="tableWidget_selected">
                <property name="editTriggers">
                 <set>QAbstractItemView::NoEditTriggers</set>
@@ -360,7 +402,47 @@
                </column>
               </widget>
              </item>
-             <item row="6" column="0">
+             <item row="4" column="1" colspan="2">
+              <layout class="QHBoxLayout" name="horizontalLayout_6">
+               <item>
+                <widget class="QSpinBox" name="spinBox_resolution">
+                 <property name="maximum">
+                  <number>1000000</number>
+                 </property>
+                 <property name="value">
+                  <number>0</number>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="label_resNested">
+                 <property name="toolTip">
+                  <string>Resolution of the nested (smaller) parts of the map that are around the sampling sites.</string>
+                 </property>
+                 <property name="text">
+                  <string>Resolution (Nested)</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QSpinBox" name="spinBox_resNested">
+                 <property name="toolTip">
+                  <string>Must be lower than resolution (Simple)</string>
+                 </property>
+                 <property name="maximum">
+                  <number>1000000</number>
+                 </property>
+                 <property name="value">
+                  <number>0</number>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item row="1" column="1" colspan="2">
+              <widget class="QgsFileWidget" name="mQgsFileWidget_startingPoint"/>
+             </item>
+             <item row="8" column="0">
               <widget class="QLabel" name="label_currentSel">
                <property name="toolTip">
                 <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Fields and bands selected in the top two tables will be displayed here, please check if they are correct before running any simulations.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
@@ -373,38 +455,27 @@
                </property>
               </widget>
              </item>
-             <item row="0" column="1" colspan="2">
-              <layout class="QHBoxLayout" name="horizontalLayout_22">
-               <item>
-                <widget class="QRadioButton" name="radioButton_createMap">
-                 <property name="text">
-                  <string>Create map from scratch</string>
-                 </property>
-                 <property name="checked">
-                  <bool>true</bool>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QRadioButton" name="radioButton_loadPointMap">
-                 <property name="text">
-                  <string>Load point sampled map</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QRadioButton" name="radioButton_loadBaseMap">
-                 <property name="text">
-                  <string>Load basemap</string>
-                 </property>
-                </widget>
-               </item>
-              </layout>
-             </item>
-             <item row="0" column="0">
-              <widget class="QLabel" name="label_startingPoint">
+             <item row="2" column="0">
+              <widget class="QLabel" name="label_2">
                <property name="text">
-                <string>Starting point:</string>
+                <string>Map style</string>
+               </property>
+              </widget>
+             </item>
+             <item row="5" column="0">
+              <widget class="QLabel" name="label_nestedArea">
+               <property name="toolTip">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Length of the side of the square that will be made around your given sampling sides at a higher resolution. &lt;/p&gt;&lt;p&gt;This value should be divisable by &amp;quot;Resolution (Nested)&amp;quot; and a multiple of &amp;quot;Resolution (Simple)&amp;quot; in order to result in no gaps or double-sampled areas.&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               </property>
+               <property name="text">
+                <string>Size of Nested Area</string>
+               </property>
+              </widget>
+             </item>
+             <item row="5" column="1" colspan="2">
+              <widget class="QSpinBox" name="spinBox_nestedArea">
+               <property name="maximum">
+                <number>1000000</number>
                </property>
               </widget>
              </item>
@@ -936,6 +1007,12 @@
               <widget class="QPushButton" name="pushButton_viewList">
                <property name="enabled">
                 <bool>true</bool>
+               </property>
+               <property name="font">
+                <font>
+                 <weight>75</weight>
+                 <bold>true</bold>
+                </font>
                </property>
                <property name="text">
                 <string>View rule list</string>

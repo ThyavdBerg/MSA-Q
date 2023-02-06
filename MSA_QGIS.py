@@ -660,6 +660,9 @@ class MsaQgis:
                                         QgsField('veg_com', QVariant.String),
                                         QgsField('chance_to_happen', QVariant.Double, 'double', 3, 2),
                                         QgsField('msa_id', QVariant.Int)])
+            if self.dlg.radioButton_nestedMap.isChecked():
+                data_provider.addAttributes([QgsField('resolution', QVariant.Int)]),
+
 
             feat_id_generator = 1  #QGIS 3.16 generated its own IDs, but it seems this is not the case anymore
             y = y_max
@@ -675,6 +678,8 @@ class MsaQgis:
                     feat.setAttribute(2, 'Empty')
                     feat.setAttribute(3, 100.0)
                     feat.setAttribute(4, feat_id_generator)
+                    if self.dlg.radioButton_nestedMap.isChecked():
+                        feat.setAttribute(5, self.spacing)
                     feat_id_generator += 1
                     del geom
                     x += self.spacing
@@ -683,6 +688,15 @@ class MsaQgis:
                 y -= self.spacing
                 vector_point_base.updateExtents()
                 vector_point_base.updateFields()
+
+        if self.dlg.radioButton_nestedMap.isChecked(): # TODO
+            pass
+            # iterate over number of sites
+            # get x and y of sites
+            # make areas where nested map should be (nested area +0.5*self.spacing)
+            # remove points that are already within said area
+            # add new points within the area at higher resolution
+            # hurray
 
 
         runqgisprocess("native:createspatialindex", {'INPUT': vector_point_base})
@@ -1325,6 +1339,8 @@ class MsaQgis:
             conn.commit()
             cursor.execute('CREATE UNIQUE INDEX "basemap_idx" ON basemap(msa_id);')
             conn.commit()
+            cursor.execute('SELECT * FROM "basemap"')
+            number_of_entries = len(cursor.fetchall())
             self.createSiteTables(conn, cursor, "basemap")
             self.createTaxonTables(conn, cursor)
             self.createTableDistanceToSite(conn, cursor, "basemap")
@@ -1367,7 +1383,8 @@ class MsaQgis:
                 input=  f"{save_directory}\n{from_basemap}\n{run_type}\n{number_of_iters}\n{self.spacing}\n"
                         f"{self.dlg.checkBox_enableWindrose.isChecked()}\n{self.dlg.doubleSpinBox_fit.value()}\n"
                         f"{self.dlg.doubleSpinBox_cumulFit.value()}\n{self.dlg.comboBox_fit.currentText()}\n"
-                        f"{self.dlg.radioButton_keepFitted.isChecked()}\n{self.dlg.radioButton_keepTwo.isChecked()}")[0]
+                        f"{self.dlg.radioButton_keepFitted.isChecked()}\n{self.dlg.radioButton_keepTwo.isChecked()}\n"
+                        f"{number_of_entries}")[0]
 
             subprocess_output, subprocess_error = running_msa.communicate()
             QgsMessageLog.logMessage(f'output = {subprocess_output} \n error = {subprocess_error}', 'subprocess', Qgis.Info)

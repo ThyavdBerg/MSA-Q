@@ -30,6 +30,7 @@ import time # for reporting date and time in the interface
 from os.path import exists # for checking whether files exist before loading
 
 # Imports from QGIS package
+from PyQt5.QtCore import QTimer, QBasicTimer
 from PyQt5.QtWidgets import QTableWidgetItem, QWidget, QLabel, QVBoxLayout, QComboBox,  \
     QDoubleSpinBox, QFrame, QHBoxLayout, QPushButton, QMessageBox, QFileDialog, QTableWidget
 from qgis.PyQt import uic
@@ -103,6 +104,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.qgsFileWidget_importHandbag.setFilter('*.hum')
         self.label_mapFile.hide()
         self.mQgsFileWidget_startingPoint.hide()
+        self.enableNested()
 
         # Add the custom ruleTreeFrame to the UI
         self.frame_ruleTree = RuleTreeFrame()
@@ -147,6 +149,11 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.checkBox_enableWindrose.stateChanged.connect(self.enableWindrose)
         #TODO disable model parameters when other than prentice sugita is selected, and enable load lookup if use lookup table is selected.
         self.button_box.accepted.connect(self.openRunDialog)
+        self.radioButton_nestedMap.clicked.connect(self.enableNested)
+        self.radioButton_simpleMap.clicked.connect(self.enableNested)
+        self.spinBox_nestedArea.valueChanged.connect(self.checkNestedArea)
+        self.spinBox_resolution.valueChanged.connect(self.checkNestedArea)
+        self.spinBox_resNested.valueChanged.connect(self.checkNestedArea)
 
         # Events for Checklist
         self.mQgsFileWidget_startingPoint.fileChanged.connect(self.checkChecklist)
@@ -173,6 +180,16 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.lineEdit_projectName.textChanged.connect(self.checkChecklist)
         self.plainTextEdit_description.textChanged.connect(self.checkChecklist)
         self.plainTextEdit_notes.textChanged.connect(self.checkChecklist)
+        self.radioButton_nestedMap.clicked.connect(self.checkChecklist)
+        self.radioButton_simpleMap.clicked.connect(self.checkChecklist)
+        self.spinBox_nestedArea.valueChanged.connect(self.checkChecklist)
+        self.spinBox_resolution.valueChanged.connect(self.checkChecklist)
+        self.spinBox_resNested.valueChanged.connect(self.checkChecklist)
+        self.radioButton_createMap.clicked.connect(self.checkChecklist)
+        self.radioButton_loadPointMap.clicked.connect(self.checkChecklist)
+        self.radioButton_loadBaseMap.clicked.connect(self.checkChecklist)
+
+
 
 ### DIRECTLY DIALOG RELATED FUNCTIONS
     def openRunDialog(self):
@@ -311,17 +328,31 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         # Extent set?
         if self.mExtentGroupBox.currentExtent() != QgsRectangle(0.0, 0.0):
             self.checkBox_extent.setChecked(True)
-        elif self.radioButton_createMap.isChecked() == False and self.mQgsFileWidget_startingPoint.filePath != '':
+        elif self.radioButton_createMap.isChecked() == False and self.mQgsFileWidget_startingPoint.filePath() != '':
             self.checkBox_extent.setChecked(True)
         else:
             self.checkBox_extent.setChecked(False)
+
         # Resolution set?
-        if self.spinBox_resolution.value() != 0:
+        if self.radioButton_createMap.isChecked() == False and self.mQgsFileWidget_startingPoint.filePath() != '':
             self.checkBox_resolution.setChecked(True)
-        elif self.radioButton_createMap.isChecked() == False and self.mQgsFileWidget_startingPoint.filePath != '':
+        elif self.radioButton_simpleMap.isChecked() and self.spinBox_resolution.value() != 0:
             self.checkBox_resolution.setChecked(True)
+        elif self.radioButton_nestedMap.isChecked():
+            if self.spinBox_resolution.value() != 0 and self.spinBox_resNested.value() != 0 and \
+                self.spinBox_nestedArea.value() != 0:
+                if self.spinBox_nestedArea.value() % self.spinBox_resNested.value() == 0 and \
+                        self.spinBox_nestedArea.value() % self.spinBox_resolution.value() == 0 and \
+                        self.spinBox_resolution.value()> self.spinBox_resNested.value():
+                    self.checkBox_resolution.setChecked(True)
+                else:
+                    self.checkBox_resolution.setChecked(False)
+
+            else:
+                self.checkBox_resolution.setChecked(False)
         else:
             self.checkBox_resolution.setChecked(False)
+
         # Environmental variables selected?
         if self.tableWidget_selected.rowCount() != 0:
             self.checkBox_envLayers.setChecked(True)
@@ -601,8 +632,61 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.extent = self.mExtentGroupBox.outputExtent()
         self.mExtentGroupBox.setCurrentExtent(self.extent, self.mExtentGroupBox.outputCrs())
 
+    def enableNested(self):
+        """Enables or Disables the UI widgets related to nested maps."""
+        if self.radioButton_nestedMap.isChecked():
+            self.spinBox_nestedArea.show()
+            self.label_nestedArea.show()
+            self.label_resNested.show()
+            self.spinBox_resNested.show()
+        elif self.radioButton_nestedMap.isChecked() == False:
+            self.spinBox_nestedArea.hide()
+            self.label_nestedArea.hide()
+            self.label_resNested.hide()
+            self.spinBox_resNested.hide()
 
-### BUTTON FUNCTIONS TAXA & VEGETATION TAB
+    def checkNestedArea(self):
+        """Checks whether the nested area is possible, given the two resolutions. An incorrect area would result
+        in either parts of the map that are not sampled, for the purposes of pollen simulated, or are sampled double.
+        The spinBox will become red."""
+        timer= QBasicTimer
+        if self.radioButton_nestedMap.isChecked():
+            if self.spinBox_resNested.value() != 0 and self.spinBox_resolution.value() != 0 and self.spinBox_nestedArea.value()!=0:
+                if self.spinBox_nestedArea.value() % self.spinBox_resNested.value() != 0 and self.spinBox_nestedArea.value() % self.spinBox_resolution.value() != 0:
+                    self.spinBox_nestedArea.setStyleSheet("background-color: #ffaeaf;")
+                    self.spinBox_resNested.setStyleSheet("background-color: #ffaeaf;")
+                    self.spinBox_resolution.setStyleSheet("background-color: #ffaeaf;")
+                elif self.spinBox_nestedArea.value() % self.spinBox_resNested.value() != 0:
+                    self.spinBox_nestedArea.setStyleSheet("background-color: #ffaeaf;")
+                    self.spinBox_resNested.setStyleSheet("background-color: #ffaeaf;")
+                    self.spinBox_resolution.setStyleSheet("")
+
+                elif self.spinBox_nestedArea.value() % self.spinBox_resolution.value() != 0:
+                    self.spinBox_nestedArea.setStyleSheet("background-color: #ffaeaf;")
+                    self.spinBox_resolution.setStyleSheet("background-color: #ffaeaf;")
+                    self.spinBox_resNested.setStyleSheet("")
+
+                else:
+                    if self.spinBox_resolution.value() < self.spinBox_resNested.value():
+                        self.spinBox_resolution.setStyleSheet("background-color: #ffaeaf;")
+                        self.spinBox_resNested.setStyleSheet("background-color: #ffaeaf;")
+                        self.spinBox_nestedArea.setStyleSheet("")
+                    else:
+                        self.spinBox_nestedArea.setStyleSheet("")
+                        self.spinBox_resolution.setStyleSheet("")
+                        self.spinBox_resNested.setStyleSheet("")
+            elif self.spinBox_resNested.value() != 0 and self.spinBox_resolution.value() != 0:
+                if self.spinBox_resolution.value() < self.spinBox_resNested.value():
+                    self.spinBox_resolution.setStyleSheet("background-color: #ffaeaf;")
+                    self.spinBox_resNested.setStyleSheet("background-color: #ffaeaf;")
+                    self.spinBox_nestedArea.setStyleSheet("")
+                else:
+                    self.spinBox_nestedArea.setStyleSheet("")
+                    self.spinBox_resolution.setStyleSheet("")
+                    self.spinBox_resNested.setStyleSheet("")
+
+
+    ### BUTTON FUNCTIONS TAXA & VEGETATION TAB
     def addNewTaxon(self):
         """ Adds a new pollen taxon to the list of taxa by opening a pop-up in which the taxon code, full name,
         fall speed and relative pollen productivity can be given. The popup closes when executed or cancelled.

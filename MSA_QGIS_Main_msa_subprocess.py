@@ -62,13 +62,16 @@ def checkInput():
         elif count == 10:
             keep_fitted = line[:-1]
             count +=1
+        elif count == 11:
+            keep_two = line[:-1]
+            count +=1
         else:
-            keep_two = line
+            number_of_entries = int(line)
 
 
 
 
-    return save_directory, from_basemap, run_type, number_of_iters, spacing, windrose, [likelihood_threshold, cumulative_likelihood_threshold, fit_formula, keep_fitted, keep_two]
+    return save_directory, from_basemap, run_type, number_of_iters, spacing, windrose, [likelihood_threshold, cumulative_likelihood_threshold, fit_formula, keep_fitted, keep_two], number_of_entries
 
 def loadFiles(save_directory):
     """Loads the files required for running the MSA.
@@ -156,7 +159,7 @@ def prepareMSA(dict_rule_tree):
 
     return scenario_dict
 
-def setupMSA(dict_rule_tree, dict_nest_rule, spacing, save_directory, file_name,windrose, fit_stats):
+def setupMSA(dict_rule_tree, dict_nest_rule, spacing, save_directory, file_name,windrose, fit_stats,number_of_entries):
     """ Sets up the multiprocessing environment for the various iterations of the MSA.
 
     :param spacing: resolution of the vector point grid
@@ -188,7 +191,7 @@ def setupMSA(dict_rule_tree, dict_nest_rule, spacing, save_directory, file_name,
                           args=(
                               iteration, spacing, scenario_dict, save_directory,
                               dict_nest_rule,
-                              dict_rule_tree, file_name, windrose, fit_stats))
+                              dict_rule_tree, file_name, windrose, fit_stats,number_of_entries))
         process_list.append(process)
 
     for process in process_list:
@@ -198,7 +201,7 @@ def setupMSA(dict_rule_tree, dict_nest_rule, spacing, save_directory, file_name,
         process.join()
 
 
-def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict_rule_tree, file,windrose, fit_stats):
+def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict_rule_tree, file,windrose, fit_stats,number_of_entries):
     """ This is where rules are initiated in order of the rule tree. It is a single iteration of the MSA. Can be
     multiprocessed.
 
@@ -223,7 +226,6 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
     # Open a connection to the basemap to copy everything.
     try:
         conn = copySqlitetoMem(save_directory,file)
-
     except Exception as e:
         error_statement = f"{e}\nFor run {iteration}"
         print(error_statement, flush = True)
@@ -237,7 +239,7 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
         conn.commit()
         print(map_name, " was created", flush=True)
         for item in scenario_dict[key][2]:
-            assignVegCom(dict_nest_rule, conn, cursor, map_name, dict_rule_tree[item][3], spacing)
+            assignVegCom(dict_nest_rule, conn, cursor, map_name, dict_rule_tree[item][3], spacing, number_of_entries)
         if scenario_dict[key][1]:
             simulatePollen(map_name, iteration, conn,cursor, windrose, fit_stats)
 
@@ -299,7 +301,7 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
     conn.commit()
     conn.close()
 
-def makeBasemap(conn, cursor, dict_rule_tree, dict_nest_rule,spacing, save_directory):
+def makeBasemap(conn, cursor, dict_rule_tree, dict_nest_rule,spacing, save_directory, number_of_entries):
     """ This deals with the order of rules in the dict_rule_tree for the making of a basemap, so that they can be dealt
     with correctly with assignVegetation.
 
@@ -321,12 +323,12 @@ def makeBasemap(conn, cursor, dict_rule_tree, dict_nest_rule,spacing, save_direc
     list_base_group_ids = [key for key in dict_rule_tree if dict_rule_tree[key][4]] #4 is isBaseGroup bool
     list_base_group_ids.sort()
     for item in list_base_group_ids:
-        assignVegCom(dict_nest_rule, conn, cursor, "basemap", dict_rule_tree[item][3], spacing) #3 is rule name
+        assignVegCom(dict_nest_rule, conn, cursor, "basemap", dict_rule_tree[item][3], spacing, number_of_entries) #3 is rule name
     #save a file with the basemap
     cursor.execute(f'VACUUM INTO "{save_directory}//output_basemap.sqlite";')
     conn.commit()
 
-def assignVegCom(dict_nest_rule, conn, cursor, map_name, rule, spacing):
+def assignVegCom(dict_nest_rule, conn, cursor, map_name, rule, spacing, number_of_entries):
     """ Edits veg_com in the SQLite database version of the map based on a single given rule.
 
     :param conn: sqlite3 memory connection
@@ -350,25 +352,23 @@ def assignVegCom(dict_nest_rule, conn, cursor, map_name, rule, spacing):
     list_of_prev_vegcom = dict_nest_rule[rule][9]
     chance = dict_nest_rule[rule][4]
 
-    #TODO see if this can be moved somewhere else so that it only needs to happen once
-    cursor.execute(f'SELECT * FROM "{map_name}"')
-    number_of_entries = len(cursor.fetchall())
-
     save_time = time.time()
 
-    cursor.execute('BEGIN TRANSACTION')
-    if chance == 100:
+    if chance == 100 or chance == 100.0:
         string_chance = ''
     else:
         cursor.execute(f'UPDATE "{map_name}" SET "chance_to_happen" = 0')
+        conn.commit()
         string_chance = f'("chance_to_happen" = "1") AND '
-        chance *=100 # to make compatible with rng.random, which is between 0 and 1
-        print(f'chance is {chance}', flush=True)
+        chance *=100 # to make compatible with integers despite 2 decimals
+        timer = time.time()
         random_numbers = random.randint(1, 10000, size=number_of_entries)
-        for msa_id in range(number_of_entries):
-            if random_numbers.item(msa_id) < chance:
-                cursor.execute(f'UPDATE "{map_name}" SET "chance_to_happen" = 1 WHERE (msa_id = {msa_id+1})')
-    cursor.execute('COMMIT')
+        print(f'generating {time.time()-timer}')
+        timer = time.time()
+        tuple_ids_above_chance = tuple([msa_id+1 for msa_id in range(number_of_entries) if random_numbers.item(msa_id) <chance])
+        cursor.execute(f'UPDATE "{map_name}" SET "chance_to_happen" = 1 WHERE (msa_id IN {tuple_ids_above_chance})')
+        conn.commit()
+        print(f'applying {time.time()-timer}')
 
     print(f'chance time {map_name} took {time.time()-save_time} to run', flush=True)
     save_time = time.time()
@@ -693,7 +693,7 @@ def simulatePollen(map_name,iteration, conn, cursor, windrose, fit_stats):
 if __name__ == "__main__":
     ##Main code
     # check if save input is correct. If not will automatically error and quit
-    save_directory, from_basemap, run_type, number_of_iters, spacing, windrose, fit_stats = checkInput()
+    save_directory, from_basemap, run_type, number_of_iters, spacing, windrose, fit_stats,number_of_entries = checkInput()
     # Open pickled files
     dict_nest_rule, dict_rule_tree = loadFiles(save_directory)
     # Create the basemap if necessary
@@ -706,13 +706,13 @@ if __name__ == "__main__":
             if run_type == "1":
                 sys.exit("Error in subprocess, run_type = 2 (make only basemap), but no entries in rule tree were designated as base group")
             else: #Carry on to do a full MSA, but start from point_sampled_map
-                setupMSA(dict_rule_tree,dict_nest_rule, spacing,save_directory, "//temp_file_sql_input.sqlite", windrose, fit_stats)
+                setupMSA(dict_rule_tree,dict_nest_rule, spacing,save_directory, "//temp_file_sql_input.sqlite", windrose, fit_stats,number_of_entries)
         else: #some entries were designated as basegroup
              if run_type == "1" or run_type == "2":
                  # Create the basemap
                  conn = copySqlitetoMem(save_directory, "//temp_file_sql_input.sqlite") #Make sqlite connection and copy to memory
                  cursor = conn.cursor()
-                 makeBasemap(conn, cursor, dict_rule_tree,dict_nest_rule, spacing, save_directory)
+                 makeBasemap(conn, cursor, dict_rule_tree,dict_nest_rule, spacing, save_directory, number_of_entries)
                  try:
                      conn.close()
                  except:
@@ -721,14 +721,14 @@ if __name__ == "__main__":
                      #basemap is saved as part of makeBasemap, move on to end subprocess
                      pass
                  elif run_type == "2": #continue with full MSA
-                     setupMSA(dict_rule_tree,dict_nest_rule, spacing,save_directory, "//output_basemap.sqlite", windrose, fit_stats)
+                     setupMSA(dict_rule_tree,dict_nest_rule, spacing,save_directory, "//output_basemap.sqlite", windrose, fit_stats, number_of_entries)
              else: # Some error occurred in setting up the run, this code should not be reached
                  sys.exit(f"Error in subprocess, run_type is incorrect, \n run_type = {run_type}")
     else: #A basemap exists
         if run_type == "1":
             sys.exit(f"Error in subprocess, run_type is make basemap, but a basemap already exists. Quitting run")
         elif run_type == "2":
-            setupMSA(dict_rule_tree,dict_nest_rule, spacing,save_directory, "//temp_file_sql_input.sqlite", windrose, fit_stats)
+            setupMSA(dict_rule_tree,dict_nest_rule, spacing,save_directory, "//temp_file_sql_input.sqlite", windrose, fit_stats, number_of_entries)
         else:
             sys.exit(f"Error in subprocess, run_type is incorrect for full run, \n run_type = {run_type}")
 
