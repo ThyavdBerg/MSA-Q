@@ -264,15 +264,23 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             self.label_currentSel.show()
             self.label_vector.show()
             self.label_raster.show()
+            self.label_mapStyle.show()
             #hide labels
             self.label_mapFile.hide()
             #show items
             self.mExtentGroupBox.show()
+            self.radioButton_simpleMap.show()
+            self.radioButton_nestedMap.show()
             self.spinBox_resolution.show()
             self.tableWidget_vector.show()
             self.tableWidget_raster.show()
             self.tableWidget_selected.show()
             self.tableWidget_selRaster.show()
+            if self.radioButton_nestedMap.isChecked():
+                self.label_resNested.show()
+                self.label_nestedArea.show()
+                self.spinBox_resNested.show()
+                self.spinBox_nestedArea.show()
             #hide widgets
             self.mQgsFileWidget_startingPoint.hide()
         elif self.radioButton_loadPointMap.isChecked():
@@ -280,36 +288,50 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
 
             self.label_mapFile.show()
             #hide labels
+            self.label_mapStyle.hide()
             self.label_fieldsAndBands.hide()
             self.label_currentSel.hide()
             self.label_areaOfInterest.hide()
             self.label_resolution.hide()
             self.label_vector.hide()
             self.label_raster.hide()
+            self.label_resNested.hide()
+            self.label_nestedArea.hide()
             #show widgets
 
             self.mQgsFileWidget_startingPoint.show()
             #hide widgets
+            self.radioButton_simpleMap.hide()
+            self.radioButton_nestedMap.hide()
+            self.spinBox_resNested.hide()
+            self.spinBox_nestedArea.hide()
             self.tableWidget_vector.hide()
             self.tableWidget_raster.hide()
             self.tableWidget_selected.hide()
             self.tableWidget_selRaster.hide()
             self.mExtentGroupBox.hide()
             self.spinBox_resolution.hide()
-            pass
         elif self.radioButton_loadBaseMap.isChecked():
             #show labels
             self.label_mapFile.show()
             #hide labels
+            self.label_mapStyle.hide()
             self.label_areaOfInterest.hide()
             self.label_resolution.hide()
             self.label_fieldsAndBands.hide()
             self.label_currentSel.hide()
             self.label_vector.hide()
             self.label_raster.hide()
+
+            self.label_resNested.hide()
+            self.label_nestedArea.hide()
             #show widgets
             self.mQgsFileWidget_startingPoint.show()
             #hide widgets
+            self.radioButton_simpleMap.hide()
+            self.radioButton_nestedMap.hide()
+            self.spinBox_resNested.hide()
+            self.spinBox_nestedArea.hide()
             self.mExtentGroupBox.hide()
             self.spinBox_resolution.hide()
             self.tableWidget_vector.hide()
@@ -623,6 +645,688 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                         pass
                         #TODO
                 file.close()
+
+    def saveRuleDict(self, file_name_rule_dict):
+        """ Pickles/serializes the rules dictionary for later retrieval"""
+        with open(file_name_rule_dict,'wb') as pkl_file:
+            pickle.dump(self.nest_dict_rules, pkl_file)
+
+    def loadRuleDict(self,file_name_rule_dict):
+        """ Loads the pickled dictionary of the nest_dict_rule"""
+        with open (file_name_rule_dict, 'rb') as pkl_file:
+            self.nest_dict_rules = pickle.load(pkl_file)
+            self.listWidget_rules.clear()
+            self.rule_number = 0
+            for key in self.nest_dict_rules:
+                self.listWidget_rules.addItem(self.nest_dict_rules[key][1])
+                self.rule_number += 1
+
+    def saveHandbagFile(self):
+        """ Saves all of the input data that is backwards compatible with HUMPOL/LandPolFlow into a single text file (.hum)"""
+        #TODO
+        pass
+
+    def saveRuleTree(self,  file_name_rule_tree):
+        """ Pickles/serializes the dictionary containing all entries into the rule tree.
+        Since QtWidgets cannot be pickled or saved, a dictionary is created that contains all the input required to
+        rebuild it. Every entry contains information on a single ruleTreeWidget. The key is the ruleTreeWidget's order_id. """
+        picklable_dict_ruleTreeWidgets = {}
+        for key in self.dict_ruleTreeWidgets:
+            list_ruleTreeWidgets_variables = []
+            #append selected rule, next rule tree widgets, prev rule tree widgets, duplicate rule tree widgets, connection type, isbasegroup
+            list_ruleTreeWidgets_variables.append(self.dict_ruleTreeWidgets[key].comboBox_name.currentText())
+            list_ruleTreeWidgets_variables.append(self.dict_ruleTreeWidgets[key].connection_type)
+            list_ruleTreeWidgets_variables.append(self.dict_ruleTreeWidgets[key].isBaseGroup)
+            list_ruleTreeWidgets_variables.append(self.dict_ruleTreeWidgets[key].prev_ruleTreeWidgets)
+            list_ruleTreeWidgets_variables.append(self.dict_ruleTreeWidgets[key].next_ruleTreeWidgets)
+            list_ruleTreeWidgets_variables.append(self.dict_ruleTreeWidgets[key].duplicate_ruleTreeWidgets)
+            picklable_dict_ruleTreeWidgets[key] = list_ruleTreeWidgets_variables
+        with open (file_name_rule_tree, 'wb') as pkl_file:
+            pickle.dump(picklable_dict_ruleTreeWidgets, pkl_file)
+
+    def loadRuleTree(self, file_name_rule_tree):
+        """ Imports the pickled dictionary of the rule tree. """
+        with open (file_name_rule_tree, 'rb') as pkl_file:
+            pickleable_dict_ruleTreeWidgets = pickle.load(pkl_file)
+
+        #Empty the layout and dict
+        self.clearLayout(self.ruleTreeLayout)
+        self.dict_ruleTreeWidgets = {}
+
+
+        #reconstruct the rule tree and ruletreedict
+        x_position_for_spoilerplate = self.scrollArea_ruleTree.x() + self.tab_top.x() + self.x()
+        y_position_for_spoilerplate = self.scrollArea_ruleTree.y() + self.tab_top.y() + self.y()
+        for key in pickleable_dict_ruleTreeWidgets:
+            #build upper rule tree widget
+            if key == 1:
+                next_layout = QHBoxLayout()
+                ruleTreeWidget_base = RuleTreeWidget(self.nest_dict_rules, key, next_layout, None,
+                                                     pickleable_dict_ruleTreeWidgets[key][1],
+                                                     main_dialog_x=x_position_for_spoilerplate, main_dialog_y=y_position_for_spoilerplate)
+                ruleTreeWidget_base.prev_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][3] # TODO no idea why I couldn't just give these in the constructor, it's being difficult. For now, this works
+                ruleTreeWidget_base.next_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][4]
+                ruleTreeWidget_base.duplicate_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][5]
+                #place widget
+                self.ruleTreeLayout.insertWidget(0, ruleTreeWidget_base)
+                self.ruleTreeLayout.insertLayout(1, ruleTreeWidget_base.next_layout)
+                self.ruleTreeLayout.insertStretch(2, 1)
+                #add to dictionary
+                self.dict_ruleTreeWidgets[key] = ruleTreeWidget_base
+                #set basegroup and selected rule
+                if pickleable_dict_ruleTreeWidgets[key][2]:
+                    ruleTreeWidget_base.isSelected = True
+                    ruleTreeWidget_base.toggleBaseGroup()
+                    ruleTreeWidget_base.isSelected = False
+                self.dict_ruleTreeWidgets[key].comboBox_name.setCurrentText(pickleable_dict_ruleTreeWidgets[key][0])
+                #make selectable
+                ruleTreeWidget_base.clicked.connect(
+                    lambda *args, ruleTreeWidget_id=ruleTreeWidget_base.order_id, ruleTreeWidget=ruleTreeWidget_base:
+                    self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
+            if key >1:
+                #check if rule is a duplicate
+                if pickleable_dict_ruleTreeWidgets[key][5]:
+                    if min(pickleable_dict_ruleTreeWidgets[key][5]) > key:#is the main duplicate, add to UI
+                        #check connection type
+                        if pickleable_dict_ruleTreeWidgets[key][1] == 'normal':
+                            previous_id = max(pickleable_dict_ruleTreeWidgets[key][3])
+                            next_layout = QHBoxLayout()
+                            own_layout = QVBoxLayout()
+                            ruleTreeWidget_normal = RuleTreeWidget(self.nest_dict_rules, key, next_layout, own_layout,
+                                                                   pickleable_dict_ruleTreeWidgets[key][1],
+                                                                   main_dialog_x=x_position_for_spoilerplate,
+                                                                   main_dialog_y=y_position_for_spoilerplate)
+                            ruleTreeWidget_normal.prev_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][
+                                3]  # TODO no idea why I couldn't just give these in the constructor, it's being difficult. For now, this works
+                            ruleTreeWidget_normal.next_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][4]
+                            ruleTreeWidget_normal.duplicate_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][5]
+                            # place widget
+                            # check if this widget follows directly from a widget in series # Todo this would never happen and should be under the version that deals with duplicates
+                            if self.dict_ruleTreeWidgets[previous_id].connection_type == 'series':
+                                self.dict_ruleTreeWidgets[previous_id].next_layout.addWidget(ruleTreeWidget_normal)
+                                self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(
+                                    ruleTreeWidget_normal.next_layout)
+                                ruleTreeWidget_normal.own_layout = []
+                                pass
+                            else:
+                                self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(own_layout)
+                                own_layout.addWidget(ruleTreeWidget_normal)
+                                own_layout.addLayout(next_layout)
+                                own_layout.addStretch()
+                            # add to dictionary
+                            self.dict_ruleTreeWidgets[key] = ruleTreeWidget_normal
+                            # set basegroup and selected rule
+                            if pickleable_dict_ruleTreeWidgets[key][2]:
+                                ruleTreeWidget_normal.isSelected = True
+                                ruleTreeWidget_normal.toggleBaseGroup()
+                                ruleTreeWidget_normal.isSelected = False
+                            self.dict_ruleTreeWidgets[key].comboBox_name.setCurrentText(
+                                pickleable_dict_ruleTreeWidgets[key][0])
+                            ruleTreeWidget_normal.clicked.connect(
+                                lambda *args, ruleTreeWidget_id=ruleTreeWidget_normal.order_id,
+                                       ruleTreeWidget=ruleTreeWidget_normal:
+                                self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
+                        elif pickleable_dict_ruleTreeWidgets[key][1] == 'series start':
+                            if min(pickleable_dict_ruleTreeWidgets[key][5]) > key:  # is the main duplicate, add to UI
+                                next_layout = QVBoxLayout()
+                                own_layout = QVBoxLayout()
+                                ruleTreeWidget_start = RuleTreeWidget(self.nest_dict_rules, key, next_layout,
+                                                                      own_layout,
+                                                                      pickleable_dict_ruleTreeWidgets[key][1],
+                                                                      main_dialog_x=x_position_for_spoilerplate,
+                                                                      main_dialog_y=y_position_for_spoilerplate)
+                                ruleTreeWidget_start.prev_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][3]  # TODO no idea why I couldn't just give these in the constructor, it's being difficult. For now, this works
+                                ruleTreeWidget_start.next_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][4]
+                                ruleTreeWidget_start.duplicate_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][5]
+                                # place widget
+                                previous_id = max(ruleTreeWidget_start.prev_ruleTreeWidgets)
+                                self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(
+                                    ruleTreeWidget_start.own_layout)
+                                ruleTreeWidget_start.own_layout.addWidget(ruleTreeWidget_start)
+                                ruleTreeWidget_start.own_layout.addLayout(ruleTreeWidget_start.next_layout)
+
+                                # add to dictionary
+                                self.dict_ruleTreeWidgets[key] = ruleTreeWidget_start
+                                # set basegroup and selected rule
+                                self.dict_ruleTreeWidgets[key].isBaseGroup = pickleable_dict_ruleTreeWidgets[key][2]
+                                self.dict_ruleTreeWidgets[key].comboBox_name.setCurrentText(
+                                    pickleable_dict_ruleTreeWidgets[key][0])
+                                # connect to selection
+                                ruleTreeWidget_start.clicked.connect(
+                                    lambda *args, ruleTreeWidget_id=ruleTreeWidget_start.order_id,
+                                           ruleTreeWidget=ruleTreeWidget_start:
+                                    self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
+
+                        elif pickleable_dict_ruleTreeWidgets[key][1] == 'series':
+                            if min(pickleable_dict_ruleTreeWidgets[key][5]) > key:  # is the main duplicate, add to UI
+                                # layouts
+                                next_layout = QVBoxLayout()
+                                own_layout = QHBoxLayout()
+                                # create widget
+                                ruleTreeWidget_series = RuleTreeWidget(self.nest_dict_rules, key, next_layout,
+                                                                       own_layout,
+                                                                       pickleable_dict_ruleTreeWidgets[key][1],
+                                                                       main_dialog_x=x_position_for_spoilerplate,
+                                                                       main_dialog_y=y_position_for_spoilerplate)
+                                ruleTreeWidget_series.prev_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][3]  # TODO no idea why I couldn't just give these in the constructor, it's being difficult. For now, this works
+                                ruleTreeWidget_series.next_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][4]
+                                ruleTreeWidget_series.duplicate_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][5]
+                                # place widget
+                                # find which layout it should be added to, either its own in case the previous widget was series top, or to the series layout if previous is series
+                                list_prev_widgets = []
+                                if str(key)[-1] == '0':
+                                    key_without_last_0 = str(key)[:len(str(key)) - 1]
+                                else:
+                                    key_without_last_0 = False
+                                for id in reversed(ruleTreeWidget_series.prev_ruleTreeWidgets):
+                                    if str(id)[-1] == '0' or str(id) == key_without_last_0 or id == 1:
+                                        list_prev_widgets.append(id)
+                                previous_id = max(list_prev_widgets)
+                                if self.dict_ruleTreeWidgets[previous_id].connection_type == 'series start':
+                                    self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(own_layout)
+                                    self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(
+                                        ruleTreeWidget_series.next_layout)
+                                    ruleTreeWidget_series.own_layout.addWidget(ruleTreeWidget_series)
+                                    ruleTreeWidget_series.own_layout.addStretch()
+                                elif self.dict_ruleTreeWidgets[previous_id].connection_type == 'series':
+                                    ruleTreeWidget_series.own_layout = self.dict_ruleTreeWidgets[previous_id].own_layout
+                                    ruleTreeWidget_series.next_layout = self.dict_ruleTreeWidgets[previous_id].next_layout
+                                    self.dict_ruleTreeWidgets[previous_id].own_layout.addWidget(ruleTreeWidget_series)
+                                    self.dict_ruleTreeWidgets[previous_id].own_layout.addStretch()
+
+
+                                # add to dictionary
+                                self.dict_ruleTreeWidgets[key] = ruleTreeWidget_series
+
+                                # set basegroup and selected rule
+                                self.dict_ruleTreeWidgets[key].isBaseGroup = pickleable_dict_ruleTreeWidgets[key][2]
+                                self.dict_ruleTreeWidgets[key].comboBox_name.setCurrentText(
+                                    pickleable_dict_ruleTreeWidgets[key][0])
+                                # connect to selection
+                                ruleTreeWidget_series.clicked.connect(
+                                    lambda *args, ruleTreeWidget_id=ruleTreeWidget_series.order_id,
+                                           ruleTreeWidget=ruleTreeWidget_series:
+                                    self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
+
+                    else: # is not the main duplicate. Create but do not add to UI
+
+                        ruleTreeWidget_duplicate = RuleTreeWidget(self.nest_dict_rules,key,None,None,
+                                                                  pickleable_dict_ruleTreeWidgets[key][1])
+                        ruleTreeWidget_duplicate.prev_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][3]  # TODO no idea why I couldn't just give these in the constructor, it's being difficult. For now, this works
+                        ruleTreeWidget_duplicate.next_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][4]
+                        ruleTreeWidget_duplicate.duplicate_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][5]
+                        #add to dictionary
+                        self.dict_ruleTreeWidgets[key] = ruleTreeWidget_duplicate
+                        continue
+                else: #is not a duplicate, add to UI
+                    if pickleable_dict_ruleTreeWidgets[key][1] == 'normal':
+                        previous_id = max(pickleable_dict_ruleTreeWidgets[key][3])
+                        next_layout = QHBoxLayout()
+                        own_layout = QVBoxLayout()
+                        ruleTreeWidget_normal = RuleTreeWidget(self.nest_dict_rules, key, next_layout, own_layout,
+                                                               pickleable_dict_ruleTreeWidgets[key][1],
+                                                               main_dialog_x=x_position_for_spoilerplate,
+                                                               main_dialog_y=y_position_for_spoilerplate)
+                        ruleTreeWidget_normal.prev_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][3]  # TODO no idea why I couldn't just give these in the constructor, it's being difficult. For now, this works
+                        ruleTreeWidget_normal.next_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][4]
+                        ruleTreeWidget_normal.duplicate_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][5]
+                        # place widget
+                        self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(own_layout)
+                        own_layout.addWidget(ruleTreeWidget_normal)
+                        own_layout.addLayout(next_layout)
+                        own_layout.addStretch()
+                        # add to dictionary
+                        self.dict_ruleTreeWidgets[key] = ruleTreeWidget_normal
+                        # set basegroup and selected rule
+                        if pickleable_dict_ruleTreeWidgets[key][2]:
+                            ruleTreeWidget_normal.isSelected = True
+                            ruleTreeWidget_normal.toggleBaseGroup()
+                            ruleTreeWidget_normal.isSelected = False
+                        self.dict_ruleTreeWidgets[key].comboBox_name.setCurrentText(
+                            pickleable_dict_ruleTreeWidgets[key][0])
+                        ruleTreeWidget_normal.clicked.connect(
+                            lambda *args, ruleTreeWidget_id=ruleTreeWidget_normal.order_id,
+                                   ruleTreeWidget=ruleTreeWidget_normal:
+                            self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
+
+                    elif pickleable_dict_ruleTreeWidgets[key][1] == 'series start':
+                        next_layout = QVBoxLayout()
+                        own_layout = QVBoxLayout()
+                        ruleTreeWidget_start = RuleTreeWidget(self.nest_dict_rules, key, next_layout, own_layout,
+                                                               pickleable_dict_ruleTreeWidgets[key][1],
+                                                               main_dialog_x=x_position_for_spoilerplate,
+                                                               main_dialog_y=y_position_for_spoilerplate)
+                        ruleTreeWidget_start.prev_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][3]  # TODO no idea why I couldn't just give these in the constructor, it's being difficult. For now, this works
+                        ruleTreeWidget_start.next_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][4]
+                        ruleTreeWidget_start.duplicate_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][5]
+                        # place widget
+                        previous_id = max(ruleTreeWidget_start.prev_ruleTreeWidgets)
+                        self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(ruleTreeWidget_start.own_layout)
+                        ruleTreeWidget_start.own_layout.addWidget(ruleTreeWidget_start)
+                        ruleTreeWidget_start.own_layout.addLayout(ruleTreeWidget_start.next_layout)
+
+                        # add to dictionary
+                        self.dict_ruleTreeWidgets[key] = ruleTreeWidget_start
+                        # set basegroup and selected rule
+                        self.dict_ruleTreeWidgets[key].isBaseGroup = pickleable_dict_ruleTreeWidgets[key][2]
+                        self.dict_ruleTreeWidgets[key].comboBox_name.setCurrentText(
+                            pickleable_dict_ruleTreeWidgets[key][0])
+                        #connect to selection
+                        ruleTreeWidget_start.clicked.connect(
+                            lambda *args, ruleTreeWidget_id=ruleTreeWidget_start.order_id,
+                                   ruleTreeWidget=ruleTreeWidget_start:
+                            self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
+
+                    elif pickleable_dict_ruleTreeWidgets[key][1] == 'series':
+                        #layouts
+                        next_layout = QVBoxLayout()
+                        own_layout = QHBoxLayout()
+                        #create widget
+                        ruleTreeWidget_series = RuleTreeWidget(self.nest_dict_rules, key, next_layout, own_layout,
+                                                               pickleable_dict_ruleTreeWidgets[key][1],
+                                                               main_dialog_x=x_position_for_spoilerplate,
+                                                               main_dialog_y=y_position_for_spoilerplate)
+                        ruleTreeWidget_series.prev_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][3]  # TODO no idea why I couldn't just give these in the constructor, it's being difficult. For now, this works
+                        ruleTreeWidget_series.next_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][4]
+                        ruleTreeWidget_series.duplicate_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][5]
+                        #place widget
+                        #find which layout it should be added to, either its own in case the previous widget was series top, or to the series layout if previous is series
+                        list_prev_widgets = []
+                        if str(key)[-1] == '0':
+                            key_without_last_0 = str(key)[:len(str(key))-1]
+                        else:
+                            key_without_last_0 = False
+                        for id in reversed(ruleTreeWidget_series.prev_ruleTreeWidgets):
+                            if str(id)[-1] == '0' or str(id) == key_without_last_0 or id == 1:
+                                list_prev_widgets.append(id)
+                        previous_id = max(list_prev_widgets)
+                        if self.dict_ruleTreeWidgets[previous_id].connection_type == 'series start':
+                            self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(own_layout)
+                            self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(ruleTreeWidget_series.next_layout)
+                            ruleTreeWidget_series.own_layout.addWidget(ruleTreeWidget_series)
+                            ruleTreeWidget_series.own_layout.addStretch()
+                        elif self.dict_ruleTreeWidgets[previous_id].connection_type == 'series':
+                            ruleTreeWidget_series.own_layout = self.dict_ruleTreeWidgets[previous_id].own_layout
+                            ruleTreeWidget_series.next_layout = self.dict_ruleTreeWidgets[previous_id].next_layout
+                            self.dict_ruleTreeWidgets[previous_id].own_layout.addWidget(ruleTreeWidget_series)
+                            self.dict_ruleTreeWidgets[previous_id].own_layout.addStretch()
+
+                        #add to dictionary
+                        self.dict_ruleTreeWidgets[key] = ruleTreeWidget_series
+
+                        #set basegroup and selected rule
+                        self.dict_ruleTreeWidgets[key].isBaseGroup = pickleable_dict_ruleTreeWidgets[key][2]
+                        self.dict_ruleTreeWidgets[key].comboBox_name.setCurrentText(
+                            pickleable_dict_ruleTreeWidgets[key][0])
+                        #connect to selection
+                        ruleTreeWidget_series.clicked.connect(
+                            lambda *args, ruleTreeWidget_id=ruleTreeWidget_series.order_id,
+                                   ruleTreeWidget=ruleTreeWidget_series:
+                            self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
+        # print(self.dict_ruleTreeWidgets)
+        # for key in self.dict_ruleTreeWidgets:
+        #     print('self ',key ,'prev ', self.dict_ruleTreeWidgets[key].prev_ruleTreeWidgets, ', next ',
+        #           self.dict_ruleTreeWidgets[key].next_ruleTreeWidgets, ', duplicate ',
+        #           self.dict_ruleTreeWidgets[key].duplicate_ruleTreeWidgets)
+
+    def saveInput(self, file_name_input, directory_name):
+        """ Saves all of the input data, including input that is NOT backwards compatible with HUMPOL/LandPolFlow into a single text file (.msa)"""
+        ### write a .csv file with all the data
+        with open(file_name_input, 'w', newline= '') as csv_file:
+            iface.messageBar().pushMessage('Writing file', level=3)
+            writer = csv.writer(csv_file)
+            #metadata
+            writer.writerow(['Metadata'])
+            writer.writerow(['Save directory', directory_name])
+            writer.writerow(['Project name', self.lineEdit_projectName.text()])
+            writer.writerow(['Author(s)', self.lineEdit_author.text()])
+            writer.writerow(['Description', self.plainTextEdit_description.toPlainText()])
+            #saved settings
+            writer.writerow(['Saved settings'])
+            crs = QgsProject.instance().crs().authid()
+            writer.writerow(['CRS', crs])
+            if self.radioButton_loadPointMap.isChecked():
+                writer.writerow(['Starting point', 'Load point map', self.mQgsFileWidget_startingPoint.filePath()])
+            elif self.radioButton_loadBaseMap.isChecked():
+                writer.writerow(['Starting point', 'Load basemap', self.mQgsFileWidget_startingPoint.filePath()])
+            else:
+                writer.writerow(['Starting point', 'Map from scratch', 'No file set'])
+            if self.extent:
+                x_min = self.extent.xMinimum()
+                x_max = self.extent.xMaximum()
+                y_min = self.extent.yMinimum()
+                y_max = self.extent.yMaximum()
+            else:
+                x_min = 'No extent set'
+                x_max = 'No extent set'
+                y_min = 'No extent set'
+                y_max = 'No extent set'
+            writer.writerow(['x_min', x_min])
+            writer.writerow(['x_max', x_max])
+            writer.writerow(['y_min', y_min])
+            writer.writerow(['y_max', y_max])
+            if self.radioButton_simpleMap.isChecked():
+                spacing = self.spinBox_resolution.value()
+                writer.writerow(['Spacing', 'Simple', spacing, 'Spacing nested', 'Not set', 'Nested sides', 'Not set' ])
+            elif self.radioButton_nestedMap.isChecked():
+                spacing = self.spinBox_resolution.value()
+                spacing_nested = self.spinBox_resNested.value()
+                nested_sides = self.spinBox_nestedArea.value()
+                writer.writerow(['Spacing', 'Nested', spacing, 'Spacing nested', spacing_nested, 'Nested sides', nested_sides ])
+
+            n_of_iter = self.spinBox_iter.value()
+            writer.writerow(['n of iterations',  n_of_iter])
+            #model parameters
+            dispersal_model = self.comboBox_dispModel.currentText()
+            atmostpheric_constant = self.doubleSpin_atmosConstant.value()
+            diffusion_constant = self.doubleSpin_diffConstant.value()
+            windspeed = self.doubleSpin_windSpeed.value()
+            windrose_enabled = self.checkBox_enableWindrose.isChecked()
+            wr_north = self.doubleSpin_north.value()
+            wr_northEast = self.doubleSpin_northEast.value()
+            wr_east = self.doubleSpin_east.value()
+            wr_southeast = self.doubleSpin_southEast.value()
+            wr_south = self.doubleSpin_south.value()
+            wr_southwest = self.doubleSpin_southWest.value()
+            wr_west = self.doubleSpin_west.value()
+            wr_northwest = self.doubleSpin_northWest.value()
+            fit_model = self.comboBox_fit.currentText()
+            fit_site = self.doubleSpinBox_fit.value()
+            fit_cumul = self.doubleSpinBox_cumulFit.value()
+
+            writer.writerow(['Model parameters'])
+
+            writer.writerow(['dispersal model', dispersal_model]) ###TODO rest of model parameters
+            writer.writerow(['atmospheric constant', atmostpheric_constant ])
+            writer.writerow(['diffusion constant', diffusion_constant])
+            writer.writerow(['windspeed', windspeed])
+            writer.writerow(['Windrose enabled', windrose_enabled])
+            if windrose_enabled:
+                writer.writerow(['','north', 'northeast', 'east', 'southeast', 'south', 'southwest', 'west', 'northwest'])
+                writer.writerow(['windrose', wr_north, wr_northEast, wr_east, wr_southeast, wr_south, wr_southwest, wr_west, wr_northwest])
+            writer.writerow(['','fit model', 'desired fit per site', 'desired cumulative fit'])
+            writer.writerow(['fit', fit_model, fit_site, fit_cumul])
+            if self.radioButton_keepFitted.isChecked():
+                writer.writerow(['maps', 'Keep fitted'])
+            elif self.radioButton_keepAll.isChecked():
+                writer.writerow(['maps', 'Keep all + loadings'])
+            elif self.radioButton_keepTwo.isChecked():
+                writer.writerow(['maps', 'keep all - loadings'])
+
+
+            #selected fields and bands
+            writer.writerow(['selected fields'])
+            for row in range(self.tableWidget_selected.rowCount()):
+                writer.writerow(['field',row, self.tableWidget_selected.item(row, 0).text(), self.tableWidget_selected.item(row,1).text()])
+            #selected bands
+            writer.writerow(['selected bands'])
+            for row in range(self.tableWidget_selRaster.rowCount()):
+                writer.writerow(['band',row, self.tableWidget_selRaster.item(row, 0).text(), self.tableWidget_selRaster.item(row,1).text()])
+            #taxa
+            writer.writerow(['Taxa'])
+            writer.writerow([None, 'row', 'short name', 'full name', 'fall speed', 'relative pollen productivity'])
+            for row in range(self.tableWidget_taxa.rowCount()):
+                writer.writerow(['taxon',row, self.tableWidget_taxa.item(row, 0).text(), self.tableWidget_taxa.item(row, 1).text(),
+                                 self.tableWidget_taxa.item(row, 2).text(), self.tableWidget_taxa.item(row, 3).text()])
+            #communities
+            writer.writerow(['Communities'])
+            list_veg_com_headers = ['community headers','row']
+            for column in range (self.tableWidget_vegCom.columnCount()):
+                list_veg_com_headers.append(self.tableWidget_vegCom.horizontalHeaderItem(column).text())
+            writer.writerow(list_veg_com_headers)
+            list_veg_com_species= []
+            for row in range(self.tableWidget_vegCom.rowCount()):
+                list_veg_com_species.append('community')
+                list_veg_com_species.append(row)
+                for column in range (self.tableWidget_vegCom.columnCount()):
+                    if self.tableWidget_vegCom.item(row,column):
+                        list_veg_com_species.append(self.tableWidget_vegCom.item(row,column).text())
+                    else:
+                        list_veg_com_species.append(None)
+                writer.writerow(list_veg_com_species)
+                list_veg_com_species = []
+            #samples
+            writer.writerow(['Sampling Sites'])
+            list_samples_header= [None, 'site-name', 'sample_x', 'sample_y', 'Lake_or_point']
+            writer.writerow(list_samples_header)
+            for row in range(self.tableWidget_sites.rowCount()):
+                list_samples =['sampling site', self.tableWidget_sites.item(row,0).text(), self.tableWidget_sites.item(row,1).text(), self.tableWidget_sites.item(row, 2).text(), self.tableWidget_sites.item(row, 3).text()]
+                writer.writerow(list_samples)
+            writer.writerow(['Sampling Paths'])
+            list_samples_paths_headers = [None, 'site_name', 'file_path']
+            writer.writerow(list_samples_paths_headers)
+            for row in range(self.tableWidget_pollenFile.rowCount()):
+                list_sample_file_path =['file path', self.tableWidget_pollenFile.item(row, 0).text(),  self.tableWidget_pollenFile.item(row,1).text()]
+                writer.writerow(list_sample_file_path)
+            #rules
+            writer.writerow(['Rule list', 'not used in loading file, open pickled file instead'])
+            for key in self.nest_dict_rules:
+                writer.writerow([key, self.nest_dict_rules[key][1]])
+            #order ids rule tree widget
+            writer.writerow(['RuleTreeWidget order id list', 'not used in loading file, open pickled file instead'])
+            for key in self.dict_ruleTreeWidgets:
+                writer.writerow([key,self.dict_ruleTreeWidgets[key].connection_type,
+                                 self.dict_ruleTreeWidgets[key].comboBox_name.currentText()])
+            #changelog
+            writer.writerow(['Changelog'])
+            writer.writerow(['Changelog start'])
+            for line in range(self.listWidget_changeLog.count()):
+                writer.writerow(['changelog', self.listWidget_changeLog.item(line).text()])
+            writer.writerow(['Changelog end'])
+            #notes
+            writer.writerow(['Notes:', self.plainTextEdit_notes.toPlainText()])
+
+    def saveImageRuleTree(self,  file_name_input):
+        """ Saves an image of the rule tree that can be used for reference outside of the programme. """
+        file_name = file_name_input
+        #TODO deselect any selected ruleTreeWidgets
+        self.frame_ruleTree.grab().save(file_name)
+
+    def loadInput(self, file_name_input):
+        """ Loads the data stored in the inputstate.csv file into the UI.
+        It reads the .csv line by line and checks what type data is contained in the inputstate file by reading the first
+        entry in a row (row[0]) and fills the appropriate widget accordingly.
+        This is a subfunction only to be called by loadFiles.
+        file_name_input contains a URI for a directory, in which a file called inputstate.csv is stored"""
+        file_name = file_name_input
+        with open(file_name, 'r', newline= '') as csv_file:
+            reader = csv.reader(csv_file)
+            for row in reader:
+
+                if row[0] == 'x_min':
+                    x_min = float(row[1])
+                elif row[0] == 'x_max':
+                    x_max = float(row[1])
+                elif row[0] == 'y_min':
+                    y_min = float(row[1])
+                elif row[0] == 'y_max':
+                    y_max = float(row[1])
+                elif row[0] == 'CRS':
+                    crs_string = row[1]
+                    crs= QgsCoordinateReferenceSystem(crs_string)
+                elif row[0] == 'Starting Point':
+                    if row[1] == 'map from scratch':
+                        self.radioButton_createMap.setChecked(True)
+                        self.changeStartingPoint()
+                    elif row[1] == 'Load point map':
+                        self.radioButton_loadPointMap.setChecked(True)
+                        self.changeStartingPoint()
+                        self.mQgsFileWidget_startingPoint.setFilePath(row[2])
+                    elif row[1] == 'Load basemap':
+                        self.radioButton_loadBaseMap.setChecked(True)
+                        self.changeStartingPoint()
+                        self.mQgsFileWidget_startingPoint.setFilePath(row[2])
+                elif row[0] == 'Spacing':
+                    if row[1] == 'Nested':
+                        self.radioButton_nestedMap.setChecked(True)
+                        self.enableNested()
+                        self.spinBox_resolution.setValue(int(row[2]))
+                        self.spinBox_resNested.setValue(int(row[4]))
+                        self.spinBox_nestedArea.setValue(int(row[6]))
+                    elif row[1] == 'Simple':
+                        self.radioButton_simpleMap.setChecked(True)
+                        self.enableNested()
+                        self.spinBox_resolution.setValue(int(row[2]))
+                elif row[0] == 'n of iterations':
+                    self.spinBox_iter.setValue(int(row[1]))
+                elif row[0] == 'dispersal model':
+                    self.comboBox_dispModel.setCurrentText(row[1])
+                elif row[0] == 'field':
+                    for table_row in range(self.tableWidget_vector.rowCount()):
+                        if row[2] == self.tableWidget_vector.item(table_row,0).text() and \
+                                row[3] == self.tableWidget_vector.item(table_row,1).text():
+                            self.tableWidget_vector.selectRow(table_row)
+                elif row[0] == 'band':
+                    for table_row in range(self.tableWidget_raster.rowCount()):
+                        if row[2] == self.tableWidget_raster.item(table_row, 0).text() and \
+                                row[3] == self.tableWidget_raster.item(table_row, 1).text():
+                            self.tableWidget_raster.selectRow(table_row)
+                elif row[0] == 'taxon':
+                    rows = self.tableWidget_taxa.rowCount()
+                    self.tableWidget_taxa.setRowCount(rows+1)
+                    self.tableWidget_taxa.setItem(rows, 0, QTableWidgetItem(row[2]))
+                    self.tableWidget_taxa.setItem(rows, 1, QTableWidgetItem(row[3]))
+                    self.tableWidget_taxa.setItem(rows, 2, QTableWidgetItem(row[4]))
+                    self.tableWidget_taxa.setItem(rows, 3, QTableWidgetItem(row[5]))
+                elif row[0] == 'community headers':
+                    self.tableWidget_vegCom.setColumnCount(len(row)-2)
+                    for item in range(2,len(row)):
+                        self.tableWidget_vegCom.setHorizontalHeaderItem(item-2, QTableWidgetItem(row[item]))
+                elif row[0] == 'community':
+                    self.tableWidget_vegCom.setRowCount(self.tableWidget_vegCom.rowCount()+1)
+                    for item in range(2,len(row)):
+                        self.tableWidget_vegCom.setItem(self.tableWidget_vegCom.rowCount()-1, item-2, QTableWidgetItem(row[item]))
+                elif row[0] == 'sampling site':
+                    rows = self.tableWidget_sites.rowCount()
+                    self.tableWidget_sites.setRowCount(rows+1)
+                    self.tableWidget_sites.setItem(rows, 0, QTableWidgetItem(row[1]))
+                    self.tableWidget_sites.setItem(rows, 1, QTableWidgetItem(row[2]))
+                    self.tableWidget_sites.setItem(rows, 2, QTableWidgetItem(row[3]))
+                    self.tableWidget_sites.setItem(rows, 3, QTableWidgetItem(row[4]))
+                elif row[0] == 'file path':
+                    selected_sample = row[1]
+                    sample_file_path = row[2]
+                    if exists(sample_file_path):
+                        #load into table
+                        rows = self.tableWidget_pollenFile.rowCount()
+                        self.tableWidget_pollenFile.setRowCount(rows+1)
+                        self.tableWidget_pollenFile.setItem(rows, 0, QTableWidgetItem(row[1]))
+                        self.tableWidget_pollenFile.setItem(rows, 1, QTableWidgetItem(row[2]))
+                        # load into dict
+                        self.dict_pollen_percent_files[selected_sample] = sample_file_path
+                        # load into excerpts
+                        self.addPollenExcerpt(selected_sample, sample_file_path)
+                    else:
+                        #path to file not found (likely because it is a different computer)
+                        self.addPollenCountsFilePath('Reload')
+                        pass
+                elif row[0] == 'dispersal model':
+                    self.comboBox_dispModel.setCurrentText(row[1])
+                elif row[0] == 'atmospheric constant':
+                    self.doubleSpin_atmosConstant.setValue(float(row[1]))
+                elif row[0] == 'diffusion constant':
+                    self.doubleSpin_diffConstant.setValue(float(row[1]))
+                elif row[0] == 'windspeed':
+                    self.doubleSpin_windSpeed.setValue(float(row[1]))
+                elif row[0] == 'Windrose enabled':
+                    self.checkBox_enableWindrose.setChecked(bool(row[1]))
+                elif row[0] == 'windrose':
+                    if self.checkBox_enableWindrose.isChecked:
+                        self.doubleSpin_north.setValue(float(row[1]))
+                        self.doubleSpin_northEast.setValue(float(row[2]))
+                        self.doubleSpin_east.setValue(float(row[3]))
+                        self.doubleSpin_southEast.setValue(float(row[4]))
+                        self.doubleSpin_south.setValue(float(row[5]))
+                        self.doubleSpin_southWest.setValue(float(row[6]))
+                        self.doubleSpin_west.setValue(float(row[7]))
+                        self.doubleSpin_northWest.setValue(float(row[8]))
+                    else:
+                        pass # leave default values
+                elif row[0] == 'Project name':
+                    self.lineEdit_projectName.setText(row[1])
+                elif row[0] == 'Author(s)':
+                    self.lineEdit_author.setText(row[1])
+                elif row[0] == 'changelog':
+                    self.listWidget_changeLog.addItem(row[1])
+                elif row[0] == 'Description':
+                    self.plainTextEdit_description.setPlainText(row[1])
+                elif row[0] == 'Notes':
+                    self.plainTextEdit_notes.setPlainText(row[1])
+                elif row[0] == 'fit':
+                    self.comboBox_fit.setCurrentText(row[1])
+                    self.doubleSpinBox_fit.setValue(float(row[2]))
+                    self.doubleSpinBox_cumulFit.setValue(float(row[3]))
+                elif row[0] == 'maps':
+                    if row[1] == 'Keep all + loadings':
+                        self.radioButton_keepFitted.setChecked(False)
+                        self.radioButton_keepTwo.setChecked(False)
+                        self.radioButton_keepAll.setChecked(True)
+                    elif row[1] == 'Keep all - loadings':
+                        self.radioButton_keepFitted.setChecked(False)
+                        self.radioButton_keepTwo.setChecked(True)
+                        self.radioButton_keepAll.setChecked(False)
+                    elif row[1] == 'Keep fit':
+                        self.radioButton_keepFitted.setChecked(True)
+                        self.radioButton_keepTwo.setChecked(False)
+                        self.radioButton_keepAll.setChecked(False)
+                else:
+                    pass
+
+            rectangle = QgsRectangle(x_min,y_min,x_max,y_max)
+            self.mExtentGroupBox.setOutputExtentFromUser(rectangle, crs)
+
+        pass
+
+    def saveFiles(self):
+        self.popup_save_file = MsaQgisSaveLoadDialog('save')
+        self.popup_save_file.show()
+        if self.popup_save_file.exec_():
+            file_dialog = QFileDialog()
+            file_directory = file_dialog.getExistingDirectory(self, "Choose a directory to load your files from")
+            if not file_directory:
+                iface.messageBar().pushMessage('Operation cancelled by user', level=1)
+                return
+            file_name_input = file_directory + '/inputstate.csv'
+            file_name_rule_dict = file_directory + '/ruledict.pkl'
+            file_name_rule_tree = file_directory + '/ruletree.pkl'
+            file_name_hum_file = file_directory + '/backwardsHUMPOL.hum'
+            file_name_image_rule_tree = file_directory + '/ruletreeimage.jpg'
+            directory_name = file_dialog.directory().dirName()
+            if self.popup_save_file.checkBox_input.isChecked():
+                self.saveInput(file_name_input, directory_name)
+            if self.popup_save_file.checkBox_ruleDict.isChecked():
+                self.saveRuleDict(file_name_rule_dict)
+            if self.popup_save_file.checkBox_ruleTree.isChecked():
+                self.saveRuleTree(file_name_rule_tree)
+            if self.popup_save_file.checkBox_humFile.isChecked():
+                self.saveHandbagFile(file_name_hum_file)
+            if self.popup_save_file.checkBox_loadImageRuleTree.isChecked():
+                self.saveImageRuleTree(file_name_image_rule_tree)
+
+    def loadFiles(self):
+        self.popup_load_file = MsaQgisSaveLoadDialog('load')
+        self.popup_load_file.show()
+        if self.popup_load_file.exec_():
+            file_dialog = QFileDialog()
+            file_directory = file_dialog.getExistingDirectory(self, "Choose a directory to load your files from")
+            if not file_directory:
+                iface.messageBar().pushMessage('Operation cancelled by user', level=1)
+                return
+            file_name_input = file_directory + '/inputstate.csv'
+            file_name_rule_dict = file_directory + '/ruledict.pkl'
+            file_name_rule_tree = file_directory + '/ruletree.pkl'
+            if self.popup_load_file.checkBox_input.isChecked():
+                self.loadInput(file_name_input)
+            if self.popup_load_file.checkBox_ruleDict.isChecked():
+                self.loadRuleDict(file_name_rule_dict)
+            if self.popup_load_file.checkBox_ruleTree.isChecked():
+                self.loadRuleTree(file_name_rule_tree)
+
+        else:
+            iface.messageBar().pushMessage('Cancelled operation, no files saved', level=1)
+
+        self.checkChecklist()  # check the checklist for which bits were loaded
+
 ### BUTTON FUNCTIONS SPATIAL INPUT TAB
     def setExtent(self):
         """Attaches the extent given by the user to a variable, and updates the 'current extent'
@@ -1371,653 +2075,6 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                         self.dict_ruleTreeWidgets[key].next_ruleTreeWidgets.remove(item)
             #update the UI
             self.frame_ruleTree.update()
-
-    def saveRuleDict(self, file_name_rule_dict):
-        """ Pickles/serializes the rules dictionary for later retrieval"""
-        with open(file_name_rule_dict,'wb') as pkl_file:
-            pickle.dump(self.nest_dict_rules, pkl_file)
-
-    def loadRuleDict(self,file_name_rule_dict):
-        """ Loads the pickled dictionary of the nest_dict_rule"""
-        with open (file_name_rule_dict, 'rb') as pkl_file:
-            self.nest_dict_rules = pickle.load(pkl_file)
-            self.listWidget_rules.clear()
-            self.rule_number = 0
-            for key in self.nest_dict_rules:
-                self.listWidget_rules.addItem(self.nest_dict_rules[key][1])
-                self.rule_number += 1
-
-    def saveHandbagFile(self):
-        """ Saves all of the input data that is backwards compatible with HUMPOL/LandPolFlow into a single text file (.hum)"""
-        #TODO
-        pass
-
-    def saveRuleTree(self,  file_name_rule_tree):
-        """ Pickles/serializes the dictionary containing all entries into the rule tree.
-        Since QtWidgets cannot be pickled or saved, a dictionary is created that contains all the input required to
-        rebuild it. Every entry contains information on a single ruleTreeWidget. The key is the ruleTreeWidget's order_id. """
-        picklable_dict_ruleTreeWidgets = {}
-        for key in self.dict_ruleTreeWidgets:
-            list_ruleTreeWidgets_variables = []
-            #append selected rule, next rule tree widgets, prev rule tree widgets, duplicate rule tree widgets, connection type, isbasegroup
-            list_ruleTreeWidgets_variables.append(self.dict_ruleTreeWidgets[key].comboBox_name.currentText())
-            list_ruleTreeWidgets_variables.append(self.dict_ruleTreeWidgets[key].connection_type)
-            list_ruleTreeWidgets_variables.append(self.dict_ruleTreeWidgets[key].isBaseGroup)
-            list_ruleTreeWidgets_variables.append(self.dict_ruleTreeWidgets[key].prev_ruleTreeWidgets)
-            list_ruleTreeWidgets_variables.append(self.dict_ruleTreeWidgets[key].next_ruleTreeWidgets)
-            list_ruleTreeWidgets_variables.append(self.dict_ruleTreeWidgets[key].duplicate_ruleTreeWidgets)
-            picklable_dict_ruleTreeWidgets[key] = list_ruleTreeWidgets_variables
-        with open (file_name_rule_tree, 'wb') as pkl_file:
-            pickle.dump(picklable_dict_ruleTreeWidgets, pkl_file)
-
-    def loadRuleTree(self, file_name_rule_tree):
-        """ Imports the pickled dictionary of the rule tree. """
-        with open (file_name_rule_tree, 'rb') as pkl_file:
-            pickleable_dict_ruleTreeWidgets = pickle.load(pkl_file)
-
-        #Empty the layout and dict
-        self.clearLayout(self.ruleTreeLayout)
-        self.dict_ruleTreeWidgets = {}
-
-
-        #reconstruct the rule tree and ruletreedict
-        x_position_for_spoilerplate = self.scrollArea_ruleTree.x() + self.tab_top.x() + self.x()
-        y_position_for_spoilerplate = self.scrollArea_ruleTree.y() + self.tab_top.y() + self.y()
-        for key in pickleable_dict_ruleTreeWidgets:
-            #build upper rule tree widget
-            if key == 1:
-                next_layout = QHBoxLayout()
-                ruleTreeWidget_base = RuleTreeWidget(self.nest_dict_rules, key, next_layout, None,
-                                                     pickleable_dict_ruleTreeWidgets[key][1],
-                                                     main_dialog_x=x_position_for_spoilerplate, main_dialog_y=y_position_for_spoilerplate)
-                ruleTreeWidget_base.prev_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][3] # TODO no idea why I couldn't just give these in the constructor, it's being difficult. For now, this works
-                ruleTreeWidget_base.next_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][4]
-                ruleTreeWidget_base.duplicate_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][5]
-                #place widget
-                self.ruleTreeLayout.insertWidget(0, ruleTreeWidget_base)
-                self.ruleTreeLayout.insertLayout(1, ruleTreeWidget_base.next_layout)
-                self.ruleTreeLayout.insertStretch(2, 1)
-                #add to dictionary
-                self.dict_ruleTreeWidgets[key] = ruleTreeWidget_base
-                #set basegroup and selected rule
-                if pickleable_dict_ruleTreeWidgets[key][2]:
-                    ruleTreeWidget_base.isSelected = True
-                    ruleTreeWidget_base.toggleBaseGroup()
-                    ruleTreeWidget_base.isSelected = False
-                self.dict_ruleTreeWidgets[key].comboBox_name.setCurrentText(pickleable_dict_ruleTreeWidgets[key][0])
-                #make selectable
-                ruleTreeWidget_base.clicked.connect(
-                    lambda *args, ruleTreeWidget_id=ruleTreeWidget_base.order_id, ruleTreeWidget=ruleTreeWidget_base:
-                    self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
-            if key >1:
-                #check if rule is a duplicate
-                if pickleable_dict_ruleTreeWidgets[key][5]:
-                    if min(pickleable_dict_ruleTreeWidgets[key][5]) > key:#is the main duplicate, add to UI
-                        #check connection type
-                        if pickleable_dict_ruleTreeWidgets[key][1] == 'normal':
-                            previous_id = max(pickleable_dict_ruleTreeWidgets[key][3])
-                            next_layout = QHBoxLayout()
-                            own_layout = QVBoxLayout()
-                            ruleTreeWidget_normal = RuleTreeWidget(self.nest_dict_rules, key, next_layout, own_layout,
-                                                                   pickleable_dict_ruleTreeWidgets[key][1],
-                                                                   main_dialog_x=x_position_for_spoilerplate,
-                                                                   main_dialog_y=y_position_for_spoilerplate)
-                            ruleTreeWidget_normal.prev_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][
-                                3]  # TODO no idea why I couldn't just give these in the constructor, it's being difficult. For now, this works
-                            ruleTreeWidget_normal.next_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][4]
-                            ruleTreeWidget_normal.duplicate_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][5]
-                            # place widget
-                            # check if this widget follows directly from a widget in series # Todo this would never happen and should be under the version that deals with duplicates
-                            if self.dict_ruleTreeWidgets[previous_id].connection_type == 'series':
-                                self.dict_ruleTreeWidgets[previous_id].next_layout.addWidget(ruleTreeWidget_normal)
-                                self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(
-                                    ruleTreeWidget_normal.next_layout)
-                                ruleTreeWidget_normal.own_layout = []
-                                pass
-                            else:
-                                self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(own_layout)
-                                own_layout.addWidget(ruleTreeWidget_normal)
-                                own_layout.addLayout(next_layout)
-                                own_layout.addStretch()
-                            # add to dictionary
-                            self.dict_ruleTreeWidgets[key] = ruleTreeWidget_normal
-                            # set basegroup and selected rule
-                            if pickleable_dict_ruleTreeWidgets[key][2]:
-                                ruleTreeWidget_normal.isSelected = True
-                                ruleTreeWidget_normal.toggleBaseGroup()
-                                ruleTreeWidget_normal.isSelected = False
-                            self.dict_ruleTreeWidgets[key].comboBox_name.setCurrentText(
-                                pickleable_dict_ruleTreeWidgets[key][0])
-                            ruleTreeWidget_normal.clicked.connect(
-                                lambda *args, ruleTreeWidget_id=ruleTreeWidget_normal.order_id,
-                                       ruleTreeWidget=ruleTreeWidget_normal:
-                                self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
-                        elif pickleable_dict_ruleTreeWidgets[key][1] == 'series start':
-                            if min(pickleable_dict_ruleTreeWidgets[key][5]) > key:  # is the main duplicate, add to UI
-                                next_layout = QVBoxLayout()
-                                own_layout = QVBoxLayout()
-                                ruleTreeWidget_start = RuleTreeWidget(self.nest_dict_rules, key, next_layout,
-                                                                      own_layout,
-                                                                      pickleable_dict_ruleTreeWidgets[key][1],
-                                                                      main_dialog_x=x_position_for_spoilerplate,
-                                                                      main_dialog_y=y_position_for_spoilerplate)
-                                ruleTreeWidget_start.prev_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][3]  # TODO no idea why I couldn't just give these in the constructor, it's being difficult. For now, this works
-                                ruleTreeWidget_start.next_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][4]
-                                ruleTreeWidget_start.duplicate_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][5]
-                                # place widget
-                                previous_id = max(ruleTreeWidget_start.prev_ruleTreeWidgets)
-                                self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(
-                                    ruleTreeWidget_start.own_layout)
-                                ruleTreeWidget_start.own_layout.addWidget(ruleTreeWidget_start)
-                                ruleTreeWidget_start.own_layout.addLayout(ruleTreeWidget_start.next_layout)
-
-                                # add to dictionary
-                                self.dict_ruleTreeWidgets[key] = ruleTreeWidget_start
-                                # set basegroup and selected rule
-                                self.dict_ruleTreeWidgets[key].isBaseGroup = pickleable_dict_ruleTreeWidgets[key][2]
-                                self.dict_ruleTreeWidgets[key].comboBox_name.setCurrentText(
-                                    pickleable_dict_ruleTreeWidgets[key][0])
-                                # connect to selection
-                                ruleTreeWidget_start.clicked.connect(
-                                    lambda *args, ruleTreeWidget_id=ruleTreeWidget_start.order_id,
-                                           ruleTreeWidget=ruleTreeWidget_start:
-                                    self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
-
-                        elif pickleable_dict_ruleTreeWidgets[key][1] == 'series':
-                            if min(pickleable_dict_ruleTreeWidgets[key][5]) > key:  # is the main duplicate, add to UI
-                                # layouts
-                                next_layout = QVBoxLayout()
-                                own_layout = QHBoxLayout()
-                                # create widget
-                                ruleTreeWidget_series = RuleTreeWidget(self.nest_dict_rules, key, next_layout,
-                                                                       own_layout,
-                                                                       pickleable_dict_ruleTreeWidgets[key][1],
-                                                                       main_dialog_x=x_position_for_spoilerplate,
-                                                                       main_dialog_y=y_position_for_spoilerplate)
-                                ruleTreeWidget_series.prev_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][3]  # TODO no idea why I couldn't just give these in the constructor, it's being difficult. For now, this works
-                                ruleTreeWidget_series.next_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][4]
-                                ruleTreeWidget_series.duplicate_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][5]
-                                # place widget
-                                # find which layout it should be added to, either its own in case the previous widget was series top, or to the series layout if previous is series
-                                list_prev_widgets = []
-                                if str(key)[-1] == '0':
-                                    key_without_last_0 = str(key)[:len(str(key)) - 1]
-                                else:
-                                    key_without_last_0 = False
-                                for id in reversed(ruleTreeWidget_series.prev_ruleTreeWidgets):
-                                    if str(id)[-1] == '0' or str(id) == key_without_last_0 or id == 1:
-                                        list_prev_widgets.append(id)
-                                previous_id = max(list_prev_widgets)
-                                if self.dict_ruleTreeWidgets[previous_id].connection_type == 'series start':
-                                    self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(own_layout)
-                                    self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(
-                                        ruleTreeWidget_series.next_layout)
-                                    ruleTreeWidget_series.own_layout.addWidget(ruleTreeWidget_series)
-                                    ruleTreeWidget_series.own_layout.addStretch()
-                                elif self.dict_ruleTreeWidgets[previous_id].connection_type == 'series':
-                                    ruleTreeWidget_series.own_layout = self.dict_ruleTreeWidgets[previous_id].own_layout
-                                    ruleTreeWidget_series.next_layout = self.dict_ruleTreeWidgets[previous_id].next_layout
-                                    self.dict_ruleTreeWidgets[previous_id].own_layout.addWidget(ruleTreeWidget_series)
-                                    self.dict_ruleTreeWidgets[previous_id].own_layout.addStretch()
-
-
-                                # add to dictionary
-                                self.dict_ruleTreeWidgets[key] = ruleTreeWidget_series
-
-                                # set basegroup and selected rule
-                                self.dict_ruleTreeWidgets[key].isBaseGroup = pickleable_dict_ruleTreeWidgets[key][2]
-                                self.dict_ruleTreeWidgets[key].comboBox_name.setCurrentText(
-                                    pickleable_dict_ruleTreeWidgets[key][0])
-                                # connect to selection
-                                ruleTreeWidget_series.clicked.connect(
-                                    lambda *args, ruleTreeWidget_id=ruleTreeWidget_series.order_id,
-                                           ruleTreeWidget=ruleTreeWidget_series:
-                                    self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
-
-                    else: # is not the main duplicate. Create but do not add to UI
-
-                        ruleTreeWidget_duplicate = RuleTreeWidget(self.nest_dict_rules,key,None,None,
-                                                                  pickleable_dict_ruleTreeWidgets[key][1])
-                        ruleTreeWidget_duplicate.prev_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][3]  # TODO no idea why I couldn't just give these in the constructor, it's being difficult. For now, this works
-                        ruleTreeWidget_duplicate.next_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][4]
-                        ruleTreeWidget_duplicate.duplicate_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][5]
-                        #add to dictionary
-                        self.dict_ruleTreeWidgets[key] = ruleTreeWidget_duplicate
-                        continue
-                else: #is not a duplicate, add to UI
-                    if pickleable_dict_ruleTreeWidgets[key][1] == 'normal':
-                        previous_id = max(pickleable_dict_ruleTreeWidgets[key][3])
-                        next_layout = QHBoxLayout()
-                        own_layout = QVBoxLayout()
-                        ruleTreeWidget_normal = RuleTreeWidget(self.nest_dict_rules, key, next_layout, own_layout,
-                                                               pickleable_dict_ruleTreeWidgets[key][1],
-                                                               main_dialog_x=x_position_for_spoilerplate,
-                                                               main_dialog_y=y_position_for_spoilerplate)
-                        ruleTreeWidget_normal.prev_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][3]  # TODO no idea why I couldn't just give these in the constructor, it's being difficult. For now, this works
-                        ruleTreeWidget_normal.next_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][4]
-                        ruleTreeWidget_normal.duplicate_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][5]
-                        # place widget
-                        self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(own_layout)
-                        own_layout.addWidget(ruleTreeWidget_normal)
-                        own_layout.addLayout(next_layout)
-                        own_layout.addStretch()
-                        # add to dictionary
-                        self.dict_ruleTreeWidgets[key] = ruleTreeWidget_normal
-                        # set basegroup and selected rule
-                        if pickleable_dict_ruleTreeWidgets[key][2]:
-                            ruleTreeWidget_normal.isSelected = True
-                            ruleTreeWidget_normal.toggleBaseGroup()
-                            ruleTreeWidget_normal.isSelected = False
-                        self.dict_ruleTreeWidgets[key].comboBox_name.setCurrentText(
-                            pickleable_dict_ruleTreeWidgets[key][0])
-                        ruleTreeWidget_normal.clicked.connect(
-                            lambda *args, ruleTreeWidget_id=ruleTreeWidget_normal.order_id,
-                                   ruleTreeWidget=ruleTreeWidget_normal:
-                            self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
-
-                    elif pickleable_dict_ruleTreeWidgets[key][1] == 'series start':
-                        next_layout = QVBoxLayout()
-                        own_layout = QVBoxLayout()
-                        ruleTreeWidget_start = RuleTreeWidget(self.nest_dict_rules, key, next_layout, own_layout,
-                                                               pickleable_dict_ruleTreeWidgets[key][1],
-                                                               main_dialog_x=x_position_for_spoilerplate,
-                                                               main_dialog_y=y_position_for_spoilerplate)
-                        ruleTreeWidget_start.prev_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][3]  # TODO no idea why I couldn't just give these in the constructor, it's being difficult. For now, this works
-                        ruleTreeWidget_start.next_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][4]
-                        ruleTreeWidget_start.duplicate_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][5]
-                        # place widget
-                        previous_id = max(ruleTreeWidget_start.prev_ruleTreeWidgets)
-                        self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(ruleTreeWidget_start.own_layout)
-                        ruleTreeWidget_start.own_layout.addWidget(ruleTreeWidget_start)
-                        ruleTreeWidget_start.own_layout.addLayout(ruleTreeWidget_start.next_layout)
-
-                        # add to dictionary
-                        self.dict_ruleTreeWidgets[key] = ruleTreeWidget_start
-                        # set basegroup and selected rule
-                        self.dict_ruleTreeWidgets[key].isBaseGroup = pickleable_dict_ruleTreeWidgets[key][2]
-                        self.dict_ruleTreeWidgets[key].comboBox_name.setCurrentText(
-                            pickleable_dict_ruleTreeWidgets[key][0])
-                        #connect to selection
-                        ruleTreeWidget_start.clicked.connect(
-                            lambda *args, ruleTreeWidget_id=ruleTreeWidget_start.order_id,
-                                   ruleTreeWidget=ruleTreeWidget_start:
-                            self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
-
-                    elif pickleable_dict_ruleTreeWidgets[key][1] == 'series':
-                        #layouts
-                        next_layout = QVBoxLayout()
-                        own_layout = QHBoxLayout()
-                        #create widget
-                        ruleTreeWidget_series = RuleTreeWidget(self.nest_dict_rules, key, next_layout, own_layout,
-                                                               pickleable_dict_ruleTreeWidgets[key][1],
-                                                               main_dialog_x=x_position_for_spoilerplate,
-                                                               main_dialog_y=y_position_for_spoilerplate)
-                        ruleTreeWidget_series.prev_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][3]  # TODO no idea why I couldn't just give these in the constructor, it's being difficult. For now, this works
-                        ruleTreeWidget_series.next_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][4]
-                        ruleTreeWidget_series.duplicate_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][5]
-                        #place widget
-                        #find which layout it should be added to, either its own in case the previous widget was series top, or to the series layout if previous is series
-                        list_prev_widgets = []
-                        if str(key)[-1] == '0':
-                            key_without_last_0 = str(key)[:len(str(key))-1]
-                        else:
-                            key_without_last_0 = False
-                        for id in reversed(ruleTreeWidget_series.prev_ruleTreeWidgets):
-                            if str(id)[-1] == '0' or str(id) == key_without_last_0 or id == 1:
-                                list_prev_widgets.append(id)
-                        previous_id = max(list_prev_widgets)
-                        if self.dict_ruleTreeWidgets[previous_id].connection_type == 'series start':
-                            self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(own_layout)
-                            self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(ruleTreeWidget_series.next_layout)
-                            ruleTreeWidget_series.own_layout.addWidget(ruleTreeWidget_series)
-                            ruleTreeWidget_series.own_layout.addStretch()
-                        elif self.dict_ruleTreeWidgets[previous_id].connection_type == 'series':
-                            ruleTreeWidget_series.own_layout = self.dict_ruleTreeWidgets[previous_id].own_layout
-                            ruleTreeWidget_series.next_layout = self.dict_ruleTreeWidgets[previous_id].next_layout
-                            self.dict_ruleTreeWidgets[previous_id].own_layout.addWidget(ruleTreeWidget_series)
-                            self.dict_ruleTreeWidgets[previous_id].own_layout.addStretch()
-
-                        #add to dictionary
-                        self.dict_ruleTreeWidgets[key] = ruleTreeWidget_series
-
-                        #set basegroup and selected rule
-                        self.dict_ruleTreeWidgets[key].isBaseGroup = pickleable_dict_ruleTreeWidgets[key][2]
-                        self.dict_ruleTreeWidgets[key].comboBox_name.setCurrentText(
-                            pickleable_dict_ruleTreeWidgets[key][0])
-                        #connect to selection
-                        ruleTreeWidget_series.clicked.connect(
-                            lambda *args, ruleTreeWidget_id=ruleTreeWidget_series.order_id,
-                                   ruleTreeWidget=ruleTreeWidget_series:
-                            self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
-        # print(self.dict_ruleTreeWidgets)
-        # for key in self.dict_ruleTreeWidgets:
-        #     print('self ',key ,'prev ', self.dict_ruleTreeWidgets[key].prev_ruleTreeWidgets, ', next ',
-        #           self.dict_ruleTreeWidgets[key].next_ruleTreeWidgets, ', duplicate ',
-        #           self.dict_ruleTreeWidgets[key].duplicate_ruleTreeWidgets)
-
-    def saveInput(self, file_name_input, directory_name):
-        """ Saves all of the input data, including input that is NOT backwards compatible with HUMPOL/LandPolFlow into a single text file (.msa)"""
-        ### write a .csv file with all the data
-        with open(file_name_input, 'w', newline= '') as csv_file:
-            iface.messageBar().pushMessage('Writing file', level=3)
-            writer = csv.writer(csv_file)
-            #metadata
-            writer.writerow(['Metadata'])
-            writer.writerow(['Save directory', directory_name])
-            writer.writerow(['Project name', self.lineEdit_projectName.text()])
-            writer.writerow(['Author(s)', self.lineEdit_author.text()])
-            writer.writerow(['Description', self.plainTextEdit_description.toPlainText()])
-            #saved settings
-            writer.writerow(['Saved settings'])
-            crs = QgsProject.instance().crs().authid()
-            writer.writerow(['CRS', crs])
-            if self.extent:
-                x_min = self.extent.xMinimum()
-                x_max = self.extent.xMaximum()
-                y_min = self.extent.yMinimum()
-                y_max = self.extent.yMaximum()
-            else:
-                x_min = 'No extent set'
-                x_max = 'No extent set'
-                y_min = 'No extent set'
-                y_max = 'No extent set'
-            writer.writerow(['x_min', x_min])
-            writer.writerow(['x_max', x_max])
-            writer.writerow(['y_min', y_min])
-            writer.writerow(['y_max', y_max])
-            spacing = self.spinBox_resolution.value()
-            writer.writerow(['spacing', spacing])
-            n_of_iter = self.spinBox_iter.value()
-            writer.writerow(['n of iterations',  n_of_iter])
-            #model parameters
-            dispersal_model = self.comboBox_dispModel.currentText()
-            atmostpheric_constant = self.doubleSpin_atmosConstant.value()
-            diffusion_constant = self.doubleSpin_diffConstant.value()
-            windspeed = self.doubleSpin_windSpeed.value()
-            windrose_enabled = self.checkBox_enableWindrose.isChecked()
-            wr_north = self.doubleSpin_north.value()
-            wr_northEast = self.doubleSpin_northEast.value()
-            wr_east = self.doubleSpin_east.value()
-            wr_southeast = self.doubleSpin_southEast.value()
-            wr_south = self.doubleSpin_south.value()
-            wr_southwest = self.doubleSpin_southWest.value()
-            wr_west = self.doubleSpin_west.value()
-            wr_northwest = self.doubleSpin_northWest.value()
-            fit_model = self.comboBox_fit.currentText()
-            fit_site = self.doubleSpinBox_fit.value()
-            fit_cumul = self.doubleSpinBox_cumulFit.value()
-
-            writer.writerow(['Model parameters'])
-
-            writer.writerow(['dispersal model', dispersal_model]) ###TODO rest of model parameters
-            writer.writerow(['atmospheric constant', atmostpheric_constant ])
-            writer.writerow(['diffusion constant', diffusion_constant])
-            writer.writerow(['windspeed', windspeed])
-            writer.writerow(['Windrose enabled', windrose_enabled])
-            if windrose_enabled:
-                writer.writerow(['','north', 'northeast', 'east', 'southeast', 'south', 'southwest', 'west', 'northwest'])
-                writer.writerow(['windrose', wr_north, wr_northEast, wr_east, wr_southeast, wr_south, wr_southwest, wr_west, wr_northwest])
-            writer.writerow(['','fit model', 'desired fit per site', 'desired cumulative fit'])
-            writer.writerow(['fit', fit_model, fit_site, fit_cumul])
-            if self.radioButton_keepFitted.isChecked():
-                writer.writerow(['maps', 'Keep fitted'])
-            elif self.radioButton_keepAll.isChecked():
-                writer.writerow(['maps', 'Keep all + loadings'])
-            elif self.radioButton_keepTwo.isChecked():
-                writer.writerow(['maps', 'keep all - loadings'])
-
-
-            #selected fields and bands
-            writer.writerow(['selected fields'])
-            for row in range(self.tableWidget_selected.rowCount()):
-                writer.writerow(['field',row, self.tableWidget_selected.item(row, 0).text(), self.tableWidget_selected.item(row,1).text()])
-            #selected bands
-            writer.writerow(['selected bands'])
-            for row in range(self.tableWidget_selRaster.rowCount()):
-                writer.writerow(['band',row, self.tableWidget_selRaster.item(row, 0).text(), self.tableWidget_selRaster.item(row,1).text()])
-            #taxa
-            writer.writerow(['Taxa'])
-            writer.writerow([None, 'row', 'short name', 'full name', 'fall speed', 'relative pollen productivity'])
-            for row in range(self.tableWidget_taxa.rowCount()):
-                writer.writerow(['taxon',row, self.tableWidget_taxa.item(row, 0).text(), self.tableWidget_taxa.item(row, 1).text(),
-                                 self.tableWidget_taxa.item(row, 2).text(), self.tableWidget_taxa.item(row, 3).text()])
-            #communities
-            writer.writerow(['Communities'])
-            list_veg_com_headers = ['community headers','row']
-            for column in range (self.tableWidget_vegCom.columnCount()):
-                list_veg_com_headers.append(self.tableWidget_vegCom.horizontalHeaderItem(column).text())
-            writer.writerow(list_veg_com_headers)
-            list_veg_com_species= []
-            for row in range(self.tableWidget_vegCom.rowCount()):
-                list_veg_com_species.append('community')
-                list_veg_com_species.append(row)
-                for column in range (self.tableWidget_vegCom.columnCount()):
-                    if self.tableWidget_vegCom.item(row,column):
-                        list_veg_com_species.append(self.tableWidget_vegCom.item(row,column).text())
-                    else:
-                        list_veg_com_species.append(None)
-                writer.writerow(list_veg_com_species)
-                list_veg_com_species = []
-            #samples
-            writer.writerow(['Sampling Sites'])
-            list_samples_header= [None, 'site-name', 'sample_x', 'sample_y', 'Lake_or_point']
-            writer.writerow(list_samples_header)
-            for row in range(self.tableWidget_sites.rowCount()):
-                list_samples =['sampling site', self.tableWidget_sites.item(row,0).text(), self.tableWidget_sites.item(row,1).text(), self.tableWidget_sites.item(row, 2).text(), self.tableWidget_sites.item(row, 3).text()]
-                writer.writerow(list_samples)
-            writer.writerow(['Sampling Paths'])
-            list_samples_paths_headers = [None, 'site_name', 'file_path']
-            writer.writerow(list_samples_paths_headers)
-            for row in range(self.tableWidget_pollenFile.rowCount()):
-                list_sample_file_path =['file path', self.tableWidget_pollenFile.item(row, 0).text(),  self.tableWidget_pollenFile.item(row,1).text()]
-                writer.writerow(list_sample_file_path)
-            #rules
-            writer.writerow(['Rule list', 'not used in loading file, open pickled file instead'])
-            for key in self.nest_dict_rules:
-                writer.writerow([key, self.nest_dict_rules[key][1]])
-            #order ids rule tree widget
-            writer.writerow(['RuleTreeWidget order id list', 'not used in loading file, open pickled file instead'])
-            for key in self.dict_ruleTreeWidgets:
-                writer.writerow([key,self.dict_ruleTreeWidgets[key].connection_type,
-                                 self.dict_ruleTreeWidgets[key].comboBox_name.currentText()])
-            #changelog
-            writer.writerow(['Changelog'])
-            writer.writerow(['Changelog start'])
-            for line in range(self.listWidget_changeLog.count()):
-                writer.writerow(['changelog', self.listWidget_changeLog.item(line).text()])
-            writer.writerow(['Changelog end'])
-            #notes
-            writer.writerow(['Notes:', self.plainTextEdit_notes.toPlainText()])
-
-    def saveImageRuleTree(self,  file_name_input):
-        """ Saves an image of the rule tree that can be used for reference outside of the programme. """
-        file_name = file_name_input
-        #TODO deselect any selected ruleTreeWidgets
-        self.frame_ruleTree.grab().save(file_name)
-
-    def loadInput(self, file_name_input):
-        """ Loads the data stored in the inputstate.csv file into the UI.
-        It reads the .csv line by line and checks what type data is contained in the inputstate file by reading the first
-        entry in a row (row[0]) and fills the appropriate widget accordingly.
-        This is a subfunction only to be called by loadFiles.
-        file_name_input contains a URI for a directory, in which a file called inputstate.csv is stored"""
-        file_name = file_name_input
-        with open(file_name, 'r', newline= '') as csv_file:
-            reader = csv.reader(csv_file)
-            for row in reader:
-
-                if row[0] == 'x_min':
-                    x_min = float(row[1])
-                elif row[0] == 'x_max':
-                    x_max = float(row[1])
-                elif row[0] == 'y_min':
-                    y_min = float(row[1])
-                elif row[0] == 'y_max':
-                    y_max = float(row[1])
-                elif row[0] == 'CRS':
-                    crs_string = row[1]
-                    crs= QgsCoordinateReferenceSystem(crs_string)
-                elif row[0] == 'spacing':
-                    self.spinBox_resolution.setValue(int(row[1]))
-                elif row[0] == 'n of iterations':
-                    self.spinBox_iter.setValue(int(row[1]))
-                elif row[0] == 'dispersal model':
-                    self.comboBox_dispModel.setCurrentText(row[1])
-                elif row[0] == 'field':
-                    for table_row in range(self.tableWidget_vector.rowCount()):
-                        if row[2] == self.tableWidget_vector.item(table_row,0).text() and \
-                                row[3] == self.tableWidget_vector.item(table_row,1).text():
-                            self.tableWidget_vector.selectRow(table_row)
-                elif row[0] == 'band':
-                    for table_row in range(self.tableWidget_raster.rowCount()):
-                        if row[2] == self.tableWidget_raster.item(table_row, 0).text() and \
-                                row[3] == self.tableWidget_raster.item(table_row, 1).text():
-                            self.tableWidget_raster.selectRow(table_row)
-                elif row[0] == 'taxon':
-                    rows = self.tableWidget_taxa.rowCount()
-                    self.tableWidget_taxa.setRowCount(rows+1)
-                    self.tableWidget_taxa.setItem(rows, 0, QTableWidgetItem(row[2]))
-                    self.tableWidget_taxa.setItem(rows, 1, QTableWidgetItem(row[3]))
-                    self.tableWidget_taxa.setItem(rows, 2, QTableWidgetItem(row[4]))
-                    self.tableWidget_taxa.setItem(rows, 3, QTableWidgetItem(row[5]))
-                elif row[0] == 'community headers':
-                    self.tableWidget_vegCom.setColumnCount(len(row)-2)
-                    for item in range(2,len(row)):
-                        self.tableWidget_vegCom.setHorizontalHeaderItem(item-2, QTableWidgetItem(row[item]))
-                elif row[0] == 'community':
-                    self.tableWidget_vegCom.setRowCount(self.tableWidget_vegCom.rowCount()+1)
-                    for item in range(2,len(row)):
-                        self.tableWidget_vegCom.setItem(self.tableWidget_vegCom.rowCount()-1, item-2, QTableWidgetItem(row[item]))
-                elif row[0] == 'sampling site':
-                    rows = self.tableWidget_sites.rowCount()
-                    self.tableWidget_sites.setRowCount(rows+1)
-                    self.tableWidget_sites.setItem(rows, 0, QTableWidgetItem(row[1]))
-                    self.tableWidget_sites.setItem(rows, 1, QTableWidgetItem(row[2]))
-                    self.tableWidget_sites.setItem(rows, 2, QTableWidgetItem(row[3]))
-                    self.tableWidget_sites.setItem(rows, 3, QTableWidgetItem(row[4]))
-                elif row[0] == 'file path':
-                    selected_sample = row[1]
-                    sample_file_path = row[2]
-                    if exists(sample_file_path):
-                        #load into table
-                        rows = self.tableWidget_pollenFile.rowCount()
-                        self.tableWidget_pollenFile.setRowCount(rows+1)
-                        self.tableWidget_pollenFile.setItem(rows, 0, QTableWidgetItem(row[1]))
-                        self.tableWidget_pollenFile.setItem(rows, 1, QTableWidgetItem(row[2]))
-                        # load into dict
-                        self.dict_pollen_percent_files[selected_sample] = sample_file_path
-                        # load into excerpts
-                        self.addPollenExcerpt(selected_sample, sample_file_path)
-                    else:
-                        #path to file not found (likely because it is a different computer)
-                        self.addPollenCountsFilePath('Reload')
-                        pass
-                elif row[0] == 'dispersal model':
-                    self.comboBox_dispModel.setCurrentText(row[1])
-                elif row[0] == 'atmospheric constant':
-                    self.doubleSpin_atmosConstant.setValue(float(row[1]))
-                elif row[0] == 'diffusion constant':
-                    self.doubleSpin_diffConstant.setValue(float(row[1]))
-                elif row[0] == 'windspeed':
-                    self.doubleSpin_windSpeed.setValue(float(row[1]))
-                elif row[0] == 'Windrose enabled':
-                    self.checkBox_enableWindrose.setChecked(bool(row[1]))
-                elif row[0] == 'windrose':
-                    if self.checkBox_enableWindrose.isChecked:
-                        self.doubleSpin_north.setValue(float(row[1]))
-                        self.doubleSpin_northEast.setValue(float(row[2]))
-                        self.doubleSpin_east.setValue(float(row[3]))
-                        self.doubleSpin_southEast.setValue(float(row[4]))
-                        self.doubleSpin_south.setValue(float(row[5]))
-                        self.doubleSpin_southWest.setValue(float(row[6]))
-                        self.doubleSpin_west.setValue(float(row[7]))
-                        self.doubleSpin_northWest.setValue(float(row[8]))
-                    else:
-                        pass # leave default values
-                elif row[0] == 'Project name':
-                    self.lineEdit_projectName.setText(row[1])
-                elif row[0] == 'Author(s)':
-                    self.lineEdit_author.setText(row[1])
-                elif row[0] == 'changelog':
-                    self.listWidget_changeLog.addItem(row[1])
-                elif row[0] == 'Description':
-                    self.plainTextEdit_description.setPlainText(row[1])
-                elif row[0] == 'Notes':
-                    self.plainTextEdit_notes.setPlainText(row[1])
-                elif row[0] == 'fit':
-                    self.comboBox_fit.setCurrentText(row[1])
-                    self.doubleSpinBox_fit.setValue(float(row[2]))
-                    self.doubleSpinBox_cumulFit.setValue(float(row[3]))
-                elif row[0] == 'maps':
-                    if row[1] == 'Keep all + loadings':
-                        self.radioButton_keepFitted.setChecked(False)
-                        self.radioButton_keepTwo.setChecked(False)
-                        self.radioButton_keepAll.setChecked(True)
-                    elif row[1] == 'Keep all - loadings':
-                        self.radioButton_keepFitted.setChecked(False)
-                        self.radioButton_keepTwo.setChecked(True)
-                        self.radioButton_keepAll.setChecked(False)
-                    elif row[1] == 'Keep fit':
-                        self.radioButton_keepFitted.setChecked(True)
-                        self.radioButton_keepTwo.setChecked(False)
-                        self.radioButton_keepAll.setChecked(False)
-                else:
-                    pass
-
-            rectangle = QgsRectangle(x_min,y_min,x_max,y_max)
-            self.mExtentGroupBox.setOutputExtentFromUser(rectangle, crs)
-
-        pass
-
-    def saveFiles(self):
-        self.popup_save_file = MsaQgisSaveLoadDialog('save')
-        self.popup_save_file.show()
-        if self.popup_save_file.exec_():
-            file_dialog = QFileDialog()
-            file_directory = file_dialog.getExistingDirectory(self, "Choose a directory to load your files from")
-            if not file_directory:
-                iface.messageBar().pushMessage('Operation cancelled by user', level=1)
-                return
-            file_name_input = file_directory + '/inputstate.csv'
-            file_name_rule_dict = file_directory + '/ruledict.pkl'
-            file_name_rule_tree = file_directory + '/ruletree.pkl'
-            file_name_hum_file = file_directory + '/backwardsHUMPOL.hum'
-            file_name_image_rule_tree = file_directory + '/ruletreeimage.jpg'
-            directory_name = file_dialog.directory().dirName()
-            if self.popup_save_file.checkBox_input.isChecked():
-                self.saveInput(file_name_input, directory_name)
-            if self.popup_save_file.checkBox_ruleDict.isChecked():
-                self.saveRuleDict(file_name_rule_dict)
-            if self.popup_save_file.checkBox_ruleTree.isChecked():
-                self.saveRuleTree(file_name_rule_tree)
-            if self.popup_save_file.checkBox_humFile.isChecked():
-                self.saveHandbagFile(file_name_hum_file)
-            if self.popup_save_file.checkBox_loadImageRuleTree.isChecked():
-                self.saveImageRuleTree(file_name_image_rule_tree)
-
-    def loadFiles(self):
-        self.popup_load_file = MsaQgisSaveLoadDialog('load')
-        self.popup_load_file.show()
-        if self.popup_load_file.exec_():
-            file_dialog = QFileDialog()
-            file_directory = file_dialog.getExistingDirectory(self, "Choose a directory to load your files from")
-            if not file_directory:
-                iface.messageBar().pushMessage('Operation cancelled by user', level=1)
-                return
-            file_name_input = file_directory + '/inputstate.csv'
-            file_name_rule_dict = file_directory + '/ruledict.pkl'
-            file_name_rule_tree = file_directory + '/ruletree.pkl'
-            if self.popup_load_file.checkBox_input.isChecked():
-                self.loadInput(file_name_input)
-            if self.popup_load_file.checkBox_ruleDict.isChecked():
-                self.loadRuleDict(file_name_rule_dict)
-            if self.popup_load_file.checkBox_ruleTree.isChecked():
-                self.loadRuleTree(file_name_rule_tree)
-
-        else:
-            iface.messageBar().pushMessage('Cancelled operation, no files saved', level=1)
-
-        self.checkChecklist()  # check the checklist for which bits were loaded
 
     def clearLayout(self, layout):
         """ Recurively clears a layout of all its widgets and layouts."""

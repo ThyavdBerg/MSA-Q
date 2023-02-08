@@ -144,6 +144,12 @@
                  <property name="checked">
                   <bool>true</bool>
                  </property>
+                 <property name="autoExclusive">
+                  <bool>false</bool>
+                 </property>
+                 <attribute name="buttonGroup">
+                  <string notr="true">buttonGroup_2</string>
+                 </attribute>
                 </widget>
                </item>
                <item>
@@ -151,6 +157,12 @@
                  <property name="text">
                   <string>Load point sampled map</string>
                  </property>
+                 <property name="autoExclusive">
+                  <bool>false</bool>
+                 </property>
+                 <attribute name="buttonGroup">
+                  <string notr="true">buttonGroup_2</string>
+                 </attribute>
                 </widget>
                </item>
                <item>
@@ -158,6 +170,12 @@
                  <property name="text">
                   <string>Load basemap</string>
                  </property>
+                 <property name="autoExclusive">
+                  <bool>false</bool>
+                 </property>
+                 <attribute name="buttonGroup">
+                  <string notr="true">buttonGroup_2</string>
+                 </attribute>
                 </widget>
                </item>
               </layout>
@@ -258,6 +276,15 @@
                <property name="text">
                 <string>Simple</string>
                </property>
+               <property name="checked">
+                <bool>true</bool>
+               </property>
+               <property name="autoExclusive">
+                <bool>false</bool>
+               </property>
+               <attribute name="buttonGroup">
+                <string notr="true">buttonGroup_mapStyle</string>
+               </attribute>
               </widget>
              </item>
              <item row="1" column="0">
@@ -367,6 +394,12 @@
                <property name="text">
                 <string>Nested</string>
                </property>
+               <property name="autoExclusive">
+                <bool>false</bool>
+               </property>
+               <attribute name="buttonGroup">
+                <string notr="true">buttonGroup_mapStyle</string>
+               </attribute>
               </widget>
              </item>
              <item row="3" column="0">
@@ -456,7 +489,7 @@
               </widget>
              </item>
              <item row="2" column="0">
-              <widget class="QLabel" name="label_2">
+              <widget class="QLabel" name="label_mapStyle">
                <property name="text">
                 <string>Map style</string>
                </property>
@@ -2188,4 +2221,8 @@ background-color: rgb(199, 199, 199);</string>
    </hints>
   </connection>
  </connections>
+ <buttongroups>
+  <buttongroup name="buttonGroup_2"/>
+  <buttongroup name="buttonGroup_mapStyle"/>
+ </buttongroups>
 </ui>

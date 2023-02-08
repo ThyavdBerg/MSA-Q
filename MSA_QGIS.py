@@ -33,6 +33,7 @@ from pandas import read_csv
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, QVariant
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
+from qgis._core import QgsRectangle
 from qgis.core import QgsApplication, QgsMessageLog, Qgis,  QgsVectorLayer, QgsField, QgsGeometry, QgsPointXY, QgsFeature,QgsVectorLayerJoinInfo, QgsProject, QgsSpatialIndex
 from qgis.utils import iface
 from PyQt5.QtWidgets import QTableWidgetItem
@@ -635,7 +636,8 @@ class MsaQgis:
 
         :returns: A vector layer with equally spaced points in a square as determined by the user in the UI
         :rtype: QgsVectorLayer"""
-
+        QgsMessageLog.logMessage(f'point layer creation started', 'MSA_QGIS',Qgis.Info)
+        start_time = time()
 
         # Create new vector point layer
         vector_point_base = QgsVectorLayer('Point', 'Name', 'memory', crs=self.crs)
@@ -655,15 +657,22 @@ class MsaQgis:
         # Create fields
             QgsMessageLog.logMessage("Initiate point creation", 'MSA_QGIS', Qgis.Info)
             # Add fields with x and y geometry and the feature id
-            data_provider.addAttributes([QgsField('geom_X', QVariant.Double, 'double', 20, 5),
-                                        QgsField('geom_Y', QVariant.Double, 'double', 20, 5),
-                                        QgsField('veg_com', QVariant.String),
-                                        QgsField('chance_to_happen', QVariant.Double, 'double', 3, 2),
-                                        QgsField('msa_id', QVariant.Int)])
             if self.dlg.radioButton_nestedMap.isChecked():
-                data_provider.addAttributes([QgsField('resolution', QVariant.Int)]),
+                data_provider.addAttributes([QgsField('geom_X', QVariant.Double, 'double', 20, 5),
+                                             QgsField('geom_Y', QVariant.Double, 'double', 20, 5),
+                                             QgsField('veg_com', QVariant.String),
+                                             QgsField('chance_to_happen', QVariant.Int),
+                                             QgsField('msa_id', QVariant.Int),
+                                             QgsField('resolution', QVariant.Int)])
+            else:
+                data_provider.addAttributes([QgsField('geom_X', QVariant.Double, 'double', 20, 5),
+                                             QgsField('geom_Y', QVariant.Double, 'double', 20, 5),
+                                             QgsField('veg_com', QVariant.String),
+                                             QgsField('chance_to_happen', QVariant.Int),
+                                             QgsField('msa_id', QVariant.Int)])
+            vector_point_base.updateFields()
 
-
+        # create (simple) grid points
             feat_id_generator = 1  #QGIS 3.16 generated its own IDs, but it seems this is not the case anymore
             y = y_max
             while y >= y_min:
@@ -672,15 +681,17 @@ class MsaQgis:
                     geom = QgsGeometry.fromPointXY(QgsPointXY(x, y))
                     feat = QgsFeature()
                     feat.setGeometry(geom)
-                    feat.initAttributes(5)
+                    feat.initAttributes(6)
                     feat.setAttribute(0, geom.asPoint().x())
                     feat.setAttribute(1, geom.asPoint().y())
                     feat.setAttribute(2, 'Empty')
-                    feat.setAttribute(3, 100.0)
-                    feat.setAttribute(4, feat_id_generator)
+                    feat.setAttribute(3, 0)
                     if self.dlg.radioButton_nestedMap.isChecked():
                         feat.setAttribute(5, self.spacing)
-                    feat_id_generator += 1
+                        feat.setAttribute(4, None)
+                    else: #setting feat ID iteratively does not work when using nesting.
+                        feat.setAttribute(4, feat_id_generator)
+                        feat_id_generator += 1
                     del geom
                     x += self.spacing
                     data_provider.addFeature(feat)
@@ -689,18 +700,84 @@ class MsaQgis:
                 vector_point_base.updateExtents()
                 vector_point_base.updateFields()
 
-        if self.dlg.radioButton_nestedMap.isChecked(): # TODO
-            pass
-            # iterate over number of sites
-            # get x and y of sites
-            # make areas where nested map should be (nested area +0.5*self.spacing)
-            # remove points that are already within said area
-            # add new points within the area at higher resolution
-            # hurray
-
+        #Insert higher resolution nested features
+        if self.dlg.radioButton_nestedMap.isChecked():
+            QgsMessageLog.logMessage(f'Implementing nested maps...', 'MSA_QGIS', Qgis.Info)
+            for row in range(self.dlg.tableWidget_sites.rowCount()):
+                site_x = float(self.dlg.tableWidget_sites.item(row, 1).text())
+                site_y = float(self.dlg.tableWidget_sites.item(row, 2).text())
+                min_x_remove = site_x - (0.5*self.dlg.spinBox_nestedArea.value())-(0.5*self.spacing)
+                min_y_remove = site_y - (0.5*self.dlg.spinBox_nestedArea.value())-(0.5*self.spacing)
+                max_x_remove = site_x + (0.5*self.dlg.spinBox_nestedArea.value())+(0.5*self.spacing)
+                max_y_remove = site_y + (0.5*self.dlg.spinBox_nestedArea.value())+(0.5*self.spacing)
+                vector_point_base.startEditing()
+                vector_point_base.selectByRect(QgsRectangle(min_x_remove, min_y_remove, max_x_remove, max_y_remove))
+                vector_point_base.deleteSelectedFeatures()
+                vector_point_base.commitChanges()
+                #get min and max x and y from the nearest non-deleted points of the outer grid.
+                vector_point_base.selectByRect(QgsRectangle((site_x - (1.5*self.spacing)-(0.5*self.dlg.spinBox_nestedArea.value())),
+                                                            (site_y -(0.5*self.spacing)),
+                                                            (site_x - (0.5*self.spacing)-(0.5*self.dlg.spinBox_nestedArea.value())),
+                                                            (site_y +(0.5*self.spacing))))
+                selected_features = vector_point_base.selectedFeatures()
+                min_x = selected_features[0].attribute(0) + (0.5*self.spacing) + (0.5*self.dlg.spinBox_resNested.value())
+                vector_point_base.removeSelection()
+                vector_point_base.selectByRect(QgsRectangle((site_x + (1.5*self.spacing)+(0.5*self.dlg.spinBox_nestedArea.value())),
+                                                            (site_y -(0.5*self.spacing)),
+                                                            (site_x + (0.5*self.spacing)+(0.5*self.dlg.spinBox_nestedArea.value())),
+                                                            (site_y +(0.5*self.spacing))))
+                selected_features = vector_point_base.selectedFeatures()
+                max_x = selected_features[0].attribute(0) - (0.5*self.spacing) - (0.5*self.dlg.spinBox_resNested.value())
+                vector_point_base.removeSelection()
+                vector_point_base.selectByRect(QgsRectangle((site_x - (0.5*self.spacing)),
+                                                            (site_y - (1.5*self.spacing)-(0.5*self.dlg.spinBox_nestedArea.value())),
+                                                            (site_x + (0.5*self.spacing)),
+                                                            (site_y - (0.5*self.spacing)-(0.5*self.dlg.spinBox_nestedArea.value()))))
+                selected_features = vector_point_base.selectedFeatures()
+                min_y = selected_features[0].attribute(1) + (0.5*self.spacing) + (0.5*self.dlg.spinBox_resNested.value())
+                vector_point_base.removeSelection()
+                vector_point_base.selectByRect(QgsRectangle((site_x - (0.5*self.spacing)),
+                                                            (site_y + (0.5*self.spacing)+(0.5*self.dlg.spinBox_nestedArea.value())),
+                                                            (site_x + (0.5*self.spacing)),
+                                                            (site_y + (1.5*self.spacing)+(0.5*self.dlg.spinBox_nestedArea.value()))))
+                selected_features = vector_point_base.selectedFeatures()
+                max_y = selected_features[0].attribute(1) - (0.5*self.spacing) - (0.5*self.dlg.spinBox_resNested.value())
+                vector_point_base.removeSelection()
+                y = max_y
+                while y >= min_y:
+                    x = min_x
+                    while x <= max_x:
+                        geom = QgsGeometry.fromPointXY(QgsPointXY(x, y))
+                        feat = QgsFeature()
+                        feat.setGeometry(geom)
+                        feat.initAttributes(6)
+                        feat.setAttribute(0, geom.asPoint().x())
+                        feat.setAttribute(1, geom.asPoint().y())
+                        feat.setAttribute(2, 'Empty')
+                        feat.setAttribute(3, 0)
+                        feat.setAttribute(4, None)
+                        feat.setAttribute(5, self.dlg.spinBox_resNested.value())
+                        del geom
+                        x += self.dlg.spinBox_resNested.value()
+                        data_provider.addFeature(feat)
+                        del feat
+                    y -= self.dlg.spinBox_resNested.value()
+                    vector_point_base.updateExtents()
+                    vector_point_base.updateFields()
+            #iterate over all features to add msa_id
+            features = vector_point_base.getFeatures()
+            feat_id_generator = 1
+            vector_point_base.startEditing()
+            for feat in features:
+                feat[4] = feat_id_generator
+                feat_id_generator +=1
+                vector_point_base.updateFeature(feat)
+            vector_point_base.commitChanges()
 
         runqgisprocess("native:createspatialindex", {'INPUT': vector_point_base})
         QgsMessageLog.logMessage("All points created", 'MSA_QGIS', Qgis.Info)
+        QgsMessageLog.logMessage(f'point layer creation finished took {time()-start_time}', 'MSA_QGIS',Qgis.Info)
+
         return vector_point_base
 
     def pointSampleNative(self, point_layer):
@@ -868,7 +945,10 @@ class MsaQgis:
         join_info.setJoinFieldName('msa_id')
         join_info.setTargetFieldName('msa_id')
         join_info.setUsingMemoryCache(True)
-        join_info.setJoinFieldNamesBlockList(['geom_X', 'geom_Y', 'veg_com', 'chance_to_happen'])
+        if self.dlg.radioButton_nestedMap.isChecked:
+            join_info.setJoinFieldNamesBlockList(['geom_X', 'geom_Y', 'veg_com', 'chance_to_happen', 'resolution'])
+        else:
+            join_info.setJoinFieldNamesBlockList(['geom_X', 'geom_Y', 'veg_com', 'chance_to_happen'])
         join_info.setPrefix('')
         self.vector_point_filled_ras.addJoin(join_info)
         self.vector_point_filled_ras.updateFields()
@@ -900,16 +980,12 @@ class MsaQgis:
                 length = str(field.length())
                 current_column_string = f', "{field.name()}" VARCHAR({length}) '
                 columns_string +=current_column_string
-
-                pass
             elif field.type() == QVariant.Int or field.type() == QVariant.LongLong:
                 current_column_string = f', "{field.name()}" INT '
                 columns_string +=current_column_string
-                pass
             elif field.type() == QVariant.Double:
                 current_column_string = f', "{field.name()}" FLOAT '
                 columns_string +=current_column_string
-                pass
             else:  # I doubt anyone will be using blobs or anything... and geometry is already stored in a double
                 QgsMessageLog.logMessage(f'variable of {field.name()} is wrong datatype for sql, look up Qvariant: {field.type()}',
                                          'MSA_QGIS', Qgis.Warning)
@@ -918,10 +994,9 @@ class MsaQgis:
         create_table_string = f'{start_string}{primary_key_string}{columns_string});'
         cursor.execute(create_table_string)
         conn.commit()
-
         # fill in columns with the actual data
         map_features = self.vector_point_filled_ras.getFeatures()
-        n_of_fields = len(map_fields)
+        n_of_fields = len(map_fields)-1
         for feature in map_features:
             columns_string = ''
             values_string = ''
@@ -929,10 +1004,9 @@ class MsaQgis:
             middle_string = ') VALUES ('
             end_string = ');'
             for field in map_fields:
-                if map_fields.indexFromName(field.name()) != n_of_fields - 1:
+                if map_fields.indexFromName(field.name()) != n_of_fields:
                     columns_string += f'"{field.name()}",'
-                    #columns_string = columns_string + f'"{field.name()}",'
-                    if feature.attribute(field.name()) == None: # None becomes empty space so it is the same as in the spatialite version. Otherwise it fills with None strings
+                    if feature.attribute(field.name()) == None:
                         values_string += '"", '
                     else:
                         values_string += f'"{str(feature.attribute(field.name()))}", '
@@ -942,7 +1016,6 @@ class MsaQgis:
                         values_string +='""'
                     else:
                         values_string += f'"{str(feature.attribute(field.name()))}"'
-
             insert_string = start_string + columns_string + middle_string + values_string + end_string
             cursor.execute(insert_string)
             conn.commit()
@@ -1282,13 +1355,14 @@ class MsaQgis:
                     QgsMessageLog.logMessage(f'point sampling, Execution time in seconds: {time() - startTime}',
                                              'MSA_QGIS',
                                              Qgis.Info)
+
                 except Exception as e:
                     QgsMessageLog.logMessage("Exception raised, native point sampling could not run, abort run",
                                              'MSA_QGIS',
                                              Qgis.Warning)
                     QgsMessageLog.logMessage(str(e), 'MSA_QGIS', Qgis.Critical)
                     message = 'Point sampling failed'
-                    self.dlg.runAbortedPopup(message, e)
+                    self.dlg.runAbortedPopup(message, e) #not yet functional
             if self.dlg.run_type < 1:
                 QgsMessageLog.logMessage(
                     f'Total execution time in seconds: {time() - startTime}', 'MSA_QGIS', Qgis.Info)
