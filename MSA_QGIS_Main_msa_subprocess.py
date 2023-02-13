@@ -65,13 +65,16 @@ def checkInput():
         elif count == 11:
             keep_two = line[:-1]
             count +=1
+        elif count == 12:
+            number_of_entries = int(line[:-1])
+            count +=1
         else:
-            number_of_entries = int(line)
+            nested = line
 
 
 
 
-    return save_directory, from_basemap, run_type, number_of_iters, spacing, windrose, [likelihood_threshold, cumulative_likelihood_threshold, fit_formula, keep_fitted, keep_two], number_of_entries
+    return save_directory, from_basemap, run_type, number_of_iters, spacing, windrose, [likelihood_threshold, cumulative_likelihood_threshold, fit_formula, keep_fitted, keep_two], number_of_entries, nested
 
 def loadFiles(save_directory):
     """Loads the files required for running the MSA.
@@ -159,7 +162,7 @@ def prepareMSA(dict_rule_tree):
 
     return scenario_dict
 
-def setupMSA(dict_rule_tree, dict_nest_rule, spacing, save_directory, file_name,windrose, fit_stats,number_of_entries):
+def setupMSA(dict_rule_tree, dict_nest_rule, spacing, save_directory, file_name,windrose, fit_stats,number_of_entries, nested):
     """ Sets up the multiprocessing environment for the various iterations of the MSA.
 
     :param spacing: resolution of the vector point grid
@@ -191,7 +194,7 @@ def setupMSA(dict_rule_tree, dict_nest_rule, spacing, save_directory, file_name,
                           args=(
                               iteration, spacing, scenario_dict, save_directory,
                               dict_nest_rule,
-                              dict_rule_tree, file_name, windrose, fit_stats,number_of_entries))
+                              dict_rule_tree, file_name, windrose, fit_stats,number_of_entries, nested))
         process_list.append(process)
 
     for process in process_list:
@@ -201,7 +204,7 @@ def setupMSA(dict_rule_tree, dict_nest_rule, spacing, save_directory, file_name,
         process.join()
 
 
-def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict_rule_tree, file,windrose, fit_stats,number_of_entries):
+def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict_rule_tree, file,windrose, fit_stats,number_of_entries, nested):
     """ This is where rules are initiated in order of the rule tree. It is a single iteration of the MSA. Can be
     multiprocessed.
 
@@ -233,15 +236,21 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
     cursor = conn.cursor()
     for key in scenario_dict:
         map_name = f"{key}_{iteration}"
-        cursor.execute(f'CREATE TABLE "{map_name}" AS SELECT * FROM "basemap";')
+        if scenario_dict[key][0] == "basemap":
+            start_point = scenario_dict[key][0]
+        else:
+            start_point = f'{scenario_dict[key][0]}_{iteration}'
+        cursor.execute(f'CREATE TABLE "{map_name}" AS SELECT * FROM "{start_point}";')
         conn.commit()
         cursor.execute(f'CREATE INDEX "{map_name}_idx" ON "{map_name}"(msa_id);')
         conn.commit()
-        print(map_name, " was created", flush=True)
+        print(f'{map_name} was created, start_point was {start_point}', flush=True)
         for item in scenario_dict[key][2]:
             assignVegCom(dict_nest_rule, conn, cursor, map_name, dict_rule_tree[item][3], spacing, number_of_entries)
         if scenario_dict[key][1]:
-            simulatePollen(map_name, iteration, conn,cursor, windrose, fit_stats)
+            if nested == True:
+                cursor.execute(f'CREATE INDEX "{map_name}_idx_res" on "{map_name}"(resolution);')
+            simulatePollen(map_name, iteration, conn,cursor, windrose, fit_stats, nested)
 
     cursor.execute(f"ATTACH DATABASE '{save_directory}/MSA_output.sqlite' as file_db")
 
@@ -387,18 +396,17 @@ def assignVegCom(dict_nest_rule, conn, cursor, map_name, rule, spacing, number_o
                 string_condition_prev_veg_com +=f'"veg_com" = "{prev_veg_com}" AND '
     elif rule_type == 'Encroach':
         # Get n_of_points and calculate the distance within which the encroachable points must be. Should be very clear in the manual what is included per encroach!
-        n_of_points = dict_nest_rule[rule][5]
-        encroachable_distance = n_of_points * spacing
+        encroachable_distance = dict_nest_rule[rule][5]
         # Select the points that are next to the chosen veg com. Requires creating a temporary table that has all the entries from the veg_com to encroach,
         # as otherwise the table will update while running and increase the number of points while running, which changes the entire map to the encroaching veg_com.
         string_create_temp_table = f'CREATE TEMPORARY TABLE temp AS SELECT * FROM "{map_name}" WHERE veg_com = "{veg_com}"'
         cursor.execute(string_create_temp_table)
         string_condition_prev_veg_com = f'"veg_com" <> "{veg_com}" AND EXISTS ' \
                                         f'(SELECT 1 FROM "temp" WHERE ' \
-                                        f'"{map_name}".geom_x BETWEEN temp.geom_x - {str(encroachable_distance)} ' \
-                                        f'AND temp.geom_x + {str(encroachable_distance)} AND' \
-                                        f'"{map_name}".geom_y BETWEEN temp.geom_y - {str(encroachable_distance)} ' \
-                                        f'AND temp.geom_y + {str(encroachable_distance)}) AND'
+                                        f'"{map_name}".geom_x BETWEEN temp.geom_x - {encroachable_distance} ' \
+                                        f'AND temp.geom_x + {encroachable_distance} AND' \
+                                        f'"{map_name}".geom_y BETWEEN temp.geom_y - {encroachable_distance} ' \
+                                        f'AND temp.geom_y + {encroachable_distance}) AND'
     elif rule_type == 'Adjacent':  # TODO needs significant changes to the UI. Postpone as a workaround by creating buffer maps in QGIS is possible.
         return
     elif rule_type == 'Extent':  # TODO needs significant changes to the UI. Postpone as a workaround by drawing the extent in QGIS is possible.
@@ -485,7 +493,7 @@ def assignVegCom(dict_nest_rule, conn, cursor, map_name, rule, spacing, number_o
     cursor.execute('DROP TABLE IF EXISTS "temp";')
     print(f"assigning vegcom for {map_name} with {rule} took {time.time()-vegcom_start_time}", flush = True)
 
-def simulatePollen(map_name,iteration, conn, cursor, windrose, fit_stats):
+def simulatePollen(map_name,iteration, conn, cursor, windrose, fit_stats, nested):
     """Simulates the pollen per map, per site and determines whether the fit between the simulated pollen and actual
      pollen is close enough to retain the map if the user selected to retain only fitted maps.
 
@@ -549,17 +557,29 @@ def simulatePollen(map_name,iteration, conn, cursor, windrose, fit_stats):
         for row2 in range(n_of_taxa):  #FIXME: This part of the code is a speed bottleneck, but I don't see how it could be improved.
             cursor.execute(f'SELECT taxon_code FROM "taxa" WHERE rowid IS {row2+1}')
             taxon = cursor.fetchone()[0]
-            update_table_str = f'UPDATE {site_name}{map_name} SET "{taxon}_PL" = (SELECT(' \
-                               f'SELECT "RelPP" FROM taxa WHERE "taxon_code" = "{taxon}") * (' \
-                               f'SELECT "vegcom_percent" FROM vegcom WHERE "taxon_code" = "{taxon}" ' \
-                               f'AND "veg_com" = (SELECT "veg_com" FROM "{map_name}" WHERE (' \
-                               f'msa_id = {site_name}{map_name}.msa_id))) * (' \
-                               f'SELECT "{taxon}_DW" FROM PollenLookup WHERE PollenLookup.distance = (' \
-                               f'SELECT "distance" FROM dist_dir WHERE (msa_id = {site_name}{map_name}.msa_id) ' \
-                               f'AND (site_name = "{site_name}"))) * (' \
-                               f'SELECT "distance" FROM dist_dir WHERE (msa_id = {site_name}{map_name}.msa_id) ' \
-                               f'AND (site_name = "{site_name}")'
-
+            if nested == "True":
+                update_table_str = f'UPDATE {site_name}{map_name} SET "{taxon}_PL" = (SELECT(' \
+                                   f'SELECT "RelPP" FROM taxa WHERE "taxon_code" = "{taxon}") * (' \
+                                   f'SELECT "resolution" FROM "{map_name}" WHERE ("msa_id" = {site_name}{map_name}.msa_id)) * ('\
+                                   f'SELECT "vegcom_percent" FROM vegcom WHERE "taxon_code" = "{taxon}" ' \
+                                   f'AND "veg_com" = (SELECT "veg_com" FROM "{map_name}" WHERE (' \
+                                   f'msa_id = {site_name}{map_name}.msa_id))) * (' \
+                                   f'SELECT "{taxon}_DW" FROM PollenLookup WHERE PollenLookup.distance = (' \
+                                   f'SELECT "distance" FROM dist_dir WHERE (msa_id = {site_name}{map_name}.msa_id) ' \
+                                   f'AND (site_name = "{site_name}"))) * (' \
+                                   f'SELECT "distance" FROM dist_dir WHERE (msa_id = {site_name}{map_name}.msa_id) ' \
+                                   f'AND (site_name = "{site_name}")'
+            else:
+                update_table_str = f'UPDATE {site_name}{map_name} SET "{taxon}_PL" = (SELECT(' \
+                                   f'SELECT "RelPP" FROM taxa WHERE "taxon_code" = "{taxon}") * (' \
+                                   f'SELECT "vegcom_percent" FROM vegcom WHERE "taxon_code" = "{taxon}" ' \
+                                   f'AND "veg_com" = (SELECT "veg_com" FROM "{map_name}" WHERE (' \
+                                   f'msa_id = {site_name}{map_name}.msa_id))) * (' \
+                                   f'SELECT "{taxon}_DW" FROM PollenLookup WHERE PollenLookup.distance = (' \
+                                   f'SELECT "distance" FROM dist_dir WHERE (msa_id = {site_name}{map_name}.msa_id) ' \
+                                   f'AND (site_name = "{site_name}"))) * (' \
+                                   f'SELECT "distance" FROM dist_dir WHERE (msa_id = {site_name}{map_name}.msa_id) ' \
+                                   f'AND (site_name = "{site_name}")'
             if windrose == "True":
                 find_windrose_str=(f') * ( SELECT "windrose_weight" FROM windrose WHERE('
                                    f'CASE WHEN {site_name}{map_name}.pseudo_id is NULL THEN "direction" = ('
@@ -690,10 +710,12 @@ def simulatePollen(map_name,iteration, conn, cursor, windrose, fit_stats):
     print(f'assigning fit for {map_name}took {str(end_time_pol)} to run', flush=True)
 
 
+
+
 if __name__ == "__main__":
     ##Main code
     # check if save input is correct. If not will automatically error and quit
-    save_directory, from_basemap, run_type, number_of_iters, spacing, windrose, fit_stats,number_of_entries = checkInput()
+    save_directory, from_basemap, run_type, number_of_iters, spacing, windrose, fit_stats,number_of_entries, nested = checkInput()
     # Open pickled files
     dict_nest_rule, dict_rule_tree = loadFiles(save_directory)
     # Create the basemap if necessary
@@ -706,7 +728,7 @@ if __name__ == "__main__":
             if run_type == "1":
                 sys.exit("Error in subprocess, run_type = 2 (make only basemap), but no entries in rule tree were designated as base group")
             else: #Carry on to do a full MSA, but start from point_sampled_map
-                setupMSA(dict_rule_tree,dict_nest_rule, spacing,save_directory, "//temp_file_sql_input.sqlite", windrose, fit_stats,number_of_entries)
+                setupMSA(dict_rule_tree,dict_nest_rule, spacing,save_directory, "//temp_file_sql_input.sqlite", windrose, fit_stats,number_of_entries, nested)
         else: #some entries were designated as basegroup
              if run_type == "1" or run_type == "2":
                  # Create the basemap
@@ -721,14 +743,14 @@ if __name__ == "__main__":
                      #basemap is saved as part of makeBasemap, move on to end subprocess
                      pass
                  elif run_type == "2": #continue with full MSA
-                     setupMSA(dict_rule_tree,dict_nest_rule, spacing,save_directory, "//output_basemap.sqlite", windrose, fit_stats, number_of_entries)
+                     setupMSA(dict_rule_tree,dict_nest_rule, spacing,save_directory, "//output_basemap.sqlite", windrose, fit_stats, number_of_entries, nested)
              else: # Some error occurred in setting up the run, this code should not be reached
                  sys.exit(f"Error in subprocess, run_type is incorrect, \n run_type = {run_type}")
     else: #A basemap exists
         if run_type == "1":
             sys.exit(f"Error in subprocess, run_type is make basemap, but a basemap already exists. Quitting run")
         elif run_type == "2":
-            setupMSA(dict_rule_tree,dict_nest_rule, spacing,save_directory, "//temp_file_sql_input.sqlite", windrose, fit_stats, number_of_entries)
+            setupMSA(dict_rule_tree,dict_nest_rule, spacing,save_directory, "//temp_file_sql_input.sqlite", windrose, fit_stats, number_of_entries, nested)
         else:
             sys.exit(f"Error in subprocess, run_type is incorrect for full run, \n run_type = {run_type}")
 

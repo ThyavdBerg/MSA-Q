@@ -264,13 +264,10 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             self.label_currentSel.show()
             self.label_vector.show()
             self.label_raster.show()
-            self.label_mapStyle.show()
             #hide labels
             self.label_mapFile.hide()
             #show items
             self.mExtentGroupBox.show()
-            self.radioButton_simpleMap.show()
-            self.radioButton_nestedMap.show()
             self.spinBox_resolution.show()
             self.tableWidget_vector.show()
             self.tableWidget_raster.show()
@@ -283,12 +280,13 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 self.spinBox_nestedArea.show()
             #hide widgets
             self.mQgsFileWidget_startingPoint.hide()
+            #change radiobutton text
+            self.radioButton_nestedMap.setText('Nested')
         elif self.radioButton_loadPointMap.isChecked():
             #show labels
 
             self.label_mapFile.show()
             #hide labels
-            self.label_mapStyle.hide()
             self.label_fieldsAndBands.hide()
             self.label_currentSel.hide()
             self.label_areaOfInterest.hide()
@@ -301,8 +299,6 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
 
             self.mQgsFileWidget_startingPoint.show()
             #hide widgets
-            self.radioButton_simpleMap.hide()
-            self.radioButton_nestedMap.hide()
             self.spinBox_resNested.hide()
             self.spinBox_nestedArea.hide()
             self.tableWidget_vector.hide()
@@ -311,11 +307,13 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             self.tableWidget_selRaster.hide()
             self.mExtentGroupBox.hide()
             self.spinBox_resolution.hide()
+            #change radiobutton text
+            self.radioButton_nestedMap.setText('Nested/Variable')
+
         elif self.radioButton_loadBaseMap.isChecked():
             #show labels
             self.label_mapFile.show()
             #hide labels
-            self.label_mapStyle.hide()
             self.label_areaOfInterest.hide()
             self.label_resolution.hide()
             self.label_fieldsAndBands.hide()
@@ -328,8 +326,6 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             #show widgets
             self.mQgsFileWidget_startingPoint.show()
             #hide widgets
-            self.radioButton_simpleMap.hide()
-            self.radioButton_nestedMap.hide()
             self.spinBox_resNested.hide()
             self.spinBox_nestedArea.hide()
             self.mExtentGroupBox.hide()
@@ -338,6 +334,9 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             self.tableWidget_raster.hide()
             self.tableWidget_selected.hide()
             self.tableWidget_selRaster.hide()
+            #change radiobutton text
+            self.radioButton_nestedMap.setText('Nested/Variable')
+
 
     def checkChecklist(self):
         """ Determines whether widgets have been filled by the user and checks the appropriate boxes if it has. Also
@@ -1338,7 +1337,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
 
     def enableNested(self):
         """Enables or Disables the UI widgets related to nested maps."""
-        if self.radioButton_nestedMap.isChecked():
+        if self.radioButton_nestedMap.isChecked() and self.radioButton_createMap.isChecked():
             self.spinBox_nestedArea.show()
             self.label_nestedArea.show()
             self.label_resNested.show()
@@ -2272,8 +2271,8 @@ class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
         self.doubleSpin_rangeMax.hide()
         self.label_category.hide()
         self.comboBox_category.hide()
-        self.label_nOfPoints.hide()
-        self.spinBox_nOfPoints.hide()
+        self.label_nDistance.hide()
+        self.spinBox_nOfDistance.hide()
         self.label_condTypePrevVeg.hide()
         self.label_condTypeEnvVar.hide()
 
@@ -2391,19 +2390,19 @@ class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
     def addNofPointsToRule(self):
         """ Makes a spin box appear when adjacent or encroach is selected under choose rule type"""
         if self.comboBox_rule.currentText() == 'Encroach' or self.comboBox_rule.currentText() == 'Adjacent':
-            self.label_nOfPoints.show()
-            self.spinBox_nOfPoints.show()
+            self.label_nDistance.show()
+            self.spinBox_nOfDistance.show()
         else:
-            self.label_nOfPoints.hide()
-            self.spinBox_nOfPoints.hide()
+            self.label_nDistance.hide()
+            self.spinBox_nOfDistance.hide()
         pass
 
     def addConditionalPrevVegCom(self):
         """ A comboBox appears from which the user can choose whether they want to apply OR or AND rules, and an
         extra row where an additional previous vegetation community can be chosen appears """
         self.label_condTypePrevVeg.show()
-        self.radioButton_all.hide()
-        self.radioButton_all.setChecked(False)
+        self.radioButton_any.hide()
+        self.radioButton_any.setChecked(False)
         # create new widgets
         comboBox_prevVegCom = QComboBox()
         label_prevVegCom = QLabel()
@@ -2447,7 +2446,7 @@ class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
 
         if self.n_of_vegcom == 1:
             self.label_condTypePrevVeg.hide()
-            self.radioButton_all.show()
+            self.radioButton_any.show()
 
     def addConditionalEnvVar(self):
         """ A comboBox appears from which the user can choose whether the want to apply OR or AND rules, and an
@@ -2548,10 +2547,10 @@ class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
         self.list_for_rules_dict.append(self.comboBox_ruleVegCom.currentText())
         self.list_for_rules_dict.append(self.comboBox_rule.currentText())
         self.list_for_rules_dict.append(self.doubleSpin_chance.value())
-        self.list_for_rules_dict.append(self.spinBox_nOfPoints.value())
+        self.list_for_rules_dict.append(self.spinBox_nOfDistance.value())
         self.list_for_rules_dict.append(self.n_of_vegcom)
         self.list_for_rules_dict.append(self.n_of_envvar)
-        self.list_for_rules_dict.append(self.radioButton_all.isChecked())
+        self.list_for_rules_dict.append(self.radioButton_any.isChecked())
 
         # insert from dynamically added widgets
         # previous vegetation communities
@@ -2588,14 +2587,14 @@ class MsaQgisAddRulePopup (QtWidgets.QDialog, FORM_CLASS_RULES):
         if self.comboBox_rule.currentText() == '(Re)place':
             rule_type_string = ' to be placed on '
         elif self.comboBox_rule.currentText() == 'Encroach':
-            rule_type_string = ' to encroach by ' + str(self.spinBox_nOfPoints.value()) + ' points on '
+            rule_type_string = ' to encroach by ' + str(self.spinBox_nOfDistance.value()) + ' map units on '
         elif self.comboBox_rule.currentText() == 'Adjacent':
-            rule_type_string = ' to be placed ' + str(self.spinBox_nOfPoints.value()) + ' points adjacent to '
+            rule_type_string = ' to be placed ' + str(self.spinBox_nOfDistance.value()) + ' map units adjacent to '
         elif self.comboBox_rule.currentText() == 'Extent':
             rule_type_string = ' to be placed on '
         #vegetation community/ies
         prev_veg_com_string = ' [no prev veg com selected] '
-        if self.radioButton_all.isChecked():
+        if self.radioButton_any.isChecked():
             prev_veg_com_string = 'any vegetation community'
         elif not self.list_prevVegCom:
             if self.comboBox_prevVegCom.currentText() == 'Empty':

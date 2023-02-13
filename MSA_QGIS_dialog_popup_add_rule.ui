@@ -115,16 +115,19 @@
            <item>
             <layout class="QVBoxLayout" name="verticalLayout_5">
              <item>
-              <widget class="QLabel" name="label_nOfPoints">
+              <widget class="QLabel" name="label_nDistance">
                <property name="text">
-                <string>Spread by N points</string>
+                <string>Spread by N distance</string>
                </property>
               </widget>
              </item>
              <item>
-              <widget class="QSpinBox" name="spinBox_nOfPoints">
+              <widget class="QSpinBox" name="spinBox_nOfDistance">
                <property name="minimum">
                 <number>1</number>
+               </property>
+               <property name="maximum">
+                <number>100000</number>
                </property>
               </widget>
              </item>
@@ -173,9 +176,9 @@
               </spacer>
              </item>
              <item>
-              <widget class="QRadioButton" name="radioButton_all">
+              <widget class="QRadioButton" name="radioButton_any">
                <property name="text">
-                <string>All</string>
+                <string>Any</string>
                </property>
               </widget>
              </item>

@@ -70,7 +70,7 @@
         <string notr="true">tab_rules {background-color: rgb(240, 240, 240)};</string>
        </property>
        <property name="currentIndex">
-        <number>0</number>
+        <number>3</number>
        </property>
        <widget class="QWidget" name="tab_envAndSpatial">
         <attribute name="title">
@@ -186,7 +186,7 @@
                 <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The resolution dictates how far apart each vector point will be spaced. The unit of distance is determined by the projection (e.g. British National Grid will be in meters).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                </property>
                <property name="text">
-                <string>Resolution (Simple)</string>
+                <string>Resolution (Simple):</string>
                </property>
               </widget>
              </item>
@@ -389,7 +389,7 @@
              <item row="2" column="2">
               <widget class="QRadioButton" name="radioButton_nestedMap">
                <property name="toolTip">
-                <string>The &quot;Nested&quot; maps creates, in addition to the simple map, small areas around the sampling sites with given, higher resolution than the resolution of the simple grid.</string>
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;A &amp;quot;Nested&amp;quot; maps contains, in addition to the simple map, small areas around the sampling sites with given, higher resolution than the resolution of the simple grid. &lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;A &amp;quot;Variable&amp;quot; map contains points with various different resolutions. Note that both nested and variable maps, when imported, should have a &amp;quot;resolution&amp;quot; column.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                </property>
                <property name="text">
                 <string>Nested</string>
@@ -408,7 +408,7 @@
                 <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The area of interest is the extent of the main grid for which the simulation of vegetation communities and pollen counts based thereon will take place. Please make sure that all input maps are at least as large as the area of interest or larger.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                </property>
                <property name="text">
-                <string>Area of Interest</string>
+                <string>Area of Interest:</string>
                </property>
               </widget>
              </item>
@@ -453,7 +453,7 @@
                   <string>Resolution of the nested (smaller) parts of the map that are around the sampling sites.</string>
                  </property>
                  <property name="text">
-                  <string>Resolution (Nested)</string>
+                  <string>Resolution (Nested):</string>
                  </property>
                 </widget>
                </item>
@@ -491,7 +491,7 @@
              <item row="2" column="0">
               <widget class="QLabel" name="label_mapStyle">
                <property name="text">
-                <string>Map style</string>
+                <string>Map style:</string>
                </property>
               </widget>
              </item>
@@ -501,7 +501,7 @@
                 <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Length of the side of the square that will be made around your given sampling sides at a higher resolution. &lt;/p&gt;&lt;p&gt;This value should be divisable by &amp;quot;Resolution (Nested)&amp;quot; and a multiple of &amp;quot;Resolution (Simple)&amp;quot; in order to result in no gaps or double-sampled areas.&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                </property>
                <property name="text">
-                <string>Size of Nested Area</string>
+                <string>Size of Nested Area:</string>
                </property>
               </widget>
              </item>
@@ -977,7 +977,7 @@
                   <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;This deletes a branch from the selected rule onward.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                  </property>
                  <property name="text">
-                  <string>Delete branch/rule</string>
+                  <string>Delete branch</string>
                  </property>
                 </widget>
                </item>
@@ -2222,7 +2222,7 @@ background-color: rgb(199, 199, 199);</string>
   </connection>
  </connections>
  <buttongroups>
-  <buttongroup name="buttonGroup_2"/>
   <buttongroup name="buttonGroup_mapStyle"/>
+  <buttongroup name="buttonGroup_2"/>
  </buttongroups>
 </ui>

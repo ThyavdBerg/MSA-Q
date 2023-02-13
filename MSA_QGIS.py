@@ -236,8 +236,6 @@ class MsaQgis:
         with open (file_name, 'wb') as pkl_file:
             pickledump(dict_nest_rule_tree, pkl_file)
 
-
-
     #** WRITE SQLite TABLES
     def createSiteTables(self, conn, cursor, basemap):
         """ Forms sql strings and executes them to create a table containing samples and associated tables with
@@ -1458,7 +1456,7 @@ class MsaQgis:
                         f"{self.dlg.checkBox_enableWindrose.isChecked()}\n{self.dlg.doubleSpinBox_fit.value()}\n"
                         f"{self.dlg.doubleSpinBox_cumulFit.value()}\n{self.dlg.comboBox_fit.currentText()}\n"
                         f"{self.dlg.radioButton_keepFitted.isChecked()}\n{self.dlg.radioButton_keepTwo.isChecked()}\n"
-                        f"{number_of_entries}")[0]
+                        f"{number_of_entries}\n{self.dlg.radioButton_nestedMap.isChecked()}")[0]
 
             subprocess_output, subprocess_error = running_msa.communicate()
             QgsMessageLog.logMessage(f'output = {subprocess_output} \n error = {subprocess_error}', 'subprocess', Qgis.Info)
