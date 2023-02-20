@@ -408,7 +408,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         else:
             self.checkBox_pollenCounts.setChecked(False)
         # Model Parameters set?
-        if self.comboBox_dispModel.currentText() == 'Prentice-Sugita':
+        if self.comboBox_dispModel.currentText() == 'HUMPOL mire model':
             if self.doubleSpin_atmosConstant.value() != 0 and self.doubleSpin_diffConstant.value() != 0 and self.doubleSpin_windSpeed.value() !=0:
                 self.checkBox_parameters.setChecked(True)
             else:

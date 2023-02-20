@@ -70,7 +70,7 @@
         <string notr="true">tab_rules {background-color: rgb(240, 240, 240)};</string>
        </property>
        <property name="currentIndex">
-        <number>3</number>
+        <number>4</number>
        </property>
        <widget class="QWidget" name="tab_envAndSpatial">
         <attribute name="title">
@@ -114,8 +114,8 @@
              <rect>
               <x>0</x>
               <y>0</y>
-              <width>692</width>
-              <height>709</height>
+              <width>688</width>
+              <height>750</height>
              </rect>
             </property>
             <layout class="QGridLayout" name="gridLayout">
@@ -916,8 +916,8 @@
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>533</width>
-                <height>591</height>
+                <width>523</width>
+                <height>583</height>
                </rect>
               </property>
               <layout class="QHBoxLayout" name="horizontalLayout_18">
@@ -1105,7 +1105,7 @@
              <item row="3" column="3">
               <widget class="QPushButton" name="pushButton_importPollen">
                <property name="text">
-                <string>Import Pollen Count File</string>
+                <string>Import Pollen Percentage File</string>
                </property>
               </widget>
              </item>
@@ -1208,7 +1208,7 @@
              <item row="2" column="0">
               <widget class="QLabel" name="label_4">
                <property name="text">
-                <string>Pollen count file paths:</string>
+                <string>Pollen percentage file paths:</string>
                </property>
                <property name="wordWrap">
                 <bool>true</bool>
@@ -1228,8 +1228,8 @@
              <item row="4" column="0">
               <widget class="QLabel" name="label_pollenCounts">
                <property name="text">
-                <string>Excerpt pollen counts 
-(Ensure all sampling sites are showing associated pollen counts):</string>
+                <string>Excerpt pollen percentages 
+(Ensure all sampling sites are showing associated pollen percentages):</string>
                </property>
                <property name="wordWrap">
                 <bool>true</bool>
@@ -1511,7 +1511,12 @@
           <widget class="QComboBox" name="comboBox_dispModel">
            <item>
             <property name="text">
-             <string>Prentice-Sugita</string>
+             <string>HUMPOL mire model</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>HUMPOL mixed basin model</string>
             </property>
            </item>
            <item>
@@ -2222,7 +2227,7 @@ background-color: rgb(199, 199, 199);</string>
   </connection>
  </connections>
  <buttongroups>
-  <buttongroup name="buttonGroup_mapStyle"/>
   <buttongroup name="buttonGroup_2"/>
+  <buttongroup name="buttonGroup_mapStyle"/>
  </buttongroups>
 </ui>
