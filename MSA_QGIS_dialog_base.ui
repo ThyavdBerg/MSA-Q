@@ -70,7 +70,7 @@
         <string notr="true">tab_rules {background-color: rgb(240, 240, 240)};</string>
        </property>
        <property name="currentIndex">
-        <number>4</number>
+        <number>3</number>
        </property>
        <widget class="QWidget" name="tab_envAndSpatial">
         <attribute name="title">
@@ -114,8 +114,8 @@
              <rect>
               <x>0</x>
               <y>0</y>
-              <width>688</width>
-              <height>750</height>
+              <width>692</width>
+              <height>709</height>
              </rect>
             </property>
             <layout class="QGridLayout" name="gridLayout">
@@ -134,51 +134,98 @@
              <property name="spacing">
               <number>10</number>
              </property>
-             <item row="0" column="1" colspan="2">
-              <layout class="QHBoxLayout" name="horizontalLayout_22">
-               <item>
-                <widget class="QRadioButton" name="radioButton_createMap">
-                 <property name="text">
-                  <string>Create map from scratch</string>
-                 </property>
-                 <property name="checked">
-                  <bool>true</bool>
-                 </property>
-                 <property name="autoExclusive">
-                  <bool>false</bool>
-                 </property>
-                 <attribute name="buttonGroup">
-                  <string notr="true">buttonGroup_2</string>
-                 </attribute>
-                </widget>
-               </item>
-               <item>
-                <widget class="QRadioButton" name="radioButton_loadPointMap">
-                 <property name="text">
-                  <string>Load point sampled map</string>
-                 </property>
-                 <property name="autoExclusive">
-                  <bool>false</bool>
-                 </property>
-                 <attribute name="buttonGroup">
-                  <string notr="true">buttonGroup_2</string>
-                 </attribute>
-                </widget>
-               </item>
-               <item>
-                <widget class="QRadioButton" name="radioButton_loadBaseMap">
-                 <property name="text">
-                  <string>Load basemap</string>
-                 </property>
-                 <property name="autoExclusive">
-                  <bool>false</bool>
-                 </property>
-                 <attribute name="buttonGroup">
-                  <string notr="true">buttonGroup_2</string>
-                 </attribute>
-                </widget>
-               </item>
-              </layout>
+             <item row="0" column="0">
+              <widget class="QLabel" name="label_startingPoint">
+               <property name="text">
+                <string>Starting point:</string>
+               </property>
+              </widget>
+             </item>
+             <item row="8" column="2">
+              <widget class="QTableWidget" name="tableWidget_selRaster">
+               <property name="editTriggers">
+                <set>QAbstractItemView::NoEditTriggers</set>
+               </property>
+               <property name="alternatingRowColors">
+                <bool>true</bool>
+               </property>
+               <property name="selectionMode">
+                <enum>QAbstractItemView::NoSelection</enum>
+               </property>
+               <column>
+                <property name="text">
+                 <string>Layer</string>
+                </property>
+               </column>
+               <column>
+                <property name="text">
+                 <string>Band</string>
+                </property>
+               </column>
+              </widget>
+             </item>
+             <item row="3" column="0">
+              <widget class="QLabel" name="label_areaOfInterest">
+               <property name="toolTip">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The area of interest is the extent of the main grid for which the simulation of vegetation communities and pollen counts based thereon will take place. Please make sure that all input maps are at least as large as the area of interest or larger.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               </property>
+               <property name="text">
+                <string>Area of Interest:</string>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="2">
+              <widget class="QRadioButton" name="radioButton_nestedMap">
+               <property name="toolTip">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;A &amp;quot;Nested&amp;quot; maps contains, in addition to the simple map, small areas around the sampling sites with given, higher resolution than the resolution of the simple grid. &lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;A &amp;quot;Variable&amp;quot; map contains points with various different resolutions. Note that both nested and variable maps, when imported, should have a &amp;quot;resolution&amp;quot; column.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               </property>
+               <property name="text">
+                <string>Nested</string>
+               </property>
+               <property name="autoExclusive">
+                <bool>false</bool>
+               </property>
+               <attribute name="buttonGroup">
+                <string notr="true">buttonGroup_mapStyle</string>
+               </attribute>
+              </widget>
+             </item>
+             <item row="5" column="0">
+              <widget class="QLabel" name="label_nestedArea">
+               <property name="toolTip">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Length of the side of the square that will be made around your given sampling sides at a higher resolution. &lt;/p&gt;&lt;p&gt;This value should be divisable by &amp;quot;Resolution (Nested)&amp;quot; and a multiple of &amp;quot;Resolution (Simple)&amp;quot; in order to result in no gaps or double-sampled areas.&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               </property>
+               <property name="text">
+                <string>Size of Nested Area:</string>
+               </property>
+              </widget>
+             </item>
+             <item row="8" column="0">
+              <widget class="QLabel" name="label_currentSel">
+               <property name="toolTip">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Fields and bands selected in the top two tables will be displayed here, please check if they are correct before running any simulations.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               </property>
+               <property name="text">
+                <string>Currently selected:</string>
+               </property>
+               <property name="wordWrap">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="0">
+              <widget class="QLabel" name="label_mapStyle">
+               <property name="text">
+                <string>Map style:</string>
+               </property>
+              </widget>
+             </item>
+             <item row="5" column="1" colspan="2">
+              <widget class="QSpinBox" name="spinBox_nestedArea">
+               <property name="maximum">
+                <number>1000000</number>
+               </property>
+              </widget>
              </item>
              <item row="4" column="0">
               <widget class="QLabel" name="label_resolution">
@@ -189,22 +236,6 @@
                 <string>Resolution (Simple):</string>
                </property>
               </widget>
-             </item>
-             <item row="6" column="0">
-              <widget class="QLabel" name="label_fieldsAndBands">
-               <property name="toolTip">
-                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;All fields and bands that are suitable as input will be shown in these two tables, with column 1 indicating layer and column 2 indicating field or band.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-               </property>
-               <property name="text">
-                <string>Available fields/bands:</string>
-               </property>
-               <property name="wordWrap">
-                <bool>true</bool>
-               </property>
-              </widget>
-             </item>
-             <item row="3" column="1" colspan="2">
-              <widget class="QgsExtentGroupBox" name="mExtentGroupBox"/>
              </item>
              <item row="6" column="1" rowspan="2">
               <layout class="QVBoxLayout" name="verticalLayout_vector">
@@ -268,25 +299,6 @@
                </item>
               </layout>
              </item>
-             <item row="2" column="1">
-              <widget class="QRadioButton" name="radioButton_simpleMap">
-               <property name="toolTip">
-                <string>The &quot;Simple&quot; map style creates a map that is a simple square grid of the area of interest with equally spaced vector points based on the given resolution</string>
-               </property>
-               <property name="text">
-                <string>Simple</string>
-               </property>
-               <property name="checked">
-                <bool>true</bool>
-               </property>
-               <property name="autoExclusive">
-                <bool>false</bool>
-               </property>
-               <attribute name="buttonGroup">
-                <string notr="true">buttonGroup_mapStyle</string>
-               </attribute>
-              </widget>
-             </item>
              <item row="1" column="0">
               <widget class="QLabel" name="label_mapFile">
                <property name="text">
@@ -294,8 +306,11 @@
                </property>
               </widget>
              </item>
-             <item row="8" column="2">
-              <widget class="QTableWidget" name="tableWidget_selRaster">
+             <item row="1" column="1" colspan="2">
+              <widget class="QgsFileWidget" name="mQgsFileWidget_startingPoint"/>
+             </item>
+             <item row="8" column="1">
+              <widget class="QTableWidget" name="tableWidget_selected">
                <property name="editTriggers">
                 <set>QAbstractItemView::NoEditTriggers</set>
                </property>
@@ -312,9 +327,22 @@
                </column>
                <column>
                 <property name="text">
-                 <string>Band</string>
+                 <string>Field</string>
                 </property>
                </column>
+              </widget>
+             </item>
+             <item row="6" column="0">
+              <widget class="QLabel" name="label_fieldsAndBands">
+               <property name="toolTip">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;All fields and bands that are suitable as input will be shown in these two tables, with column 1 indicating layer and column 2 indicating field or band.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               </property>
+               <property name="text">
+                <string>Available fields/bands:</string>
+               </property>
+               <property name="wordWrap">
+                <bool>true</bool>
+               </property>
               </widget>
              </item>
              <item row="6" column="2" rowspan="2">
@@ -379,62 +407,6 @@
                </item>
               </layout>
              </item>
-             <item row="0" column="0">
-              <widget class="QLabel" name="label_startingPoint">
-               <property name="text">
-                <string>Starting point:</string>
-               </property>
-              </widget>
-             </item>
-             <item row="2" column="2">
-              <widget class="QRadioButton" name="radioButton_nestedMap">
-               <property name="toolTip">
-                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;A &amp;quot;Nested&amp;quot; maps contains, in addition to the simple map, small areas around the sampling sites with given, higher resolution than the resolution of the simple grid. &lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;A &amp;quot;Variable&amp;quot; map contains points with various different resolutions. Note that both nested and variable maps, when imported, should have a &amp;quot;resolution&amp;quot; column.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-               </property>
-               <property name="text">
-                <string>Nested</string>
-               </property>
-               <property name="autoExclusive">
-                <bool>false</bool>
-               </property>
-               <attribute name="buttonGroup">
-                <string notr="true">buttonGroup_mapStyle</string>
-               </attribute>
-              </widget>
-             </item>
-             <item row="3" column="0">
-              <widget class="QLabel" name="label_areaOfInterest">
-               <property name="toolTip">
-                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The area of interest is the extent of the main grid for which the simulation of vegetation communities and pollen counts based thereon will take place. Please make sure that all input maps are at least as large as the area of interest or larger.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-               </property>
-               <property name="text">
-                <string>Area of Interest:</string>
-               </property>
-              </widget>
-             </item>
-             <item row="8" column="1">
-              <widget class="QTableWidget" name="tableWidget_selected">
-               <property name="editTriggers">
-                <set>QAbstractItemView::NoEditTriggers</set>
-               </property>
-               <property name="alternatingRowColors">
-                <bool>true</bool>
-               </property>
-               <property name="selectionMode">
-                <enum>QAbstractItemView::NoSelection</enum>
-               </property>
-               <column>
-                <property name="text">
-                 <string>Layer</string>
-                </property>
-               </column>
-               <column>
-                <property name="text">
-                 <string>Field</string>
-                </property>
-               </column>
-              </widget>
-             </item>
              <item row="4" column="1" colspan="2">
               <layout class="QHBoxLayout" name="horizontalLayout_6">
                <item>
@@ -472,44 +444,72 @@
                </item>
               </layout>
              </item>
-             <item row="1" column="1" colspan="2">
-              <widget class="QgsFileWidget" name="mQgsFileWidget_startingPoint"/>
+             <item row="3" column="1" colspan="2">
+              <widget class="QgsExtentGroupBox" name="mExtentGroupBox"/>
              </item>
-             <item row="8" column="0">
-              <widget class="QLabel" name="label_currentSel">
+             <item row="0" column="1" colspan="2">
+              <layout class="QHBoxLayout" name="horizontalLayout_22">
+               <item>
+                <widget class="QRadioButton" name="radioButton_createMap">
+                 <property name="text">
+                  <string>Create map from scratch</string>
+                 </property>
+                 <property name="checked">
+                  <bool>true</bool>
+                 </property>
+                 <property name="autoExclusive">
+                  <bool>false</bool>
+                 </property>
+                 <attribute name="buttonGroup">
+                  <string notr="true">buttonGroup_2</string>
+                 </attribute>
+                </widget>
+               </item>
+               <item>
+                <widget class="QRadioButton" name="radioButton_loadPointMap">
+                 <property name="text">
+                  <string>Load point sampled map</string>
+                 </property>
+                 <property name="autoExclusive">
+                  <bool>false</bool>
+                 </property>
+                 <attribute name="buttonGroup">
+                  <string notr="true">buttonGroup_2</string>
+                 </attribute>
+                </widget>
+               </item>
+               <item>
+                <widget class="QRadioButton" name="radioButton_loadBaseMap">
+                 <property name="text">
+                  <string>Load basemap</string>
+                 </property>
+                 <property name="autoExclusive">
+                  <bool>false</bool>
+                 </property>
+                 <attribute name="buttonGroup">
+                  <string notr="true">buttonGroup_2</string>
+                 </attribute>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item row="2" column="1">
+              <widget class="QRadioButton" name="radioButton_simpleMap">
                <property name="toolTip">
-                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Fields and bands selected in the top two tables will be displayed here, please check if they are correct before running any simulations.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                <string>The &quot;Simple&quot; map style creates a map that is a simple square grid of the area of interest with equally spaced vector points based on the given resolution</string>
                </property>
                <property name="text">
-                <string>Currently selected:</string>
+                <string>Simple</string>
                </property>
-               <property name="wordWrap">
+               <property name="checked">
                 <bool>true</bool>
                </property>
-              </widget>
-             </item>
-             <item row="2" column="0">
-              <widget class="QLabel" name="label_mapStyle">
-               <property name="text">
-                <string>Map style:</string>
+               <property name="autoExclusive">
+                <bool>false</bool>
                </property>
-              </widget>
-             </item>
-             <item row="5" column="0">
-              <widget class="QLabel" name="label_nestedArea">
-               <property name="toolTip">
-                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Length of the side of the square that will be made around your given sampling sides at a higher resolution. &lt;/p&gt;&lt;p&gt;This value should be divisable by &amp;quot;Resolution (Nested)&amp;quot; and a multiple of &amp;quot;Resolution (Simple)&amp;quot; in order to result in no gaps or double-sampled areas.&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-               </property>
-               <property name="text">
-                <string>Size of Nested Area:</string>
-               </property>
-              </widget>
-             </item>
-             <item row="5" column="1" colspan="2">
-              <widget class="QSpinBox" name="spinBox_nestedArea">
-               <property name="maximum">
-                <number>1000000</number>
-               </property>
+               <attribute name="buttonGroup">
+                <string notr="true">buttonGroup_mapStyle</string>
+               </attribute>
               </widget>
              </item>
             </layout>
@@ -916,8 +916,8 @@
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>523</width>
-                <height>583</height>
+                <width>533</width>
+                <height>591</height>
                </rect>
               </property>
               <layout class="QHBoxLayout" name="horizontalLayout_18">
@@ -1025,14 +1025,17 @@
                 </widget>
                </item>
                <item>
-                <widget class="QLabel" name="label_numberOfMaps">
-                 <property name="text">
-                  <string>Will result in generating [x] maps</string>
+                <spacer name="verticalSpacer_5">
+                 <property name="orientation">
+                  <enum>Qt::Vertical</enum>
                  </property>
-                 <property name="wordWrap">
-                  <bool>true</bool>
+                 <property name="sizeHint" stdset="0">
+                  <size>
+                   <width>20</width>
+                   <height>40</height>
+                  </size>
                  </property>
-                </widget>
+                </spacer>
                </item>
               </layout>
              </item>
@@ -1629,7 +1632,7 @@
                 <string/>
                </property>
                <property name="checked">
-                <bool>true</bool>
+                <bool>false</bool>
                </property>
               </widget>
              </item>
@@ -1653,7 +1656,7 @@
             <double>200.000000000000000</double>
            </property>
            <property name="value">
-            <double>200.000000000000000</double>
+            <double>0.000000000000000</double>
            </property>
           </widget>
          </item>
@@ -1673,7 +1676,7 @@
             <double>999999999.000000000000000</double>
            </property>
            <property name="value">
-            <double>400.000000000000000</double>
+            <double>0.000000000000000</double>
            </property>
           </widget>
          </item>
@@ -1815,9 +1818,9 @@
       <property name="geometry">
        <rect>
         <x>0</x>
-        <y>0</y>
-        <width>715</width>
-        <height>217</height>
+        <y>-4</y>
+        <width>698</width>
+        <height>223</height>
        </rect>
       </property>
       <layout class="QHBoxLayout" name="horizontalLayout_20" stretch="0">
@@ -1874,6 +1877,19 @@
           <layout class="QHBoxLayout" name="horizontalLayout_13">
            <item>
             <layout class="QVBoxLayout" name="verticalLayout_13">
+             <item>
+              <widget class="QLabel" name="label_run0">
+               <property name="font">
+                <font>
+                 <weight>75</weight>
+                 <bold>true</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>Point-sampling     </string>
+               </property>
+              </widget>
+             </item>
              <item>
               <widget class="QCheckBox" name="checkBox_extent">
                <property name="enabled">
@@ -1941,6 +1957,52 @@
               </widget>
              </item>
              <item>
+              <spacer name="verticalSpacer_4">
+               <property name="orientation">
+                <enum>Qt::Vertical</enum>
+               </property>
+               <property name="sizeHint" stdset="0">
+                <size>
+                 <width>20</width>
+                 <height>40</height>
+                </size>
+               </property>
+              </spacer>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <spacer name="horizontalSpacer_8">
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item>
+            <layout class="QVBoxLayout" name="verticalLayout_14">
+             <item>
+              <widget class="QLabel" name="label_run1And2">
+               <property name="font">
+                <font>
+                 <weight>75</weight>
+                 <bold>true</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>Basemap</string>
+               </property>
+               <property name="wordWrap">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
               <widget class="QCheckBox" name="checkBox_taxa">
                <property name="enabled">
                 <bool>false</bool>
@@ -1962,10 +2024,6 @@
                </property>
               </widget>
              </item>
-            </layout>
-           </item>
-           <item>
-            <layout class="QVBoxLayout" name="verticalLayout_14">
              <item>
               <widget class="QCheckBox" name="checkBox_vegCom">
                <property name="enabled">
@@ -1988,76 +2046,6 @@
                </property>
               </widget>
              </item>
-             <item>
-              <widget class="QCheckBox" name="checkBox_pollenCounts">
-               <property name="enabled">
-                <bool>false</bool>
-               </property>
-               <property name="mouseTracking">
-                <bool>false</bool>
-               </property>
-               <property name="styleSheet">
-                <string notr="true">color: rgb(0, 0, 0);</string>
-               </property>
-               <property name="text">
-                <string>Pollen counts set</string>
-               </property>
-               <property name="checkable">
-                <bool>true</bool>
-               </property>
-               <property name="checked">
-                <bool>false</bool>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QCheckBox" name="checkBox_parameters">
-               <property name="enabled">
-                <bool>false</bool>
-               </property>
-               <property name="mouseTracking">
-                <bool>false</bool>
-               </property>
-               <property name="styleSheet">
-                <string notr="true">color: rgb(0, 0, 0);</string>
-               </property>
-               <property name="text">
-                <string>Model Parameters set</string>
-               </property>
-               <property name="checkable">
-                <bool>true</bool>
-               </property>
-               <property name="checked">
-                <bool>false</bool>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QCheckBox" name="checkBox_windRose">
-               <property name="enabled">
-                <bool>false</bool>
-               </property>
-               <property name="mouseTracking">
-                <bool>false</bool>
-               </property>
-               <property name="styleSheet">
-                <string notr="true">color: rgb(0, 0, 0);</string>
-               </property>
-               <property name="text">
-                <string>(Optional) Wind rose set</string>
-               </property>
-               <property name="checkable">
-                <bool>true</bool>
-               </property>
-               <property name="checked">
-                <bool>false</bool>
-               </property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <layout class="QVBoxLayout" name="verticalLayout_15">
              <item>
               <widget class="QCheckBox" name="checkBox_rules">
                <property name="enabled">
@@ -2094,17 +2082,252 @@
               </widget>
              </item>
              <item>
-              <widget class="QCheckBox" name="checkBox_iterations">
+              <spacer name="verticalSpacer_3">
+               <property name="orientation">
+                <enum>Qt::Vertical</enum>
+               </property>
+               <property name="sizeHint" stdset="0">
+                <size>
+                 <width>20</width>
+                 <height>40</height>
+                </size>
+               </property>
+              </spacer>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <spacer name="horizontalSpacer_6">
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item>
+            <layout class="QHBoxLayout" name="horizontalLayout_14">
+             <item>
+              <layout class="QVBoxLayout" name="verticalLayout_6">
+               <item>
+                <widget class="QLabel" name="label_2">
+                 <property name="font">
+                  <font>
+                   <weight>75</weight>
+                   <bold>true</bold>
+                  </font>
+                 </property>
+                 <property name="text">
+                  <string>MSA thought experiment     </string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QCheckBox" name="checkBox_samplingSites">
+                 <property name="enabled">
+                  <bool>false</bool>
+                 </property>
+                 <property name="mouseTracking">
+                  <bool>false</bool>
+                 </property>
+                 <property name="styleSheet">
+                  <string notr="true">color: rgb(0, 0, 0);</string>
+                 </property>
+                 <property name="text">
+                  <string>Sampling sites set</string>
+                 </property>
+                 <property name="checkable">
+                  <bool>true</bool>
+                 </property>
+                 <property name="checked">
+                  <bool>false</bool>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QCheckBox" name="checkBox_iterations">
+                 <property name="enabled">
+                  <bool>false</bool>
+                 </property>
+                 <property name="styleSheet">
+                  <string notr="true">color: rgb(0, 0, 0);</string>
+                 </property>
+                 <property name="text">
+                  <string>Iterations set</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QCheckBox" name="checkBox_parameters">
+                 <property name="enabled">
+                  <bool>false</bool>
+                 </property>
+                 <property name="mouseTracking">
+                  <bool>false</bool>
+                 </property>
+                 <property name="styleSheet">
+                  <string notr="true">color: rgb(0, 0, 0);</string>
+                 </property>
+                 <property name="text">
+                  <string>Model Parameters set</string>
+                 </property>
+                 <property name="checkable">
+                  <bool>true</bool>
+                 </property>
+                 <property name="checked">
+                  <bool>false</bool>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QCheckBox" name="checkBox_windRose">
+                 <property name="enabled">
+                  <bool>false</bool>
+                 </property>
+                 <property name="mouseTracking">
+                  <bool>false</bool>
+                 </property>
+                 <property name="styleSheet">
+                  <string notr="true">color: rgb(0, 0, 0);</string>
+                 </property>
+                 <property name="text">
+                  <string>(Optional) Wind rose set</string>
+                 </property>
+                 <property name="checkable">
+                  <bool>true</bool>
+                 </property>
+                 <property name="checked">
+                  <bool>false</bool>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <spacer name="verticalSpacer_6">
+                 <property name="orientation">
+                  <enum>Qt::Vertical</enum>
+                 </property>
+                 <property name="sizeHint" stdset="0">
+                  <size>
+                   <width>20</width>
+                   <height>40</height>
+                  </size>
+                 </property>
+                </spacer>
+               </item>
+              </layout>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <spacer name="horizontalSpacer_7">
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item>
+            <layout class="QVBoxLayout" name="verticalLayout_15">
+             <item>
+              <widget class="QLabel" name="label_run3">
+               <property name="font">
+                <font>
+                 <weight>75</weight>
+                 <bold>true</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>MSA reconstruction</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="checkBox_fit">
                <property name="enabled">
+                <bool>false</bool>
+               </property>
+               <property name="mouseTracking">
                 <bool>false</bool>
                </property>
                <property name="styleSheet">
                 <string notr="true">color: rgb(0, 0, 0);</string>
                </property>
                <property name="text">
-                <string>Iterations set</string>
+                <string>Fit set</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+               <property name="checked">
+                <bool>false</bool>
                </property>
               </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="checkBox_dataToKeep">
+               <property name="enabled">
+                <bool>false</bool>
+               </property>
+               <property name="mouseTracking">
+                <bool>false</bool>
+               </property>
+               <property name="styleSheet">
+                <string notr="true">color: rgb(0, 0, 0);</string>
+               </property>
+               <property name="text">
+                <string>Data to Keep set</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+               <property name="checked">
+                <bool>false</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="checkBox_pollenCounts">
+               <property name="enabled">
+                <bool>false</bool>
+               </property>
+               <property name="mouseTracking">
+                <bool>false</bool>
+               </property>
+               <property name="styleSheet">
+                <string notr="true">color: rgb(0, 0, 0);</string>
+               </property>
+               <property name="text">
+                <string>Pollen counts set</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+               <property name="checked">
+                <bool>false</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <spacer name="verticalSpacer_2">
+               <property name="orientation">
+                <enum>Qt::Vertical</enum>
+               </property>
+               <property name="sizeHint" stdset="0">
+                <size>
+                 <width>20</width>
+                 <height>40</height>
+                </size>
+               </property>
+              </spacer>
              </item>
             </layout>
            </item>
@@ -2227,7 +2450,7 @@ background-color: rgb(199, 199, 199);</string>
   </connection>
  </connections>
  <buttongroups>
-  <buttongroup name="buttonGroup_2"/>
   <buttongroup name="buttonGroup_mapStyle"/>
+  <buttongroup name="buttonGroup_2"/>
  </buttongroups>
 </ui>

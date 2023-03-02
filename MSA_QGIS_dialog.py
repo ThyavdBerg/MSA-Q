@@ -159,10 +159,10 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.mQgsFileWidget_startingPoint.fileChanged.connect(self.checkChecklist)
         self.mExtentGroupBox.extentChanged.connect(self.checkChecklist)
         self.spinBox_resolution.valueChanged.connect(self.checkChecklist)
-        self.tableWidget_vector.clicked.connect(self.checkChecklist)
-        self.tableWidget_raster.clicked.connect(self.checkChecklist)
-        self.tableWidget_taxa.clicked.connect(self.checkChecklist)
-        self.tableWidget_vegCom.clicked.connect(self.checkChecklist)
+        self.tableWidget_vector.itemSelectionChanged.connect(self.checkChecklist)
+        self.tableWidget_raster.itemSelectionChanged.connect(self.checkChecklist)
+        self.tableWidget_taxa.itemChanged.connect(self.checkChecklist)
+        self.tableWidget_vegCom.itemChanged.connect(self.checkChecklist)
         self.pushButton_addSite.clicked.connect(self.checkChecklist)
         self.pushButton_removeSite.clicked.connect(self.checkChecklist)
         self.pushButton_importPollen.clicked.connect(self.checkChecklist)
@@ -188,8 +188,13 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.radioButton_createMap.clicked.connect(self.checkChecklist)
         self.radioButton_loadPointMap.clicked.connect(self.checkChecklist)
         self.radioButton_loadBaseMap.clicked.connect(self.checkChecklist)
-
-
+        self.radioButton_keepFitted.clicked.connect(self.checkChecklist)
+        self.radioButton_keepTwo.clicked.connect(self.checkChecklist)
+        self.radioButton_keepAll.clicked.connect(self.checkChecklist)
+        self.doubleSpinBox_fit.valueChanged.connect(self.checkChecklist)
+        self.doubleSpinBox_cumulFit.valueChanged.connect(self.checkChecklist)
+        self.tableWidget_sites.itemChanged.connect(self.checkChecklist)
+        self.spinBox_iter.valueChanged.connect(self.checkChecklist)
 
 ### DIRECTLY DIALOG RELATED FUNCTIONS
     def openRunDialog(self):
@@ -208,12 +213,12 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         if self.radioButton_loadPointMap.isChecked():
             input_state = 1
             if self.check_state == 1:  #cannot make a point map if the input is a loaded point map, not enough input for basemap or MSA
-                iface.messageBar().pushMessage('Input incomplete', level=1)
-                return
+                iface.messageBar().pushMessage('Input incomplete, point-sampled map as input for point-sampled map', level=1)
+                return #TODO this should become possible where the input map is not yet point_sampled, for differently shaped grids.
         elif self.radioButton_loadBaseMap.isChecked():
             input_state = 2
             if self.check_state == 0 or self.check_state == 1:  # cannot make point or basemap if input is a basemap, not enough input for msa
-                iface.messageBar().pushMessage('Input incomplete', level=1)
+                iface.messageBar().pushMessage('Input incomplete, basemap as input for basemap', level=1)
                 return
 
         self.runDialog = MsaQgisRunDialog(self.check_state, input_state)
@@ -438,6 +443,24 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             self.checkBox_iterations.setChecked(True)
         else:
             self.checkBox_iterations.setChecked(False)
+        # Sampling sites set?
+        if self.tableWidget_sites.rowCount() != 0:
+            self.checkBox_samplingSites.setChecked(True)
+        else:
+            self.checkBox_samplingSites.setChecked(False)
+        # Fit set?
+        if self.doubleSpinBox_fit.value() != 0 or self.doubleSpinBox_cumulFit.value() != 0:
+            self.checkBox_fit.setChecked(True)
+        else:
+            self.checkBox_fit.setChecked(False)
+        # Data to Keep set?
+        if self.radioButton_keepFitted.isChecked() or \
+            self.radioButton_keepTwo.isChecked() or self.radioButton_keepAll.isChecked():
+            self.checkBox_dataToKeep.setChecked(True)
+        else:
+            self.checkBox_dataToKeep.setChecked(False)
+        # Pollen counts set?
+
 
         # Check which boxes have been checked or not to set the check state
         if (self.checkBox_extent.isChecked() and self.checkBox_resolution.isChecked()
@@ -447,10 +470,13 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                     and self.checkBox_ruleTree.isChecked()):
                 if self.dict_ruleTreeWidgets[1].isBaseGroup:  # Check if at least one base group rule
                     self.check_state = 1
-                #  note that existence of a base group is not a requirement for a full run
-                if (self.checkBox_pollenCounts.isChecked() and self.checkBox_parameters.isChecked()
-                        and self.checkBox_iterations.isChecked()):
+                if (self.checkBox_samplingSites.isChecked() and self.checkBox_iterations.isChecked() and
+                        self.checkBox_parameters.isChecked()):
                     self.check_state = 2
+                #  note that existence of a base group is not a requirement for a full run
+                    if (self.checkBox_pollenCounts.isChecked() and self.checkBox_dataToKeep.isChecked() and
+                            self.checkBox_fit.isChecked()):
+                        self.check_state = 3
         else:
             self.check_state = -1
 
@@ -2802,7 +2828,7 @@ class MsaQgisSuccesDialog(QtWidgets.QDialog,FORM_CLASS_SUCCES):
         self.spinBox_loadX.setEnabled(False)
 
 class MsaQgisRunDialog(QtWidgets.QDialog,FORM_CLASS_RUN):
-    def __init__(self, checklist_state, input_state, parent=None):
+    def __init__(self, check_state, input_state, parent=None):
         """Popup Constructor."""
         super(MsaQgisRunDialog, self).__init__(parent)
         self.setupUi(self)
@@ -2818,36 +2844,19 @@ class MsaQgisRunDialog(QtWidgets.QDialog,FORM_CLASS_RUN):
         self.radioButton_msa.clicked.connect(self.changeRunType)
         self.mQgsFileWidget.fileChanged.connect(self.checkIfPathLegit)
 
-        # Enable only parts of UI that are able to be ran
-        if checklist_state == 0:  # Only point sample possible
-            if input_state == 0:  # Create map from scratch, so point sample is possible
-                self.radioButton_basemap.setEnabled(False)
-                self.radioButton_msa.setEnabled(False)
-            else:  # Not set to create map from scratch, creating point sampled map not possible
-                iface.messageBar().pushMessage("Run Dialog Shouldn't have opened", level=2)
-                self.reject()
-        elif checklist_state == 1: # up to basemap possible
-            if input_state == 0: # set to create map from scratch, so creating basemap is possible
-                self.radioButton_msa.setEnabled(False)
-            elif input_state == 1: # set to load point sampled map, creating basemap is possible, but point sample not
-                self.radioButton_pointSample.setEnabled(False)
-                self.radioButton_msa.setEnabled(False)
-                pass
-            else:  # set to load from basemap, so making basemap not possible
-                iface.messageBar().pushMessage("Run Dialog Shouldn't have opened", level=2)
-                self.reject()
-            pass
-        elif checklist_state == 2: # entire MSA run possible
-            if input_state == 0: # set to create map from scratch, so all can be run
-                pass
-            elif input_state == 1: # set to load point map, so creating point map not possible
-                self.radioButton_pointSample.setEnabled(False)
-                pass
-            else: # set to load basemap, so making point map and basemap not possible
-                self.radioButton_pointSample.setEnabled(False)
-                self.radioButton_basemap.setEnabled(False)
-
-            pass
+        #enable only run_types that are able to be run
+        if check_state >= 0:
+            self.radioButton_pointSample.setEnabled(True)
+            if check_state >=1:
+                self.radioButton_basemap.setEnabled(True)
+                if check_state >=2:
+                    self.radioButton_msaThoughtExperiment.setEnabled(True)
+                    if check_state >=3:
+                        self.radioButton_msaReconstruction.setEnabled(True)
+        if input_state !=0:
+            self.radioButton_pointSample.setEnabled(False)
+        if input_state <1:
+            self.radioButton_basemap.setEnabled(False)
 
     def checkIfPathLegit(self):
         """Checks if the file path given in the file widget has been filled, and if so, if it points to an existing
