@@ -730,6 +730,7 @@ def calculateFit(map_name,n_of_sites, n_of_taxa, conn, cursor, iteration, fit_st
 
 
     cumul_fit = 0
+
     # Fit calculation: squared chord distance
     like_thres_met = 'Yes'
     for row_sites in range(n_of_sites):

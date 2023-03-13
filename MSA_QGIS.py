@@ -1486,6 +1486,7 @@ class MsaQgis:
             QgsMessageLog.logMessage(f"subprocess time = {time()-subprocess_time}", 'MSA_QGIS', Qgis.Info)
             QgsMessageLog.logMessage(f"processing time = {time()-startTime}", 'MSA_QGIS', Qgis.Info)
 
+
 ### Cleanup
             #Let user load data after finishing
             conn = sqlite3.connect(f'{save_directory}//MSA_output.sqlite')

@@ -9,8 +9,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>723</width>
-    <height>886</height>
+    <width>719</width>
+    <height>877</height>
    </rect>
   </property>
   <property name="contextMenuPolicy">
@@ -70,7 +70,7 @@
         <string notr="true">tab_rules {background-color: rgb(240, 240, 240)};</string>
        </property>
        <property name="currentIndex">
-        <number>3</number>
+        <number>0</number>
        </property>
        <widget class="QWidget" name="tab_envAndSpatial">
         <attribute name="title">
@@ -114,7 +114,7 @@
              <rect>
               <x>0</x>
               <y>0</y>
-              <width>692</width>
+              <width>684</width>
               <height>709</height>
              </rect>
             </property>
@@ -551,8 +551,8 @@
              <rect>
               <x>0</x>
               <y>0</y>
-              <width>709</width>
-              <height>630</height>
+              <width>705</width>
+              <height>623</height>
              </rect>
             </property>
             <layout class="QGridLayout" name="gridLayout_2">
@@ -916,8 +916,8 @@
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>533</width>
-                <height>591</height>
+                <width>525</width>
+                <height>580</height>
                </rect>
               </property>
               <layout class="QHBoxLayout" name="horizontalLayout_18">
@@ -1100,8 +1100,8 @@
              <rect>
               <x>0</x>
               <y>0</y>
-              <width>709</width>
-              <height>630</height>
+              <width>705</width>
+              <height>623</height>
              </rect>
             </property>
             <layout class="QGridLayout" name="gridLayout_3" rowstretch="0,0,0,0,0">
@@ -1818,8 +1818,8 @@
       <property name="geometry">
        <rect>
         <x>0</x>
-        <y>-4</y>
-        <width>698</width>
+        <y>0</y>
+        <width>690</width>
         <height>223</height>
        </rect>
       </property>
@@ -2262,7 +2262,7 @@
                 <string notr="true">color: rgb(0, 0, 0);</string>
                </property>
                <property name="text">
-                <string>Fit set</string>
+                <string>Fit set </string>
                </property>
                <property name="checkable">
                 <bool>true</bool>
@@ -2450,7 +2450,7 @@ background-color: rgb(199, 199, 199);</string>
   </connection>
  </connections>
  <buttongroups>
-  <buttongroup name="buttonGroup_mapStyle"/>
   <buttongroup name="buttonGroup_2"/>
+  <buttongroup name="buttonGroup_mapStyle"/>
  </buttongroups>
 </ui>
