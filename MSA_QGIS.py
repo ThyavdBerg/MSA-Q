@@ -37,6 +37,7 @@ from qgis._core import QgsRectangle
 from qgis.core import QgsApplication, QgsMessageLog, Qgis,  QgsVectorLayer, QgsField, QgsGeometry, QgsPointXY, QgsFeature,QgsVectorLayerJoinInfo, QgsProject, QgsSpatialIndex
 from qgis.utils import iface
 from PyQt5.QtWidgets import QTableWidgetItem
+from subprocess import Popen, PIPE
 
 # Initialize Qt resources from file resources.py. IDE will tell you it's not importing anything, IDE is wrong.
 from .resources import *
@@ -599,7 +600,7 @@ class MsaQgis:
         # Calculate distance weighting per taxon
         # Define distance weighting function
         cursor.execute('BEGIN TRANSACTION')
-        if self.dlg.comboBox_dispModel.currentText() == 'Prentice-Sugita':
+        if self.dlg.comboBox_dispModel.currentText() == 'HUMPOL mire model':
             conn.create_function("DISTANCEWEIGHT", 5, SqlDwPrenticeSugita)
             # Calculate the pollen dispersal and deposition functions
             for row in range(self.dlg.tableWidget_taxa.rowCount()):
@@ -625,6 +626,18 @@ class MsaQgis:
         QgsMessageLog.logMessage("Creation of distance weighted plant abundance tables finished", 'MSA_QGIS',
                                  Qgis.Info)
 
+    def createTableCombinedPollen(self, conn, cursor):
+        """Sets up an empty table that will later be filled with the simulated pollen percentages"""
+        create_table_str = f'CREATE TABLE simulated_pollen(map_id TEXT, site_name TEXT, '
+        for row in range(self.dlg.tableWidget_taxa.rowCount()):
+            cursor.execute(f'SELECT taxon_code FROM "taxa" WHERE rowid IS {row + 1}')
+            taxon = cursor.fetchone()[0]
+            if row + 1 == self.dlg.tableWidget_taxa.rowCount():
+                create_table_str += f'sim_{taxon}_percent REAL)'
+            else:
+                create_table_str += f'sim_{taxon}_percent REAL,'
+        cursor.execute(create_table_str)
+        conn.commit()
 
 #** POINT SAMPLING
     def createPointLayer(self):
@@ -1421,6 +1434,13 @@ class MsaQgis:
             if self.dlg.checkBox_enableWindrose.isChecked():
                 self.createTableWindrose(conn, cursor)
             self.createTablePollenLookupBasin(conn, cursor)
+            self.createTableCombinedPollen(conn,cursor)
+
+            n_of_sites = self.dlg.tableWidget_sites.rowCount()
+            n_of_taxa = self.dlg.tableWidget_taxa.rowCount()
+            n_of_vegcom = self.dlg.tableWidget_vegCom.rowCount()
+
+
             cursor.execute(f'VACUUM INTO "{save_directory}//temp_file_sql_input.sqlite";')
             conn.commit()
 
@@ -1438,8 +1458,11 @@ class MsaQgis:
                 run_type = "1"
                 number_of_iters = "0"
             elif self.dlg.run_type == 2:
-                #runs full MSA
+                #runs for thought experiments
                 run_type = "2"
+                number_of_iters = str(self.dlg.spinBox_iter.value())
+            elif self.dlg.run_type == 3:
+                run_type = "3"
                 number_of_iters = str(self.dlg.spinBox_iter.value())
             else:
                 QgsMessageLog.logMessage("Error, run_type incorrect", 'MSA_QGIS', Qgis.Info)
@@ -1447,7 +1470,6 @@ class MsaQgis:
 
             QgsMessageLog.logMessage("starting subprocess", 'MSA_QGIS', Qgis.Info)
             subprocess_time=time()
-            from subprocess import Popen, PIPE
             basepath = dirname(abspath(__file__))
             file_to_run = basepath + "\MSA_QGIS_Main_msa_subprocess.py"
             running_msa = Popen(["python", file_to_run], stdout= PIPE, stdin=PIPE, stderr=PIPE, text= True)
@@ -1456,10 +1478,11 @@ class MsaQgis:
                         f"{self.dlg.checkBox_enableWindrose.isChecked()}\n{self.dlg.doubleSpinBox_fit.value()}\n"
                         f"{self.dlg.doubleSpinBox_cumulFit.value()}\n{self.dlg.comboBox_fit.currentText()}\n"
                         f"{self.dlg.radioButton_keepFitted.isChecked()}\n{self.dlg.radioButton_keepTwo.isChecked()}\n"
-                        f"{number_of_entries}\n{self.dlg.radioButton_nestedMap.isChecked()}")[0]
+                        f"{number_of_entries}\n{self.dlg.radioButton_nestedMap.isChecked()}\n"
+                        f"{n_of_sites}\n{n_of_taxa}\n{n_of_vegcom}")[0]
 
             subprocess_output, subprocess_error = running_msa.communicate()
-            QgsMessageLog.logMessage(f'output = {subprocess_output} \n error = {subprocess_error}', 'subprocess', Qgis.Info)
+            QgsMessageLog.logMessage(f'output = {subprocess_output} \n error = {subprocess_error}', 'MSA_QGIS', Qgis.Info)
             QgsMessageLog.logMessage(f"subprocess time = {time()-subprocess_time}", 'MSA_QGIS', Qgis.Info)
             QgsMessageLog.logMessage(f"processing time = {time()-startTime}", 'MSA_QGIS', Qgis.Info)
 

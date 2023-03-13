@@ -44,6 +44,9 @@
     <layout class="QVBoxLayout" name="verticalLayout">
      <item>
       <widget class="QRadioButton" name="radioButton_pointSample">
+       <property name="enabled">
+        <bool>false</bool>
+       </property>
        <property name="text">
         <string>Create map with point sampled environmental variables</string>
        </property>
@@ -51,20 +54,29 @@
      </item>
      <item>
       <widget class="QRadioButton" name="radioButton_basemap">
+       <property name="enabled">
+        <bool>false</bool>
+       </property>
        <property name="text">
         <string>Create basemap with only base rules from rule tree</string>
        </property>
       </widget>
      </item>
      <item>
-      <widget class="QRadioButton" name="radioButton_msa">
+      <widget class="QRadioButton" name="radioButton_msaThoughtExperiment">
+       <property name="enabled">
+        <bool>false</bool>
+       </property>
        <property name="text">
         <string>Run MSA thought experiment (without fit)</string>
        </property>
       </widget>
      </item>
      <item>
-      <widget class="QRadioButton" name="radioButton">
+      <widget class="QRadioButton" name="radioButton_msaReconstruction">
+       <property name="enabled">
+        <bool>false</bool>
+       </property>
        <property name="text">
         <string>Run MSA reconstruction (with fit)</string>
        </property>

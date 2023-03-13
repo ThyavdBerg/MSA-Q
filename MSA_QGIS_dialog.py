@@ -2837,11 +2837,13 @@ class MsaQgisRunDialog(QtWidgets.QDialog,FORM_CLASS_RUN):
         # Events
         self.radioButton_pointSample.clicked.connect(self.enableButtonBox)
         self.radioButton_basemap.clicked.connect(self.enableButtonBox)
-        self.radioButton_msa.clicked.connect(self.enableButtonBox)
+        self.radioButton_msaThoughtExperiment.clicked.connect(self.enableButtonBox)
+        self.radioButton_msaReconstruction.clicked.connect(self.enableButtonBox)
         self.mQgsFileWidget.fileChanged.connect(self.enableButtonBox)
         self.radioButton_pointSample.clicked.connect(self.changeRunType)
         self.radioButton_basemap.clicked.connect(self.changeRunType)
-        self.radioButton_msa.clicked.connect(self.changeRunType)
+        self.radioButton_msaThoughtExperiment.clicked.connect(self.changeRunType)
+        self.radioButton_msaReconstruction.clicked.connect(self.changeRunType)
         self.mQgsFileWidget.fileChanged.connect(self.checkIfPathLegit)
 
         #enable only run_types that are able to be run
@@ -2855,7 +2857,7 @@ class MsaQgisRunDialog(QtWidgets.QDialog,FORM_CLASS_RUN):
                         self.radioButton_msaReconstruction.setEnabled(True)
         if input_state !=0:
             self.radioButton_pointSample.setEnabled(False)
-        if input_state <1:
+        if input_state ==2:
             self.radioButton_basemap.setEnabled(False)
 
     def checkIfPathLegit(self):
@@ -2880,7 +2882,7 @@ class MsaQgisRunDialog(QtWidgets.QDialog,FORM_CLASS_RUN):
     def enableButtonBox(self):
         """Checks if all of the input is legit, and if yes, enables the ok button"""
         if (self.radioButton_pointSample.isChecked() or self.radioButton_basemap.isChecked()
-                or self.radioButton_msa.isChecked()):
+                or self.radioButton_msaThoughtExperiment.isChecked() or self.radioButton_msaReconstruction.isChecked()):
             path_state = self.checkIfPathLegit()
             self.buttonBox_ok.setEnabled(path_state)
         else:
@@ -2890,15 +2892,18 @@ class MsaQgisRunDialog(QtWidgets.QDialog,FORM_CLASS_RUN):
         """Changes the run type based on which radiobutton is checked.
         0 = only point sample
         1 = only basemap
-        2 = run full msa
+        2 = run MSA without fit (thought experiment)
+        3 = run MSA with fit (full reconstruction)
         -1 = invalid input"""
 
         if self.radioButton_pointSample.isChecked():
             self.run_type = 0
         elif self.radioButton_basemap.isChecked():
             self.run_type = 1
-        elif self.radioButton_msa.isChecked():
+        elif self.radioButton_msaThoughtExperiment.isChecked():
             self.run_type = 2
+        elif self.radioButton_msaReconstruction.isChecked():
+            self.run_type = 3
         else:
             self.run_type = -1
 
