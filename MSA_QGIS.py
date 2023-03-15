@@ -950,20 +950,25 @@ class MsaQgis:
 
 
         # Join tables - TODO add if statement to skip for no vector layers or no raster layers
-        self.vector_point_filled_ras.startEditing()
-        join_info = QgsVectorLayerJoinInfo()
-        join_info.setJoinLayer(self.vector_point_filled_vec)
-        join_info.setJoinFieldName('msa_id')
-        join_info.setTargetFieldName('msa_id')
-        join_info.setUsingMemoryCache(True)
-        if self.dlg.radioButton_nestedMap.isChecked:
-            join_info.setJoinFieldNamesBlockList(['geom_X', 'geom_Y', 'veg_com', 'chance_to_happen', 'resolution'])
+        if self.dlg.tableWidget_selRaster.rowCount() == 0:
+            self.vector_point_filled_ras = self.vector_point_filled_vec
+        elif self.dlg.tableWidget_selected.rowCount == 0:
+            pass
         else:
-            join_info.setJoinFieldNamesBlockList(['geom_X', 'geom_Y', 'veg_com', 'chance_to_happen'])
-        join_info.setPrefix('')
-        self.vector_point_filled_ras.addJoin(join_info)
-        self.vector_point_filled_ras.updateFields()
-        self.vector_point_filled_ras.commitChanges()
+            self.vector_point_filled_ras.startEditing()
+            join_info = QgsVectorLayerJoinInfo()
+            join_info.setJoinLayer(self.vector_point_filled_vec)
+            join_info.setJoinFieldName('msa_id')
+            join_info.setTargetFieldName('msa_id')
+            join_info.setUsingMemoryCache(True)
+            if self.dlg.radioButton_nestedMap.isChecked:
+                join_info.setJoinFieldNamesBlockList(['geom_X', 'geom_Y', 'veg_com', 'chance_to_happen', 'resolution'])
+            else:
+                join_info.setJoinFieldNamesBlockList(['geom_X', 'geom_Y', 'veg_com', 'chance_to_happen'])
+            join_info.setPrefix('')
+            self.vector_point_filled_ras.addJoin(join_info)
+            self.vector_point_filled_ras.updateFields()
+            self.vector_point_filled_ras.commitChanges()
 
         QgsMessageLog.logMessage("Native points sampling finished", 'MSA_QGIS', Qgis.Info)
 
@@ -1485,7 +1490,6 @@ class MsaQgis:
             QgsMessageLog.logMessage(f'output = {subprocess_output} \n error = {subprocess_error}', 'MSA_QGIS', Qgis.Info)
             QgsMessageLog.logMessage(f"subprocess time = {time()-subprocess_time}", 'MSA_QGIS', Qgis.Info)
             QgsMessageLog.logMessage(f"processing time = {time()-startTime}", 'MSA_QGIS', Qgis.Info)
-
 
 ### Cleanup
             #Let user load data after finishing
