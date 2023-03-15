@@ -615,6 +615,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.tableWidget_vegCom, ETC
 
         """
+        #TODO bugfix load vegetation communities correctly.
         #TODO windrose data, metadata, notes
         file_name = self.qgsFileWidget_importHandbag.filePath()
         if not os.path.isfile(file_name):
@@ -1463,15 +1464,19 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
 
         if result:
             # Check for errors, critical, do NOT add entry to table
+
             veg_com_list = [tableWidget_vegCom.item(row,0).text() for row in range(tableWidget_vegCom.rowCount())]
             if self.veg_com_popup.lineEdit_vegComName.text() == '': # no name was entered, critical error
                 iface.messageBar().pushMessage('No name for the vegetation community was entered, '
                                                'please try again.', level=2)
                 return
-            elif self.veg_com_popup.lineEdit_vegComName.text() in veg_com_list: # vegcom name is already in use
-                iface.messageBar().pushMessage('Vegetation community already exists, please try again.', level=2)
-                return
-            for taxon_name in self.veg_com_popup.taxon_dict: # One of the taxa is set to 0% add without that taxa and give a warning.
+            if tableWidget_vegCom.rowCount() == 0:
+                pass
+            else:
+                if self.veg_com_popup.lineEdit_vegComName.text() in veg_com_list: # vegcom name is already in use
+                    iface.messageBar().pushMessage('Vegetation community already exists, please try again.', level=2)
+                    return
+            for taxon_name in self.veg_com_popup.taxon_dict: # One of the taxa is set to 0%
                 if self.veg_com_popup.taxon_dict[taxon_name].value() == 0:
                     iface.messageBar().pushMessage('One of the taxa did not have percentage assigned, please try again.'
                                                    ,level=2)
@@ -1507,38 +1512,37 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         """ Removes selected entries from a table with a pop-up warning
 
         :params from UI: self.tableWidget_taxa"""
-        # popup
-        pass #TODO create pop-up warning
         tableWidget_taxa = self.tableWidget_taxa
-        for row in tableWidget_taxa.selectionModel().selectedRows():
+        for row in reversed(tableWidget_taxa.selectionModel().selectedRows()):
             tableWidget_taxa.removeRow(row.row())
 
     def removeVegComEntry(self):
         """ Removes selected entries from the vegetation community table with a pop-up warning
 
         :params from UI: self.tableWidget_vegCom"""
-        # Popup
-         #TODO create pop-up warning
-
-
-        # Remove the row containing the selected vegcom
         tableWidget_vegCom = self.tableWidget_vegCom
         columns_to_remove = []
 
         if tableWidget_vegCom.selectionModel().selectedRows():
-            for row in tableWidget_vegCom.selectionModel().selectedRows():
+            for row in reversed(tableWidget_vegCom.selectionModel().selectedRows()):
                 tableWidget_vegCom.removeRow(row.row())
         # Remove columns that no longer contain data after the row was removed
+        # TODO do not remove "Name" column
         for column in range(1,tableWidget_vegCom.columnCount()):
-            item_list = []
+            has_values = 0
             for row in range(tableWidget_vegCom.rowCount()):
-                if tableWidget_vegCom.item(row,column):
-                    item_list.append(tableWidget_vegCom.item(row,column))
-            if not item_list:
+                if tableWidget_vegCom.item(row, column).text() == '':
+                    print(f'{row}, {column} has no item')
+                else:
+                    print(f'{row}, {column} is {tableWidget_vegCom.item(row,column).text()}')
+                    has_values = 1
+
+            if has_values == 0 and tableWidget_vegCom.horizontalHeaderItem(column).text() != "Name":
                 columns_to_remove.append(column)
-        for list_item in columns_to_remove:
-            tableWidget_vegCom.removeColumn(list_item)
-            tableWidget_vegCom.setColumnCount(self.tableWidget_vegCom.columnCount()-1)
+        for column in reversed(columns_to_remove):
+            print(f'remove column {tableWidget_vegCom.horizontalHeaderItem(column).text()}')
+            tableWidget_vegCom.removeColumn(column)
+
                     
 ### BUTTON FUNCTIONS RULES TAB
     def addNewRule(self):
@@ -2751,6 +2755,7 @@ class MsaQgisAddVegComPopup (QtWidgets.QDialog, FORM_CLASS_VEGCOM):
         label = QLabel('Taxon ' + str(int((self.previous_gridRow * 0.5) + 1)), self)
         self.comboBox_taxon = QComboBox()
         self.doubleSpin_taxonPercentage = QDoubleSpinBox()
+        self.doubleSpin_taxonPercentage.setMaximum(100.00)
         # insert the new widgets
         self.gridLayout.addWidget(label, self.previous_gridRow + 2, 0, 1, 4)
         self.gridLayout.addWidget(self.comboBox_taxon, self.previous_gridRow + 3, 0, 1, 3)
