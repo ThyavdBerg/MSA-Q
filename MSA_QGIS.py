@@ -405,7 +405,7 @@ class MsaQgis:
             snapped_y = str(cursor.fetchone()[0])
 
             for entry in range(1,number_of_entries+1):  #  No msa_id 1 is made, so exclude it. +1 because range is exclusive
-                # Insert data per msa_id (select all of them from msa_id with x and y) #TODO even with index still fairly slow.
+                # Insert data per msa_id (select all of them from msa_id with x and y)
                 cursor.execute(f'INSERT INTO dist_dir(msa_id, site_name, geom_x, geom_y) '
                                f'VALUES({entry}, "{sample_site}", '
                                f'(SELECT geom_x FROM "{basemap}" WHERE msa_id = {entry}), '
@@ -413,11 +413,11 @@ class MsaQgis:
 
             # Calculate distance
             update_distance_string = f'UPDATE dist_dir SET distance = (SQRT(((geom_x-{snapped_x}) * (geom_x - {snapped_x}))' \
-                                     f'+ ((geom_y - {snapped_y}) * (geom_y - {snapped_y}))))'
+                                     f'+ ((geom_y - {snapped_y}) * (geom_y - {snapped_y})))) WHERE site_name = "{sample_site}"'
             cursor.execute(update_distance_string)
             # Determine direction
             update_direction_string = f'UPDATE dist_dir SET direction = (SELECT CARDDIR((geom_x - {snapped_x}), ' \
-                                      f'(geom_y - {snapped_y})))'
+                                      f'(geom_y - {snapped_y}))) WHERE site_name = "{sample_site}"'
             cursor.execute(update_direction_string)
 
 
