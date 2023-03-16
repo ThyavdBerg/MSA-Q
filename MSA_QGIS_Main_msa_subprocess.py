@@ -250,7 +250,7 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
 
     :param dict_rule_tree: nested, simplefied dictionary derived from rule tree widgets given by user
     :type dict_rule_tree: dict """
-    retries = 100 # number of times the connection will retry to save the table to file.
+    retries = 20 # number of times the connection will retry to save the table to file.
     # Open a connection to the basemap to copy everything.
     try:
         conn = copySqlitetoMem(save_directory,file)
@@ -282,36 +282,39 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
     #Save what needs to be saved
     cursor.execute(f"ATTACH DATABASE '{save_directory}/MSA_output.sqlite' as file_db")
     #Save all the simulated pollen
-    for increment in range(retries):
-        try:
-            cursor.execute('BEGIN TRANSACTION')
-            for row in range(n_of_sites):
-                cursor.execute(f'SELECT site_name FROM "sampling_sites" WHERE rowid IS {row + 1}')
-                site_name = cursor.fetchone()[0]
-                insert_simulated_pollen = (f'INSERT INTO file_db.[simulated_pollen](map_id, site_name, ')
-                for row2 in range(n_of_taxa):
-                    cursor.execute(f'SELECT taxon_code FROM "taxa" WHERE rowid IS {row2 + 1}')
-                    taxon = cursor.fetchone()[0]
-                    # Add all columns of taxon percent
-                    if row2 + 1 == n_of_taxa:
-                        insert_simulated_pollen += f'sim_{taxon}_percent)'
-                    else:
-                        insert_simulated_pollen += f'sim_{taxon}_percent, '
-                # Add all values
-                insert_simulated_pollen += f'VALUES("{map_name}", "{site_name}", '
-                for row2 in range(n_of_taxa):
-                    cursor.execute(f'SELECT taxon_code FROM "taxa" WHERE rowid IS {row2 + 1}')
-                    taxon = cursor.fetchone()[0]
-                    if row2 + 1 == n_of_taxa:
-                        insert_simulated_pollen += f'(SELECT sim_{taxon}_percent FROM simpol_{map_name}_{iteration} WHERE "site_name" = "{site_name}"))'
-                    else:
-                        insert_simulated_pollen += f'(SELECT sim_{taxon}_percent FROM simpol_{map_name}_{iteration} WHERE "site_name" = "{site_name}"),'
-                cursor.execute(insert_simulated_pollen)
-                cursor.execute('COMMIT')
-            break
-        except sqlite3.OperationalError:
-            print("retry connection (simulated pollen)...", flush=True)
-            time.sleep(increment)
+    print(scenario_dict)
+    for key in scenario_dict:
+        if scenario_dict[key][1]==True:  #check if final rule
+            map_name = f"{key}_{iteration}"
+            for increment in range(retries):
+                try:
+                    for row in range(n_of_sites):
+                        cursor.execute(f'SELECT site_name FROM "sampling_sites" WHERE rowid IS {row + 1}')
+                        site_name = cursor.fetchone()[0]
+                        insert_simulated_pollen = (f'INSERT INTO file_db.[simulated_pollen](map_id, site_name, ')
+                        for row2 in range(n_of_taxa):
+                            cursor.execute(f'SELECT taxon_code FROM "taxa" WHERE rowid IS {row2 + 1}')
+                            taxon = cursor.fetchone()[0]
+                            # Add all columns of taxon percent
+                            if row2 + 1 == n_of_taxa:
+                                insert_simulated_pollen += f'sim_{taxon}_percent)'
+                            else:
+                                insert_simulated_pollen += f'sim_{taxon}_percent, '
+                        # Add all values
+                        insert_simulated_pollen += f'VALUES("{map_name}", "{site_name}", '
+                        for row2 in range(n_of_taxa):
+                            cursor.execute(f'SELECT taxon_code FROM "taxa" WHERE rowid IS {row2 + 1}')
+                            taxon = cursor.fetchone()[0]
+                            if row2 + 1 == n_of_taxa:
+                                insert_simulated_pollen += f'(SELECT sim_{taxon}_percent FROM simpol_{map_name} WHERE "site_name" = "{site_name}"))'
+                            else:
+                                insert_simulated_pollen += f'(SELECT sim_{taxon}_percent FROM simpol_{map_name} WHERE "site_name" = "{site_name}"),'
+                        cursor.execute(insert_simulated_pollen)
+                        conn.commit()
+                    break
+                except sqlite3.OperationalError as e:
+                    print("retry connection (simulated pollen)...", flush=True)
+                    time.sleep(increment)
 
     if fit_stats[3] == 'True':
         # Only save maps that made fit
@@ -657,7 +660,7 @@ def simulatePollen(map_name,iteration, conn, cursor, windrose, fit_stats, nested
     print(f'calculating pollen loadings for {map_name}took {time.time()-time_polload} to run', flush=True)
 
     # Create table for calculating pollen percentages
-    create_table_str = f'CREATE TABLE simpol_{map_name}_{iteration}(site_name TEXT, '
+    create_table_str = f'CREATE TABLE simpol_{map_name}(site_name TEXT, '
     for row in range(n_of_taxa):
         cursor.execute(f'SELECT taxon_code FROM "taxa" WHERE rowid IS {row + 1}')
         taxon = cursor.fetchone()[0]
@@ -683,7 +686,7 @@ def simulatePollen(map_name,iteration, conn, cursor, windrose, fit_stats, nested
         cursor.execute(total_pollen_load_str)
         total_pollen_load = cursor.fetchone()[0]
 
-        insert_pollen_percent_str = f'INSERT INTO simpol_{map_name}_{iteration}(site_name, '
+        insert_pollen_percent_str = f'INSERT INTO simpol_{map_name}(site_name, '
         for row2 in range(n_of_taxa):
             cursor.execute(f'SELECT taxon_code FROM "taxa" WHERE rowid IS {row2+1}')
             taxon = cursor.fetchone()[0]
@@ -717,7 +720,7 @@ def simulatePollen(map_name,iteration, conn, cursor, windrose, fit_stats, nested
         veg_com = cursor.fetchone()[0]
         cursor.execute(
             f'UPDATE maps SET "percent_{veg_com}" = (SELECT (SELECT(SELECT COUNT(*) FROM "{map_name}" WHERE veg_com = "{veg_com}")*1.0)/' \
-            f'(SELECT(SELECT COUNT(*) FROM "{map_name}")*1.0)* 100.0)')
+            f'(SELECT(SELECT COUNT(*) FROM "{map_name}")*1.0)* 100.0) WHERE map_id = "{map_name}";')
     conn.commit()
 
     end_time_pol = time.time() - start_time
