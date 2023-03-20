@@ -564,6 +564,7 @@ def assignVegCom(dict_nest_rule, conn, cursor, map_name, rule, spacing, number_o
     cursor.execute('DROP TABLE IF EXISTS "temp";')
     print(f"assigning vegcom for {map_name} with {rule} took {time.time()-vegcom_start_time}", flush = True)
 
+
 def simulatePollen(map_name,iteration, conn, cursor, windrose, fit_stats, nested,n_of_sites, n_of_taxa, n_of_vegcom):
     """Simulates the pollen per map, per site and determines whether the fit between the simulated pollen and actual
      pollen is close enough to retain the map if the user selected to retain only fitted maps.
@@ -621,42 +622,50 @@ def simulatePollen(map_name,iteration, conn, cursor, windrose, fit_stats, nested
                                    f'SELECT "resolution" FROM "{map_name}" WHERE ("msa_id" = {site_name}{map_name}.msa_id)) * ('\
                                    f'SELECT "vegcom_percent" FROM vegcom WHERE "taxon_code" = "{taxon}" ' \
                                    f'AND "veg_com" = (SELECT "veg_com" FROM "{map_name}" WHERE (' \
-                                   f'msa_id = {site_name}{map_name}.msa_id))) * (' \
-                                   f'SELECT "{taxon}_DW" FROM PollenLookup WHERE PollenLookup.distance = (' \
-                                   f'SELECT "distance" FROM dist_dir WHERE (msa_id = {site_name}{map_name}.msa_id) ' \
-                                   f'AND (site_name = "{site_name}"))) * (' \
-                                   f'SELECT "distance" FROM dist_dir WHERE (msa_id = {site_name}{map_name}.msa_id) ' \
-                                   f'AND (site_name = "{site_name}")'
+                                   f'msa_id = {site_name}{map_name}.msa_id))) * ' \
+                                   f'(CASE WHEN {site_name}{map_name}.pseudo_id is NULL THEN ' \
+                                   f'(SELECT "{taxon}_DW" FROM PollenLookup WHERE PollenLookup.distance = ' \
+                                   f'(SELECT "distance" FROM dist_dir WHERE (msa_id = {site_name}{map_name}.msa_id) ' \
+                                   f'AND (site_name = "{site_name}"))) ' \
+                                   f'ELSE ' \
+                                   f'(SELECT "{taxon}_DW" FROM PollenLookup WHERE PollenLookup.distance = ' \
+                                   f'(SELECT "distance" FROM pseudo_points WHERE (pseudo_id = {site_name}{map_name}.pseudo_id))) END)'
+
             else:
                 update_table_str = f'UPDATE {site_name}{map_name} SET "{taxon}_PL" = (SELECT(' \
                                    f'SELECT "RelPP" FROM taxa WHERE "taxon_code" = "{taxon}") * (' \
                                    f'SELECT "vegcom_percent" FROM vegcom WHERE "taxon_code" = "{taxon}" ' \
                                    f'AND "veg_com" = (SELECT "veg_com" FROM "{map_name}" WHERE (' \
-                                   f'msa_id = {site_name}{map_name}.msa_id))) * (' \
-                                   f'SELECT "{taxon}_DW" FROM PollenLookup WHERE PollenLookup.distance = (' \
-                                   f'SELECT "distance" FROM dist_dir WHERE (msa_id = {site_name}{map_name}.msa_id) ' \
-                                   f'AND (site_name = "{site_name}"))) * (' \
-                                   f'SELECT "distance" FROM dist_dir WHERE (msa_id = {site_name}{map_name}.msa_id) ' \
-                                   f'AND (site_name = "{site_name}")'
+                                   f'msa_id = {site_name}{map_name}.msa_id))) * ' \
+                                   f'(CASE WHEN {site_name}{map_name}.pseudo_id is NULL THEN ' \
+                                   f'(SELECT "{taxon}_DW" FROM PollenLookup WHERE PollenLookup.distance = ' \
+                                   f'(SELECT "distance" FROM dist_dir WHERE (msa_id = {site_name}{map_name}.msa_id) ' \
+                                   f'AND (site_name = "{site_name}"))) ' \
+                                   f'ELSE ' \
+                                   f'(SELECT "{taxon}_DW" FROM PollenLookup WHERE PollenLookup.distance = ' \
+                                   f'(SELECT "distance" FROM pseudo_points WHERE (pseudo_id = {site_name}{map_name}.pseudo_id))) END)'
+
             if windrose == "True":
-                find_windrose_str=(f') * ( SELECT "windrose_weight" FROM windrose WHERE('
-                                   f'CASE WHEN {site_name}{map_name}.pseudo_id is NULL THEN "direction" = ('
-                                   f'SELECT "direction" FROM dist_dir WHERE ((msa_id = {site_name}{map_name}.msa_id) AND ('
-                                   f'site_name = "{site_name}"))) '
-                                   f'ELSE "direction" = (SELECT "direction" FROM pseudo_points WHERE (pseudo_id = {site_name}{map_name}.pseudo_id)) END)))')
+                find_windrose_str=(f' * (SELECT "windrose_weight" FROM windrose WHERE ('
+                                   f'CASE WHEN {site_name}{map_name}.pseudo_id is NULL THEN ("direction" = '
+                                   f'(SELECT "direction" FROM dist_dir WHERE ((msa_id = {site_name}{map_name}.msa_id) AND ('
+                                   f'site_name = "{site_name}")))) '
+                                   f'ELSE ("direction" = (SELECT "direction" FROM pseudo_points WHERE (pseudo_id = {site_name}{map_name}.pseudo_id))) '
+                                   f'END)))')
                 update_table_str += find_windrose_str
             else:
-                update_table_str += '))'
+                update_table_str += ')'
+            print(update_table_str)
             cursor.execute(update_table_str)
         cursor.execute('COMMIT')
         # conn.commit()
         #Adjust pollen load by 0.25 for pseudopoints (which contain 0.25 of the area of a "normal" point)
-        for row2 in range(n_of_taxa):
-            cursor.execute(f'SELECT taxon_code FROM "taxa" WHERE rowid IS {row2+1}')
-            taxon = cursor.fetchone()[0]
-            cursor.execute(f'UPDATE {site_name}{map_name} SET {taxon}_PL = ('
-                           f'SELECT "{taxon}_PL" * 0.25) WHERE pseudo_id IS NOT NULL')
-        conn.commit()
+        # for row2 in range(n_of_taxa):
+        #     cursor.execute(f'SELECT taxon_code FROM "taxa" WHERE rowid IS {row2+1}')
+        #     taxon = cursor.fetchone()[0]
+        #     cursor.execute(f'UPDATE {site_name}{map_name} SET {taxon}_PL = ('
+        #                    f'SELECT "{taxon}_PL" * 0.25) WHERE pseudo_id IS NOT NULL')
+        # conn.commit()
     print(f'calculating pollen loadings for {map_name}took {time.time()-time_polload} to run', flush=True)
 
     # Create table for calculating pollen percentages
@@ -725,6 +734,7 @@ def simulatePollen(map_name,iteration, conn, cursor, windrose, fit_stats, nested
 
     end_time_pol = time.time() - start_time
     print(f'calculating pollen percentages for {map_name} took {str(end_time_pol)} to run', flush=True)
+
 
 def calculateFit(map_name,n_of_sites, n_of_taxa, conn, cursor, iteration, fit_stats):
     """When running a full MSA reconstruction, calculates the fit in comparison to the actual pollen."""

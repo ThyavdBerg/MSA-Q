@@ -607,11 +607,11 @@ class MsaQgis:
 
 
                 taxon = self.dlg.tableWidget_taxa.item(row, 0).text()
-                atmos_const= self.dlg.doubleSpin_atmosConstant.value()
+                turb_const= self.dlg.doubleSpin_turbConstant.value()
                 diffusion_const = self.dlg.doubleSpin_diffConstant.value()
                 wind_speed = self.dlg.doubleSpin_windSpeed.value()
                 fall_speed = f'(SELECT "fall_speed" FROM "taxa" WHERE "taxon_code" = "{taxon}")'
-                update_DWPA_string = f'UPDATE PollenLookup SET {taxon}_DW = (SELECT DISTANCEWEIGHT({atmos_const}, ' \
+                update_DWPA_string = f'UPDATE PollenLookup SET {taxon}_DW = (SELECT DISTANCEWEIGHT({turb_const}, ' \
                                      f'{diffusion_const}, {wind_speed}, distance, {fall_speed}))'
                 cursor.execute(update_DWPA_string)
 

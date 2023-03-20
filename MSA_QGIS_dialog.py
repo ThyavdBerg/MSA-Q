@@ -115,7 +115,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
 
         # Events
         self.rejected.connect(self.closeAll)
-        self.doubleSpin_atmosConstant.valueChanged.connect(self.changeAtmosConstantValue)
+        self.doubleSpin_turbConstant.valueChanged.connect(self.changeAtmosConstantValue)
         self.mExtentGroupBox.setMapCanvas(iface.mapCanvas())
         self.mExtentGroupBox.extentChanged.connect(self.setExtent)
         self.getFieldsandBands(self.tableWidget_vector, self.tableWidget_raster)
@@ -167,7 +167,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.pushButton_removeSite.clicked.connect(self.checkChecklist)
         self.pushButton_importPollen.clicked.connect(self.checkChecklist)
         self.pushButton_removePollenFile.clicked.connect(self.checkChecklist)
-        self.doubleSpin_atmosConstant.valueChanged.connect(self.checkChecklist)
+        self.doubleSpin_turbConstant.valueChanged.connect(self.checkChecklist)
         self.doubleSpin_diffConstant.valueChanged.connect(self.checkChecklist)
         self.doubleSpin_windSpeed.valueChanged.connect(self.checkChecklist)
         self.checkBox_enableWindrose.clicked.connect(self.checkChecklist)
@@ -414,7 +414,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             self.checkBox_pollenCounts.setChecked(False)
         # Model Parameters set?
         if self.comboBox_dispModel.currentText() == 'HUMPOL mire model':
-            if self.doubleSpin_atmosConstant.value() != 0 and self.doubleSpin_diffConstant.value() != 0 and self.doubleSpin_windSpeed.value() !=0:
+            if self.doubleSpin_turbConstant.value() != 0 and self.doubleSpin_diffConstant.value() != 0 and self.doubleSpin_windSpeed.value() !=0:
                 self.checkBox_parameters.setChecked(True)
             else:
                 self.checkBox_parameters.setChecked(False)
@@ -528,9 +528,9 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
     def changeAtmosConstantValue(self):
         """ Changes the atmospheric constant value based on the value the user has given for the turbulence constant
 
-        :params from UI files: self.label_calculatedTurbConst, self.doubleSpin_atmosConstant """
+        :params from UI files: self.label_calculatedAtmosConst, self.doubleSpin_turbConstant """
 
-        self.label_calculatedTurbConst.setText(str(self.doubleSpin_atmosConstant.value()*0.5))
+        self.label_calculatedAtmosConst.setText(str(self.doubleSpin_turbConstant.value()*0.5))
 
     def getFieldsandBands(self, tableWidget_vector, tableWidget_raster):
         """Fills two table widgets with all fields from vector polygon layers and all bands from raster layers that are
@@ -1044,7 +1044,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             writer.writerow(['n of iterations',  n_of_iter])
             #model parameters
             dispersal_model = self.comboBox_dispModel.currentText()
-            atmostpheric_constant = self.doubleSpin_atmosConstant.value()
+            atmostpheric_constant = self.doubleSpin_turbConstant.value()
             diffusion_constant = self.doubleSpin_diffConstant.value()
             windspeed = self.doubleSpin_windSpeed.value()
             windrose_enabled = self.checkBox_enableWindrose.isChecked()
@@ -1249,13 +1249,17 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 elif row[0] == 'dispersal model':
                     self.comboBox_dispModel.setCurrentText(row[1])
                 elif row[0] == 'atmospheric constant':
-                    self.doubleSpin_atmosConstant.setValue(float(row[1]))
+                    self.doubleSpin_turbConstant.setValue(float(row[1]))
                 elif row[0] == 'diffusion constant':
                     self.doubleSpin_diffConstant.setValue(float(row[1]))
                 elif row[0] == 'windspeed':
                     self.doubleSpin_windSpeed.setValue(float(row[1]))
                 elif row[0] == 'Windrose enabled':
-                    self.checkBox_enableWindrose.setChecked(bool(row[1]))
+                    print(row[1])
+                    if row[1] == "False": #For some reason won't directly turn into bool with bool(), so we do it like this.
+                        self.checkBox_enableWindrose.setChecked(False)
+                    elif row[1] == "True":
+                        self.checkBox_enableWindrose.setChecked(True)
                 elif row[0] == 'windrose':
                     if self.checkBox_enableWindrose.isChecked:
                         self.doubleSpin_north.setValue(float(row[1]))

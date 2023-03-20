@@ -70,7 +70,7 @@
         <string notr="true">tab_rules {background-color: rgb(240, 240, 240)};</string>
        </property>
        <property name="currentIndex">
-        <number>0</number>
+        <number>5</number>
        </property>
        <widget class="QWidget" name="tab_envAndSpatial">
         <attribute name="title">
@@ -114,7 +114,7 @@
              <rect>
               <x>0</x>
               <y>0</y>
-              <width>684</width>
+              <width>688</width>
               <height>709</height>
              </rect>
             </property>
@@ -916,8 +916,8 @@
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>525</width>
-                <height>580</height>
+                <width>529</width>
+                <height>584</height>
                </rect>
               </property>
               <layout class="QHBoxLayout" name="horizontalLayout_18">
@@ -1392,22 +1392,22 @@
           </layout>
          </item>
          <item row="1" column="2">
-          <widget class="QLabel" name="label_turbConst">
+          <widget class="QLabel" name="label_atmosConst_2">
            <property name="toolTip">
             <string>Also known as: γ (lower case gamma)</string>
            </property>
            <property name="text">
-            <string>Turbulence constant</string>
+            <string>Atmospheric constant</string>
            </property>
           </widget>
          </item>
          <item row="1" column="0">
           <widget class="QLabel" name="label_atmosConst">
            <property name="toolTip">
-            <string>Also known as: diffusion coefficient, n</string>
+            <string>Also known as: n</string>
            </property>
            <property name="text">
-            <string>Atmostpheric constant</string>
+            <string>Turbulence constant</string>
            </property>
           </widget>
          </item>
@@ -1540,7 +1540,7 @@
           </widget>
          </item>
          <item row="1" column="3">
-          <widget class="QLabel" name="label_calculatedTurbConst">
+          <widget class="QLabel" name="label_calculatedAtmosConst">
            <property name="text">
             <string>[]</string>
            </property>
@@ -1681,7 +1681,7 @@
           </widget>
          </item>
          <item row="1" column="1">
-          <widget class="QDoubleSpinBox" name="doubleSpin_atmosConstant">
+          <widget class="QDoubleSpinBox" name="doubleSpin_turbConstant">
            <property name="value">
             <double>0.000000000000000</double>
            </property>
@@ -1819,7 +1819,7 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>690</width>
+        <width>694</width>
         <height>223</height>
        </rect>
       </property>
