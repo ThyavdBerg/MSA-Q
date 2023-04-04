@@ -1,10 +1,9 @@
 import sys
 import time
 import sqlite3
-from os.path import exists, isdir
+from os import path
 from pickle import load
 from multiprocessing import Process
-from random import randint
 from re import split
 import csv
 from math import sqrt
@@ -23,7 +22,7 @@ def checkInput():
     count = 1
     for line in sys.stdin:
         if count == 1:
-            if isdir(line[:-1]):
+            if path.isdir(line[:-1]):
                 save_directory = line[:-1]
                 count += 1
             else:
@@ -33,7 +32,7 @@ def checkInput():
                 from_basemap = line[:-1]
                 count +=1
             else:
-                if exists(from_basemap):
+                if path.exists(from_basemap):
                     from_basemap = line[:-1]
                     count+=1
                 else:
@@ -91,10 +90,10 @@ def loadFiles(save_directory):
     :param save_directory: URL location of the SQlite file containing the point sampled vector point layer
     as created in MSA_QGIS.py
     :type save_directory: str"""
-    with open(save_directory+"/temp_save_rule_dict.pkl", 'rb') as pkl_file:
+    with open(path.join(save_directory,"temp_save_rule_dict.pkl"), 'rb') as pkl_file:
         dict_nest_rule = load(pkl_file)
 
-    with open(save_directory + "/temp_save_ruletree_dict.pkl", 'rb') as pkl_file:
+    with open(path.join(save_directory , "temp_save_ruletree_dict.pkl"), 'rb') as pkl_file:
         dict_rule_tree = load(pkl_file)
 
     return dict_nest_rule, dict_rule_tree
@@ -109,7 +108,7 @@ def copySqlitetoMem(save_directory, file):
     :return: Sqlite connection in memory that contains the set of tables built in MSA_QGIS.py
     """
 
-    source = sqlite3.connect(save_directory+file)
+    source = sqlite3.connect(path.join(save_directory,file))
     #TODO check for existence of required tables
     conn = sqlite3.connect(":memory:")
     source.backup(conn)
@@ -189,8 +188,8 @@ def setupMSA(dict_rule_tree, dict_nest_rule, spacing, save_directory, file_name,
     :param file_name: file name and extension of the file that contains either the basemap or point-sampled map, (depending on which exists)
     :type file_name: str"""
     # Create an output file
-    output_conn = sqlite3.connect(save_directory + "//MSA_output.sqlite")
-    conn = sqlite3.connect(save_directory + file_name)
+    output_conn = sqlite3.connect(path.join(save_directory, 'MSA_output.sqlite'))
+    conn = sqlite3.connect(path.join(save_directory, file_name))
     conn.backup(output_conn)
     conn.close()
     output_conn.close()
@@ -214,15 +213,15 @@ def setupMSA(dict_rule_tree, dict_nest_rule, spacing, save_directory, file_name,
         process.join()
 
     # Save important tables
-    output_conn = sqlite3.connect(save_directory + "//MSA_output.sqlite")
+    output_conn = sqlite3.connect(path.join(save_directory, "MSA_output.sqlite"))
     cursor = output_conn.cursor()
     cursor.execute(f'SELECT * FROM "simulated_pollen"')
-    with open(f'{save_directory}//simulated_pollen_output.csv', 'w', newline='') as csv_file:
+    with open(path.join(save_directory, 'simulated_pollen_output.csv'), 'w', newline='') as csv_file:
         csv_writer = csv.writer(csv_file)
         csv_writer.writerow([i[0] for i in cursor.description])
         csv_writer.writerows(cursor)
     cursor.execute(f'SELECT * FROM "maps"')
-    with open(f'{save_directory}//simulated_likelihood_and_landscape.csv', 'w', newline='') as csv_file:
+    with open(path.join(save_directory, 'simulated_likelihood_and_landscape.csv'), 'w', newline='') as csv_file:
         csv_writer = csv.writer(csv_file)
         csv_writer.writerow([i[0] for i in cursor.description])
         csv_writer.writerows(cursor)
@@ -280,7 +279,7 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
                 calculateFit(map_name,n_of_sites, n_of_taxa, conn, cursor, iteration,fit_stats)
 
     #Save what needs to be saved
-    cursor.execute(f"ATTACH DATABASE '{save_directory}/MSA_output.sqlite' as file_db")
+    cursor.execute(f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
     #Save all the simulated pollen
     print(scenario_dict)
     for key in scenario_dict:
@@ -350,7 +349,7 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
                 time.sleep(increment)
         conn.commit()
         cursor.execute(f'SELECT * FROM "{map[0]}"')
-        with open(f'{save_directory}//{map[0]}.csv', 'w', newline='') as csv_file:
+        with open(path.join(save_directory, str(map[0])+'.csv'), 'w', newline='') as csv_file:
             csv_writer = csv.writer(csv_file)
             csv_writer.writerow([i[0] for i in cursor.description])
             csv_writer.writerows(cursor)
@@ -364,7 +363,7 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
             cursor.execute(f"DETACH DATABASE file_db")
             conn.commit()
             time.sleep(increment)
-            cursor.execute(f"ATTACH DATABASE '{save_directory}/MSA_output.sqlite' as file_db")
+            cursor.execute(f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
             conn.commit()
 
 
@@ -397,7 +396,7 @@ def makeBasemap(conn, cursor, dict_rule_tree, dict_nest_rule,spacing, save_direc
     for item in list_base_group_ids:
         assignVegCom(dict_nest_rule, conn, cursor, "basemap", dict_rule_tree[item][3], spacing, number_of_entries) #3 is rule name
     #save a file with the basemap
-    cursor.execute(f'VACUUM INTO "{save_directory}//output_basemap.sqlite";')
+    cursor.execute(f'VACUUM INTO "{path.join(save_directory, "output_basemap.sqlite")}";')
     conn.commit()
 
 def assignVegCom(dict_nest_rule, conn, cursor, map_name, rule, spacing, number_of_entries):
@@ -565,6 +564,7 @@ def assignVegCom(dict_nest_rule, conn, cursor, map_name, rule, spacing, number_o
     print(f"assigning vegcom for {map_name} with {rule} took {time.time()-vegcom_start_time}", flush = True)
 
 
+
 def simulatePollen(map_name,iteration, conn, cursor, windrose, fit_stats, nested,n_of_sites, n_of_taxa, n_of_vegcom):
     """Simulates the pollen per map, per site and determines whether the fit between the simulated pollen and actual
      pollen is close enough to retain the map if the user selected to retain only fitted maps.
@@ -655,17 +655,16 @@ def simulatePollen(map_name,iteration, conn, cursor, windrose, fit_stats, nested
                 update_table_str += find_windrose_str
             else:
                 update_table_str += ')'
-            print(update_table_str)
             cursor.execute(update_table_str)
         cursor.execute('COMMIT')
-        # conn.commit()
-        #Adjust pollen load by 0.25 for pseudopoints (which contain 0.25 of the area of a "normal" point)
-        # for row2 in range(n_of_taxa):
-        #     cursor.execute(f'SELECT taxon_code FROM "taxa" WHERE rowid IS {row2+1}')
-        #     taxon = cursor.fetchone()[0]
-        #     cursor.execute(f'UPDATE {site_name}{map_name} SET {taxon}_PL = ('
-        #                    f'SELECT "{taxon}_PL" * 0.25) WHERE pseudo_id IS NOT NULL')
-        # conn.commit()
+        conn.commit()
+        # Adjust pollen load by 0.25 for pseudopoints (which contain 0.25 of the area of a "normal" point)
+        for row2 in range(n_of_taxa):
+            cursor.execute(f'SELECT taxon_code FROM "taxa" WHERE rowid IS {row2+1}')
+            taxon = cursor.fetchone()[0]
+            cursor.execute(f'UPDATE {site_name}{map_name} SET {taxon}_PL = ('
+                           f'SELECT "{taxon}_PL" * 0.25) WHERE pseudo_id IS NOT NULL')
+        conn.commit()
     print(f'calculating pollen loadings for {map_name}took {time.time()-time_polload} to run', flush=True)
 
     # Create table for calculating pollen percentages
@@ -736,6 +735,7 @@ def simulatePollen(map_name,iteration, conn, cursor, windrose, fit_stats, nested
     print(f'calculating pollen percentages for {map_name} took {str(end_time_pol)} to run', flush=True)
 
 
+
 def calculateFit(map_name,n_of_sites, n_of_taxa, conn, cursor, iteration, fit_stats):
     """When running a full MSA reconstruction, calculates the fit in comparison to the actual pollen."""
     start_time = time.time()
@@ -799,6 +799,7 @@ if __name__ == "__main__":
     # Open pickled files
     dict_nest_rule, dict_rule_tree = loadFiles(save_directory)
     # Create the basemap if necessary
+    #TODO make it so that if only a basemap is being generated, no MSA_output is generated, the temp files are removed, and the only table in the output_basemap is the basemap table.
     if from_basemap == "0": #No basemap has been made
         list_is_base_group = []
         for key in dict_rule_tree:
@@ -808,11 +809,11 @@ if __name__ == "__main__":
             if run_type == "1":
                 sys.exit("Error in subprocess, run_type = 2 (make only basemap), but no entries in rule tree were designated as base group")
             else: #Carry on to do a full MSA, but start from point_sampled_map
-                setupMSA(dict_rule_tree,dict_nest_rule, spacing,save_directory, "//temp_file_sql_input.sqlite", windrose, fit_stats,number_of_entries, nested, n_of_sites, n_of_taxa, n_of_vegcom, run_type)
+                setupMSA(dict_rule_tree,dict_nest_rule, spacing,save_directory, "temp_file_sql_input.sqlite", windrose, fit_stats,number_of_entries, nested, n_of_sites, n_of_taxa, n_of_vegcom, run_type)
         else: #some entries were designated as basegroup
              if run_type == "1" or run_type == "2" or run_type == "3":
                  # Create the basemap
-                 conn = copySqlitetoMem(save_directory, "//temp_file_sql_input.sqlite") #Make sqlite connection and copy to memory
+                 conn = copySqlitetoMem(save_directory, "temp_file_sql_input.sqlite") #Make sqlite connection and copy to memory
                  cursor = conn.cursor()
                  makeBasemap(conn, cursor, dict_rule_tree,dict_nest_rule, spacing, save_directory, number_of_entries)
                  try:
@@ -823,14 +824,14 @@ if __name__ == "__main__":
                      #basemap is saved as part of makeBasemap, move on to end subprocess
                      pass
                  elif run_type == "2" or run_type == "3": #continue with full MSA
-                     setupMSA(dict_rule_tree,dict_nest_rule, spacing,save_directory, "//output_basemap.sqlite", windrose, fit_stats, number_of_entries, nested,n_of_sites, n_of_taxa, n_of_vegcom,run_type)
+                     setupMSA(dict_rule_tree,dict_nest_rule, spacing,save_directory, "output_basemap.sqlite", windrose, fit_stats, number_of_entries, nested,n_of_sites, n_of_taxa, n_of_vegcom,run_type)
              else: # Some error occurred in setting up the run, this code should not be reached
                  sys.exit(f"Error in subprocess, run_type is incorrect, \n run_type = {run_type}")
     else: #A basemap exists
         if run_type == "1":
             sys.exit(f"Error in subprocess, run_type is make basemap, but a basemap already exists. Quitting run")
         elif run_type == "2" or run_type == "3":
-            setupMSA(dict_rule_tree,dict_nest_rule, spacing,save_directory, "//temp_file_sql_input.sqlite", windrose, fit_stats, number_of_entries, nested,n_of_sites, n_of_taxa, n_of_vegcom, run_type)
+            setupMSA(dict_rule_tree,dict_nest_rule, spacing,save_directory, "temp_file_sql_input.sqlite", windrose, fit_stats, number_of_entries, nested,n_of_sites, n_of_taxa, n_of_vegcom, run_type)
         else:
             sys.exit(f"Error in subprocess, run_type is incorrect for full run, \n run_type = {run_type}")
 

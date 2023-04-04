@@ -26,8 +26,7 @@ from pickle import dump as pickledump
 from time import time, strftime, localtime
 import sqlite3
 import sys
-from os.path import expanduser, join, dirname, exists, abspath
-from os import remove
+from os import remove, path
 from math import sqrt
 from pandas import read_csv
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, QVariant
@@ -48,8 +47,8 @@ from .MSA_QGIS_distance_weighting_sql_methods import SqlDwPrenticeSugita
 
 
 # Import processing tools from Qgis (make sure python interpreter contains path C:\OSGeo4W64\apps\qgis\python\plugins)
-home = expanduser("~")
-sys.path.append(home + r'\OSGeo4W64\apps\qgis\python\plugins')
+home = path.expanduser("~")
+sys.path.append(path.join(home, r'\OSGeo4W64\apps\qgis\python\plugins'))
 from processing import run as runqgisprocess
 from processing.core.Processing import Processing
 Processing.initialize()
@@ -69,15 +68,15 @@ class MsaQgis:
         # Save reference to the QGIS interface
         self.iface = iface
         # initialize plugin directory
-        self.plugin_dir = dirname(__file__)
+        self.plugin_dir = path.dirname(__file__)
         # initialize locale
         locale = QSettings().value('locale/userLocale')[0:2]
-        locale_path = join(
+        locale_path = path.join(
             self.plugin_dir,
             'i18n',
             'MsaQgis_{}.qm'.format(locale))
 
-        if exists(locale_path):
+        if path.exists(locale_path):
             self.translator = QTranslator()
             self.translator.load(locale_path)
             QCoreApplication.installTranslator(self.translator)
@@ -267,11 +266,11 @@ class MsaQgis:
             sample_x = table_sites.item(row,1).text()
             sample_y = table_sites.item(row,2).text()
             sample_is_lake = table_sites.item(row,3).text()
-            snapped_x = f'(SELECT geom_x FROM "{basemap}" WHERE geom_x BETWEEN ({sample_x}-{str(self.spacing)}) ' \
-                        f'AND ({sample_x}+{str(self.spacing)}) ORDER BY abs({sample_x}-geom_x) limit 1)'
+            snapped_x = f'(SELECT geom_x FROM "{basemap}" WHERE geom_x BETWEEN ({sample_x}-{self.spacing*0.5}) ' \
+                        f'AND ({sample_x}+{self.spacing *0.5}) ORDER BY abs({sample_x}-geom_x) limit 1)'
 
-            snapped_y = f'(SELECT geom_y FROM "{basemap}" WHERE geom_y BETWEEN ({sample_y}-{str(self.spacing)}) ' \
-                        f'AND ({sample_y}+{str(self.spacing)}) ORDER BY abs({sample_x}-geom_y) limit 1)'
+            snapped_y = f'(SELECT geom_y FROM "{basemap}" WHERE geom_y BETWEEN ({sample_y}-{self.spacing *0.5}) ' \
+                        f'AND ({sample_y}+{self.spacing*0.5}) ORDER BY abs({sample_x}-geom_y) limit 1)'
             values_string = f'"{sample_site}", {sample_x}, {sample_y}, "{sample_is_lake}", {snapped_x},  {snapped_y})'
             cursor.execute(insert_into_string+values_string)
             conn.commit()
@@ -486,7 +485,7 @@ class MsaQgis:
         cursor.execute(create_table_string)
 
         #fill table 4 points at a time
-        distance = sqrt(((self.spacing*0.5)**2)+((self.spacing*0.5)**2))
+        distance = sqrt(((self.spacing*0.25)**2)*2)
         table_sites = self.dlg.tableWidget_sites
         counter = 0
         cursor.execute('BEGIN TRANSACTION')
@@ -610,9 +609,9 @@ class MsaQgis:
                 turb_const= self.dlg.doubleSpin_turbConstant.value()
                 diffusion_const = self.dlg.doubleSpin_diffConstant.value()
                 wind_speed = self.dlg.doubleSpin_windSpeed.value()
-                fall_speed = f'(SELECT "fall_speed" FROM "taxa" WHERE "taxon_code" = "{taxon}")'
+                fall_speed = f'SELECT "fall_speed" FROM "taxa" WHERE "taxon_code" = "{taxon}"'
                 update_DWPA_string = f'UPDATE PollenLookup SET {taxon}_DW = (SELECT DISTANCEWEIGHT({turb_const}, ' \
-                                     f'{diffusion_const}, {wind_speed}, distance, {fall_speed}))'
+                                     f'{diffusion_const}, {wind_speed}, distance, ({fall_speed})))'
                 cursor.execute(update_DWPA_string)
 
         cursor.execute('COMMIT')
@@ -801,7 +800,6 @@ class MsaQgis:
 
          :param point_layer: vector point layer with equally spaced vector points as made in createPointLayer.
          :type point_layer: QgsVectorLayer"""
-
         #create destination layers for vector and raster layer in memory
         #TODO speed up possible with spatial index?
         QgsMessageLog.logMessage("Native points sampling initiated", 'MSA_QGIS', Qgis.Info)
@@ -949,7 +947,7 @@ class MsaQgis:
                 break
 
 
-        # Join tables - TODO add if statement to skip for no vector layers or no raster layers
+        # Join tables
         if self.dlg.tableWidget_selRaster.rowCount() == 0:
             self.vector_point_filled_ras = self.vector_point_filled_vec
         elif self.dlg.tableWidget_selected.rowCount == 0:
@@ -982,11 +980,14 @@ class MsaQgis:
         Connects to Sqlite db "empty_basemap.sqlite" in user given directory.
 
         :class params: self.dlg, self.vector_point_filled_ras"""
+
+        #TODO times out/crashes QGIS occasionally. Find issue.
+
         QgsMessageLog.logMessage("Convert native qgis points to SQLite initiated", 'MSA_QGIS', Qgis.Info)
         conn = sqlite3.connect(':memory:')
         cursor = conn.cursor()
         # generate create table string (add " so the query can deal with column names and values that contain spaces
-        start_string = 'CREATE TABLE empty_basemap ('
+        start_string = 'CREATE TABLE Empty_basemap ('
         map_fields = self.vector_point_filled_ras.fields()
         columns_string = ''
         for field in map_fields:
@@ -1010,13 +1011,15 @@ class MsaQgis:
         create_table_string = f'{start_string}{primary_key_string}{columns_string});'
         cursor.execute(create_table_string)
         conn.commit()
+        QgsMessageLog.logMessage("Point sampled map table created", 'MSA_QGIS', Qgis.Info)
+
         # fill in columns with the actual data
         map_features = self.vector_point_filled_ras.getFeatures()
         n_of_fields = len(map_fields)-1
         for feature in map_features:
             columns_string = ''
             values_string = ''
-            start_string = 'INSERT INTO empty_basemap ('
+            start_string = 'INSERT INTO Empty_basemap ('
             middle_string = ') VALUES ('
             end_string = ');'
             for field in map_fields:
@@ -1035,8 +1038,7 @@ class MsaQgis:
             insert_string = start_string + columns_string + middle_string + values_string + end_string
             cursor.execute(insert_string)
             conn.commit()
-
-        string_vacuum_into = f'VACUUM INTO "{save_directory}//pointsampled_basemap.sqlite";'
+        string_vacuum_into = f'VACUUM INTO "{path.join(save_directory,"pointsampled_basemap.sqlite")}";'
         cursor.execute(string_vacuum_into)
         conn.commit()
         conn.close()
@@ -1057,7 +1059,7 @@ class MsaQgis:
         :param level: Level of priority of the message (info, warning, critical)
         :type level: int"""
         if tag == 'MSA_QGIS':
-            file_name = self.dlg.save_directory + '/MSA_QGIS_log.txt'
+            file_name = path.join(self.dlg.save_directory, 'MSA_QGIS_log.txt')
             with open(file_name, 'a') as logfile:
                 logfile.write(f'{strftime("D[%Y-%m-%d] T[%H:%M:%S]", localtime())} {tag}({level}): {message}\n')
         else:
@@ -1125,9 +1127,8 @@ class MsaQgis:
             best_cumul_fit_map_string = f'SELECT map_id FROM maps WHERE likelihood_cumul = (SELECT MIN(likelihood_cumul) FROM maps)'
             cursor.execute(best_cumul_fit_map_string)
             fit_map = cursor.fetchone()[0]
-            #uri = f'file:///{save_directory}/{fit_map}.csv' + \
-             #     '?delimiter=,&xField=geom_x&yField=geom_y'
-            uri= f'file:///{save_directory}/{fit_map}.csv?delimiter=,&xField=geom_x&yField=geom_y'
+            uri = path.join(save_directory, f'{fit_map}.csv?delimiter=,&xField=geom_x&yField=geom_y')
+            uri = 'file:///' + uri
             csv_layer = QgsVectorLayer(uri, f'{fit_map}', "delimitedtext")
             csv_layer.setCrs(self.crs)
             if not csv_layer.isValid():
@@ -1152,7 +1153,9 @@ class MsaQgis:
                 for map in range(user_given_n):
                     fit_map = fit_map_list[map][0]
                     QgsMessageLog.logMessage(f'opening {fit_map}', 'MSA_QGIS', Qgis.Info)
-                    uri = f'file:///{save_directory}/{fit_map}.csv?delimiter=,&xField=geom_x&yField=geom_y'
+                    uri = path.join(save_directory,
+                                    f'{fit_map}.csv?delimiter=,&xField=geom_x&yField=geom_y')
+                    uri = 'file:///' + uri
                     csv_layer = QgsVectorLayer(uri, f'{fit_map}', "delimitedtext")
                     csv_layer.setCrs(self.crs)
                     if not csv_layer.isValid():
@@ -1165,7 +1168,9 @@ class MsaQgis:
                 for map in range(number_of_same_fit):
                     fit_map = fit_map_list[map][0]
                     QgsMessageLog.logMessage(f'opening {fit_map}', 'MSA_QGIS', Qgis.Info)
-                    uri = f'file:///{save_directory}/{fit_map}.csv?delimiter=,&xField=geom_x&yField=geom_y'
+                    uri = path.join(save_directory,
+                                    f'{fit_map}.csv?delimiter=,&xField=geom_x&yField=geom_y')
+                    uri = 'file:///' + uri
                     csv_layer = QgsVectorLayer(uri, f'{fit_map}', "delimitedtext")
                     csv_layer.setCrs(self.crs)
                     if not csv_layer.isValid():
@@ -1190,7 +1195,9 @@ class MsaQgis:
                             return
                         fit_map = map[0]
                         QgsMessageLog.logMessage(f'opening {fit_map}', 'MSA_QGIS', Qgis.Info)
-                        uri =f'file:///{save_directory}/{fit_map}.csv?delimiter=,&xField=geom_x&yField=geom_y'
+                        uri = path.join(save_directory,
+                                        f'{fit_map}.csv?delimiter=,&xField=geom_x&yField=geom_y')
+                        uri = 'file:///' + uri
                         csv_layer = QgsVectorLayer(uri, f'{fit_map}', "delimitedtext")
                         csv_layer.setCrs(self.crs)
                         if not csv_layer.isValid():
@@ -1206,7 +1213,8 @@ class MsaQgis:
             for map in fit_maps_list:
                 fit_map = map[0]
                 QgsMessageLog.logMessage(f'opening {fit_map}', 'MSA_QGIS', Qgis.Info)
-                uri = f'file:///{save_directory}/{fit_map}.csv?delimiter=,&xField=geom_x&yField=geom_y'
+                uri = path.join(save_directory, f'{fit_map}.csv?delimiter=,&xField=geom_x&yField=geom_y')
+                uri = 'file:///'+uri
                 csv_layer = QgsVectorLayer(uri, f'{fit_map}', "delimitedtext")
                 csv_layer.setCrs(self.crs)
                 if not csv_layer.isValid():
@@ -1222,7 +1230,8 @@ class MsaQgis:
             for map in all_maps_list:
                 map_to_load = map[0]
                 QgsMessageLog.logMessage(f'opening {map_to_load}', 'MSA_QGIS', Qgis.Info)
-                uri = f'file:///{save_directory}/{map_to_load}.csv?delimiter=,&xField=geom_x&yField=geom_y'
+                uri = path.join(save_directory, f'{map_to_load}.csv?delimiter=,&xField=geom_x&yField=geom_y')
+                uri = 'file:///'+uri
                 csv_layer = QgsVectorLayer(uri, f'{map_to_load}', "delimitedtext")
                 csv_layer.setCrs(self.crs)
                 if not csv_layer.isValid():
@@ -1232,7 +1241,7 @@ class MsaQgis:
         else:
             pass  # Do not load anything
 
-    def loadPointMap(self, point_sampled_file, save_directory, file_name = '//pointsampled_basemap.sqlite', point_or_base = 'point'):
+    def loadPointMap(self, point_sampled_file, save_directory, file_name = 'pointsampled_basemap.sqlite', point_or_base = 'point'):
         """ Loads a point layer csv file given by the user, checks if it's valid and changes into an SQLite file
         so it can be used further on in the process."""
         conn= sqlite3.connect(point_sampled_file)
@@ -1287,10 +1296,10 @@ class MsaQgis:
                 else:
                     csv_file = read_csv(point_sampled_file)
                     csv_file.to_sql('empty_basemap', conn, if_exists='fail', index=False, chunksize=10000)
-                    string_vacuum_into = f'VACUUM INTO "{save_directory}{file_name}";'
+                    string_vacuum_into = f'VACUUM INTO "{path.join(save_directory, file_name)}";'
                     cursor.execute(string_vacuum_into)
                     conn.close()
-                    return save_directory+file_name
+                    return path.join(save_directory,file_name)
         else:
             QgsMessageLog.logMessage(f'Input point sampled file invalid, not a .sqlite file ',
                                      'MSA_QGIS', Qgis.Critical)
@@ -1377,8 +1386,8 @@ class MsaQgis:
                                              'MSA_QGIS',
                                              Qgis.Warning)
                     QgsMessageLog.logMessage(str(e), 'MSA_QGIS', Qgis.Critical)
-                    message = 'Point sampling failed'
-                    self.dlg.runAbortedPopup(message, e) #not yet functional
+                    #message = 'Point sampling failed'
+                    #self.dlg.runAbortedPopup(message, e) #not yet functional
             if self.dlg.run_type < 1:
                 QgsMessageLog.logMessage(
                     f'Total execution time in seconds: {time() - startTime}', 'MSA_QGIS', Qgis.Info)
@@ -1386,13 +1395,13 @@ class MsaQgis:
                 return  # End run here if only a point sampled map is desired
 
 ### Make and save SQL tables and dictionaries
-            self.dlg.saveRuleDict(save_directory + "/temp_save_rule_dict.pkl")
-            self.saveRuleTreeDict(save_directory+"/temp_save_ruletree_dict.pkl")
+            self.dlg.saveRuleDict(path.join(save_directory,"temp_save_rule_dict.pkl"))
+            self.saveRuleTreeDict(path.join(save_directory,"temp_save_ruletree_dict.pkl"))
             conn = sqlite3.connect(":memory:")
             cursor = conn.cursor()
 
             if self.dlg.radioButton_createMap.isChecked():
-                file_name = save_directory + "//pointsampled_basemap.sqlite"
+                file_name = path.join(save_directory, "pointsampled_basemap.sqlite")
                 table_name = "Empty_basemap"
             elif self.dlg.radioButton_loadPointMap.isChecked():
                 #attach pointmap sql given by user and create relevant tables (check if exist and wipe first)
@@ -1404,7 +1413,7 @@ class MsaQgis:
                 elif file_name[-4:] == ".csv":
                     #needs to be converted to .sqlite file first
                     table_name = "Empty_basemap"
-                    file_name = self.loadPointMap(file_name, save_directory, '//temp_pointmap.sqlite')
+                    file_name = self.loadPointMap(file_name, save_directory, 'temp_pointmap.sqlite')
                     if file_name == "fail":
                         return
             elif self.dlg.radioButton_loadBaseMap.isChecked():
@@ -1414,7 +1423,7 @@ class MsaQgis:
                     pass
                     #can be opened directly, and passed on to the subprocess
                 elif file_name[-4:] == ".csv":
-                    file_name = self.loadPointMap(file_name, save_directory, '//temp_basemap.sqlite')
+                    file_name = self.loadPointMap(file_name, save_directory, 'temp_basemap.sqlite')
                     if file_name == "fail":
                         return
                 else:
@@ -1446,7 +1455,7 @@ class MsaQgis:
             n_of_vegcom = self.dlg.tableWidget_vegCom.rowCount()
 
 
-            cursor.execute(f'VACUUM INTO "{save_directory}//temp_file_sql_input.sqlite";')
+            cursor.execute(f'VACUUM INTO "{path.join(save_directory,"temp_file_sql_input.sqlite")}";')
             conn.commit()
 
 ### full MSA
@@ -1475,8 +1484,8 @@ class MsaQgis:
 
             QgsMessageLog.logMessage("starting subprocess", 'MSA_QGIS', Qgis.Info)
             subprocess_time=time()
-            basepath = dirname(abspath(__file__))
-            file_to_run = basepath + "\MSA_QGIS_Main_msa_subprocess.py"
+            basepath = path.dirname(path.abspath(__file__))
+            file_to_run = path.join(basepath, "MSA_QGIS_Main_msa_subprocess.py")
             running_msa = Popen(["python", file_to_run], stdout= PIPE, stdin=PIPE, stderr=PIPE, text= True)
             subprocess_input_save_dir = running_msa.communicate(
                 input=  f"{save_directory}\n{from_basemap}\n{run_type}\n{number_of_iters}\n{self.spacing}\n"
@@ -1493,31 +1502,36 @@ class MsaQgis:
 
 ### Cleanup
             #Let user load data after finishing
-            conn = sqlite3.connect(f'{save_directory}//MSA_output.sqlite')
+            conn = sqlite3.connect(path.join(save_directory,'MSA_output.sqlite'))
             cursor = conn.cursor()
             self.succesdlg.show()
-            self.reportStatsOnSucces(conn, cursor)
-            if self.succesdlg.exec_():
-                try:
-                    self.loadMapsToQGIS(conn, cursor, save_directory)
-                except Exception as e:
-                    QgsMessageLog.logMessage("Could not open maps to QGIS interface", 'MSA_QGIS', Qgis.Critical)
-                    QgsMessageLog.logMessage(str(e), 'MSA_QGIS', Qgis.Critical)
+            if run_type == "2" or run_type == "3":
+                self.reportStatsOnSucces(conn, cursor)
+                if self.succesdlg.exec_():
+                    try:
+                        self.loadMapsToQGIS(conn, cursor, save_directory)
+                    except Exception as e:
+                        QgsMessageLog.logMessage("Could not open maps to QGIS interface", 'MSA_QGIS', Qgis.Critical)
+                        QgsMessageLog.logMessage(str(e), 'MSA_QGIS', Qgis.Critical)
+            else:
+                pass
+                #TODO popup to indicate that point sampled map or basemap was completed.
             # Clean up connections and temporary files
             try:
                 conn.close()
             except:
                 pass
             try:
-                remove(rf'{save_directory}\temp_file_sql_input.sqlite')
+                remove(path.join(save_directory,'temp_file_sql_input.sqlite'))
             except:
                 QgsMessageLog.logMessage("Could not delete temp file temp_file_sql_input.sqlite, delete this file manually", 'MSA_QGIS', Qgis.Warning)
             try:
-                remove(rf'{save_directory}\temp_save_rule_dict.pkl')
+                remove(path.join(save_directory,'temp_save_rule_dict.pkl'))
             except:
                 QgsMessageLog.logMessage("Could not delete temp file temp_save_rule_dict.pkl, delete this file manually", 'MSA_QGIS', Qgis.Warning)
             try:
-                remove(rf'{save_directory}\temp_save_ruletree_dict.pkl')
+                remove(path.join(save_directory,'temp_save_ruletree_dict.pkl'))
+
             except:
                 QgsMessageLog.logMessage("Could not delete temp file temp_save_ruletree_dict.pkl, delete this file manually", 'MSA_QGIS', Qgis.Warning)
 
