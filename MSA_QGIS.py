@@ -250,6 +250,7 @@ class MsaQgis:
 
         :param basemap: Name of the basemap (should simply be "basemap")
         :type basemap:str"""
+
         QgsMessageLog.logMessage("Creation of site tables initiated", 'MSA_QGIS',
                                  Qgis.Info)
         # Create new table
@@ -267,10 +268,10 @@ class MsaQgis:
             sample_y = table_sites.item(row,2).text()
             sample_is_lake = table_sites.item(row,3).text()
             snapped_x = f'(SELECT geom_x FROM "{basemap}" WHERE geom_x BETWEEN ({sample_x}-{self.spacing*0.5}) ' \
-                        f'AND ({sample_x}+{self.spacing *0.5}) ORDER BY abs({sample_x}-geom_x) limit 1)'
+                        f'AND ({sample_x}+{self.spacing *0.5}) ORDER BY abs({sample_x}-geom_x) limit 1)' #TODO explicitly choose one instead of random
 
             snapped_y = f'(SELECT geom_y FROM "{basemap}" WHERE geom_y BETWEEN ({sample_y}-{self.spacing *0.5}) ' \
-                        f'AND ({sample_y}+{self.spacing*0.5}) ORDER BY abs({sample_x}-geom_y) limit 1)'
+                        f'AND ({sample_y}+{self.spacing*0.5}) ORDER BY abs({sample_x}-geom_y) limit 1)' #TODO explicitly choose one instead of random
             values_string = f'"{sample_site}", {sample_x}, {sample_y}, "{sample_is_lake}", {snapped_x},  {snapped_y})'
             cursor.execute(insert_into_string+values_string)
             conn.commit()
@@ -413,6 +414,8 @@ class MsaQgis:
             # Calculate distance
             update_distance_string = f'UPDATE dist_dir SET distance = (SQRT(((geom_x-{snapped_x}) * (geom_x - {snapped_x}))' \
                                      f'+ ((geom_y - {snapped_y}) * (geom_y - {snapped_y})))) WHERE site_name = "{sample_site}"'
+
+            print(update_distance_string)
             cursor.execute(update_distance_string)
             # Determine direction
             update_direction_string = f'UPDATE dist_dir SET direction = (SELECT CARDDIR((geom_x - {snapped_x}), ' \
@@ -950,7 +953,7 @@ class MsaQgis:
         # Join tables
         if self.dlg.tableWidget_selRaster.rowCount() == 0:
             self.vector_point_filled_ras = self.vector_point_filled_vec
-        elif self.dlg.tableWidget_selected.rowCount == 0:
+        elif self.dlg.tableWidget_selected.rowCount() == 0:
             pass
         else:
             self.vector_point_filled_ras.startEditing()
@@ -1361,7 +1364,7 @@ class MsaQgis:
         if result:
             startTime = time()
             # Things that are required independent of the type of run
-            self.crs = iface.activeLayer().crs()
+            self.crs = QgsProject.instance().crs()
             self.spacing = self.dlg.spinBox_resolution.value()
             save_directory = self.dlg.save_directory
 
@@ -1440,6 +1443,8 @@ class MsaQgis:
             conn.commit()
             cursor.execute('SELECT * FROM "basemap"')
             number_of_entries = len(cursor.fetchall())
+            #TODO add error catching for sampling points not within the grid.
+
             self.createSiteTables(conn, cursor, "basemap")
             self.createTaxonTables(conn, cursor)
             self.createTableDistanceToSite(conn, cursor, "basemap")
@@ -1534,6 +1539,8 @@ class MsaQgis:
 
             except:
                 QgsMessageLog.logMessage("Could not delete temp file temp_save_ruletree_dict.pkl, delete this file manually", 'MSA_QGIS', Qgis.Warning)
+
+            #TODO close connection to log file
 
             executionTime = (time() - startTime)
             QgsMessageLog.logMessage(
