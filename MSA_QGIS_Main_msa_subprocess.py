@@ -520,7 +520,6 @@ def assignVegCom(dict_nest_rule, conn, cursor, map_name, rule, spacing, number_o
             else:
                 dict_env_var[associated_column_name] = [dict_nest_rule[rule][10][key][0],
                                                         dict_nest_rule[rule][10][key][1]]
-
     #print(f'condition dict {map_name} took {time.time()-save_time} to run', flush=True)
     save_time = time.time()
     # Create the conditional update string(take into account that having multiple of the same env_var need to be treated as OR not AND
@@ -552,7 +551,10 @@ def assignVegCom(dict_nest_rule, conn, cursor, map_name, rule, spacing, number_o
                 string_to_insert = string_to_insert[:-4] + ') AND'
                 string_condition_env_var += string_to_insert
     string_condition_rule = start_string + string_condition_prev_veg_com + string_chance + string_condition_env_var
-    string_condition_rule = string_condition_rule[:-4] + ';'
+    if string_condition_prev_veg_com == '' and string_chance == '' and string_condition_env_var =='':
+        string_condition_rule = string_condition_rule[:-6]+';'
+    else:
+        string_condition_rule = string_condition_rule[:-4] + ';'
     #print(f'condition string {map_name} took {time.time()-save_time} to run', flush=True)
     save_time = time.time()
     cursor.execute(string_condition_rule)
@@ -756,7 +758,7 @@ def calculateFit(map_name,n_of_sites, n_of_taxa, conn, cursor, iteration, fit_st
                 taxon = cursor.fetchone()[0]
                 cursor.execute(f'SELECT taxon_percentage FROM "{site_name}" WHERE taxon_code = "{taxon}"')
                 real_taxon_total = cursor.fetchone()[0]
-                cursor.execute(f'SELECT sim_{taxon}_percent FROM "simpol_{map_name}_{iteration}" WHERE site_name = "{site_name}"')
+                cursor.execute(f'SELECT sim_{taxon}_percent FROM "simpol_{map_name}" WHERE site_name = "{site_name}"')
                 sim_taxon_total = cursor.fetchone()[0]
                 if row_taxa + 1 == n_of_taxa:
                     square_chord_str += f'(SELECT (SELECT SQRT({real_taxon_total})-SQRT({sim_taxon_total}))' \
