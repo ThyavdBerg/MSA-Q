@@ -265,19 +265,19 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             #show labels
             self.label_areaOfInterest.show()
             self.label_resolution.show()
-            self.label_fieldsAndBands.show()
-            self.label_currentSel.show()
-            self.label_vector.show()
-            self.label_raster.show()
+            #self.label_fieldsAndBands.show()
+            #self.label_currentSel.show()
+            #self.label_vector.show()
+            #self.label_raster.show()
             #hide labels
             self.label_mapFile.hide()
             #show items
             self.mExtentGroupBox.show()
             self.spinBox_resolution.show()
-            self.tableWidget_vector.show()
-            self.tableWidget_raster.show()
-            self.tableWidget_selected.show()
-            self.tableWidget_selRaster.show()
+            #self.tableWidget_vector.show()
+            #self.tableWidget_raster.show()
+            #self.tableWidget_selected.show()
+            #self.tableWidget_selRaster.show()
             if self.radioButton_nestedMap.isChecked():
                 self.label_resNested.show()
                 self.label_nestedArea.show()
@@ -292,12 +292,12 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
 
             self.label_mapFile.show()
             #hide labels
-            self.label_fieldsAndBands.hide()
-            self.label_currentSel.hide()
+            #self.label_fieldsAndBands.hide()
+            #self.label_currentSel.hide()
             self.label_areaOfInterest.hide()
             self.label_resolution.hide()
-            self.label_vector.hide()
-            self.label_raster.hide()
+            #self.label_vector.hide()
+            #self.label_raster.hide()
             self.label_resNested.hide()
             self.label_nestedArea.hide()
             #show widgets
@@ -306,10 +306,10 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             #hide widgets
             self.spinBox_resNested.hide()
             self.spinBox_nestedArea.hide()
-            self.tableWidget_vector.hide()
-            self.tableWidget_raster.hide()
-            self.tableWidget_selected.hide()
-            self.tableWidget_selRaster.hide()
+            #self.tableWidget_vector.hide()
+            #self.tableWidget_raster.hide()
+            #self.tableWidget_selected.hide()
+            #self.tableWidget_selRaster.hide()
             self.mExtentGroupBox.hide()
             self.spinBox_resolution.hide()
             #change radiobutton text
@@ -321,10 +321,10 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             #hide labels
             self.label_areaOfInterest.hide()
             self.label_resolution.hide()
-            self.label_fieldsAndBands.hide()
-            self.label_currentSel.hide()
-            self.label_vector.hide()
-            self.label_raster.hide()
+            #self.label_fieldsAndBands.hide()
+            #self.label_currentSel.hide()
+            #self.label_vector.hide()
+            #self.label_raster.hide()
 
             self.label_resNested.hide()
             self.label_nestedArea.hide()
@@ -335,10 +335,10 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             self.spinBox_nestedArea.hide()
             self.mExtentGroupBox.hide()
             self.spinBox_resolution.hide()
-            self.tableWidget_vector.hide()
-            self.tableWidget_raster.hide()
-            self.tableWidget_selected.hide()
-            self.tableWidget_selRaster.hide()
+            #self.tableWidget_vector.hide()
+            #self.tableWidget_raster.hide()
+            #self.tableWidget_selected.hide()
+            #self.tableWidget_selRaster.hide()
             #change radiobutton text
             self.radioButton_nestedMap.setText('Nested/Variable')
 
@@ -1255,7 +1255,6 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 elif row[0] == 'windspeed':
                     self.doubleSpin_windSpeed.setValue(float(row[1]))
                 elif row[0] == 'Windrose enabled':
-                    print(row[1])
                     if row[1] == "False": #For some reason won't directly turn into bool with bool(), so we do it like this.
                         self.checkBox_enableWindrose.setChecked(False)
                     elif row[1] == "True":
@@ -1929,10 +1928,9 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 # Find id of first in and first after series
                 first_in_series = str(selected_rule) + '0'
                 first_after_series = first_in_series + '0'
-                if len(self.dict_ruleTreeWidgets[int(first_after_series)].duplicate_ruleTreeWidgets) > 9:
-                    iface.messageBar().pushMessage("Error", "Cannot add more than 9 rules to a branch",
-                                                   level=1)
-                    return
+
+                # TODO ^
+
                 own_layout_series = self.dict_ruleTreeWidgets[int(first_in_series)].own_layout
                 # Find id of last in series
                 list_ids_to_check = []
@@ -1951,7 +1949,13 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                     if contains_only_1 == True:
                         list_ids_to_check.append(self.dict_ruleTreeWidgets[key].order_id)
                 prev_rule_series = max(list_ids_to_check)
-                rule_id = int(str(prev_rule_series) + '1')
+                # Limit to 9 rules in branch -> Find last series rule, count number of 1s, if more than 8 1s, return.
+                if len(str(prev_rule_series)[length_first_in_series:]) > 8:
+                    iface.messageBar().pushMessage("Error", "Cannot add more than 9 rules to a series",
+                                                   level=1)
+                    return
+                else:
+                    rule_id = int(str(prev_rule_series) + '1')
 
                 # Create the widget
                 ruleTreeWidget = RuleTreeWidget(self.nest_dict_rules, rule_id, next_layout= None,
@@ -1970,14 +1974,48 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 ruleTreeWidget.clicked.connect(
                     lambda *args, ruleTreeWidget_id=ruleTreeWidget.order_id, ruleTreeWidget=ruleTreeWidget:
                     self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
-                # Find all of the next rules after the first series rule and give them duplicates.
+
+                # Take duplicicates of previous in series and apply same number of duplicates to the new series rule
+                rtw_to_duplicate = self.dict_ruleTreeWidgets[prev_rule_series].duplicate_ruleTreeWidgets
+                to_add_to_duplicates = []
+                if rtw_to_duplicate == []:
+                    pass
+                else:
+                    for rtw in rtw_to_duplicate:
+                        rule_id_duplicate = int(str(rtw)+"1")
+                        print('rule id duplicate', rule_id_duplicate)
+                        ruleTreeWidget_duplicate = RuleTreeWidget(self.nest_dict_rules, rule_id_duplicate, None, None,
+                                                                  'duplicate')
+                        # Add to dictionary
+                        self.dict_ruleTreeWidgets[ruleTreeWidget_duplicate.order_id] = ruleTreeWidget_duplicate
+
+                        # Add to next widgets (of the previous rtw)
+                        self.dict_ruleTreeWidgets[rtw].next_ruleTreeWidgets.append(rule_id_duplicate)
+
+                        # Add previous rtw to prev_ruleTreeWidgets
+                        self.dict_ruleTreeWidgets[rule_id_duplicate].prev_ruleTreeWidgets = self.dict_ruleTreeWidgets[
+                            rtw].prev_ruleTreeWidgets.copy()
+
+                        # Add to duplicates to each other's lists
+
+                        for duplicate in self.dict_ruleTreeWidgets[rule_id].duplicate_ruleTreeWidgets:
+                            self.dict_ruleTreeWidgets[duplicate].duplicate_ruleTreeWidgets.append(rule_id_duplicate)
+                        to_add_to_duplicates.append(rule_id_duplicate)
+                    for rule in to_add_to_duplicates:
+                        self.dict_ruleTreeWidgets[rule_id].duplicate_ruleTreeWidgets.append(rule)
+
+                # Find all rules after the newly added rule and its duplicates and give them duplicates.
+                # first apply for the new rule itself
+                # for all keys in the dictionary check if the final series rule is in it
+                # if that is the case, add a new duplicate that ends in the same numbers AFTER the final series rule, or if it is the dup of the final series rule, just add a 0
+                # then add to dictionary, prev rules, next rules and duplicate rules
                 list_ids_to_check = []
                 for key in self.dict_ruleTreeWidgets:
-                    if first_after_series in str(self.dict_ruleTreeWidgets[key].order_id)[:length_first_after_series]:
-                        if len(str(self.dict_ruleTreeWidgets[key].order_id)) > length_first_in_series:
-                            list_ids_to_check.append(self.dict_ruleTreeWidgets[key].order_id)
+                    if first_after_series in str(key)[:length_first_after_series]:
+                        list_ids_to_check.append(key)
                 for id in list_ids_to_check:
                     rule_id_duplicate = int(str(rule_id) + str(id)[length_first_in_series:])
+                    print('rule id duplicate 2', rule_id_duplicate)
                     ruleTreeWidget_duplicate = RuleTreeWidget(self.nest_dict_rules, rule_id_duplicate, None, None,
                                                               'duplicate')
                     # Add to dictionary
@@ -1997,13 +2035,41 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                     self.dict_ruleTreeWidgets[rule_id_duplicate].duplicate_ruleTreeWidgets.append(id)
                     self.dict_ruleTreeWidgets[id].duplicate_ruleTreeWidgets.append(rule_id_duplicate)
 
-        # # Test whether created rules and relations are okay
-        # for entries in self.dict_ruleTreeWidgets:
-        #     if self.dict_ruleTreeWidgets[entries].duplicate_ruleTreeWidgets:
-        #         for next in self.dict_ruleTreeWidgets[entries].duplicate_ruleTreeWidgets:
-        #             print(str(entries), ' duplicate', str(next))
-        #     for next in self.dict_ruleTreeWidgets[entries].next_ruleTreeWidgets:
-        #         print(str(entries), ' next rtw ', str(next))
+                for duplicate in self.dict_ruleTreeWidgets[rule_id].duplicate_ruleTreeWidgets:
+                    list_ids_to_check = []
+                    for key in self.dict_ruleTreeWidgets:
+                        if first_after_series in str(key)[:length_first_after_series]:
+                            list_ids_to_check.append(key)
+                    for id in list_ids_to_check:
+                        rule_id_duplicate = int(str(duplicate) + str(id)[length_first_in_series:])
+                        ruleTreeWidget_duplicate = RuleTreeWidget(self.nest_dict_rules, rule_id_duplicate, None, None,
+                                                                  'duplicate')
+                        # Add to dictionary
+                        self.dict_ruleTreeWidgets[ruleTreeWidget_duplicate.order_id] = ruleTreeWidget_duplicate
+                        # Add to previous widgets
+                        prev_rule_id = int(str(rule_id_duplicate)[:len(str(rule_id_duplicate)) - 1])
+                        self.dict_ruleTreeWidgets[rule_id_duplicate].prev_ruleTreeWidgets = self.dict_ruleTreeWidgets[
+                            prev_rule_id].prev_ruleTreeWidgets.copy()
+                        self.dict_ruleTreeWidgets[rule_id_duplicate].prev_ruleTreeWidgets.append(prev_rule_id)
+
+                        # Add to next widgets
+                        self.dict_ruleTreeWidgets[prev_rule_id].next_ruleTreeWidgets.append(rule_id_duplicate)
+                        # Add to duplicates
+                        for dup in self.dict_ruleTreeWidgets[id].duplicate_ruleTreeWidgets:
+                            self.dict_ruleTreeWidgets[dup].duplicate_ruleTreeWidgets.append(rule_id_duplicate)
+                            self.dict_ruleTreeWidgets[rule_id_duplicate].duplicate_ruleTreeWidgets.append(
+                                self.dict_ruleTreeWidgets[dup].order_id)
+                        self.dict_ruleTreeWidgets[rule_id_duplicate].duplicate_ruleTreeWidgets.append(id)
+                        self.dict_ruleTreeWidgets[id].duplicate_ruleTreeWidgets.append(rule_id_duplicate)
+
+
+        # Test whether created rules and relations are okay
+        for entries in self.dict_ruleTreeWidgets:
+            if self.dict_ruleTreeWidgets[entries].duplicate_ruleTreeWidgets:
+                for next in self.dict_ruleTreeWidgets[entries].duplicate_ruleTreeWidgets:
+                    print(str(entries), ' duplicate', str(next))
+            for next in self.dict_ruleTreeWidgets[entries].next_ruleTreeWidgets:
+                print(str(entries), ' next rtw ', str(next))
 
         self.frame_ruleTree.update()
 

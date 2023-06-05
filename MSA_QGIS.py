@@ -216,6 +216,7 @@ class MsaQgis:
         :param file_name: Contains the URL for where the simplefied rule tree dict needs to be saved to.
         :type file_name: str
         """
+        #print(self.dlg.dict_ruleTreeWidgets)
         dict_nest_rule_tree = {}
         for key in self.dlg.dict_ruleTreeWidgets:
             nested_list = []
@@ -228,8 +229,14 @@ class MsaQgis:
             else:
                 # if there are duplicate ruletreewidgets, rule name needs to be taken from the non-duplicate rule which
                 # has the correct rule given in the UI by the user
-                visible_duplicate = min(self.dlg.dict_ruleTreeWidgets[key].duplicate_ruleTreeWidgets)
-                nested_list.append(self.dlg.dict_ruleTreeWidgets[visible_duplicate].comboBox_name.currentText())
+                try:
+                    visible_duplicate = min(self.dlg.dict_ruleTreeWidgets[key].duplicate_ruleTreeWidgets)
+                    nested_list.append(self.dlg.dict_ruleTreeWidgets[visible_duplicate].comboBox_name.currentText())
+                except Exception as exception:
+                    print(exception)
+                    visible_duplicate = min(self.dlg.dict_ruleTreeWidgets[key].duplicate_ruleTreeWidgets)
+                    print(key)
+                    print(visible_duplicate)
             nested_list.append(self.dlg.dict_ruleTreeWidgets[key].isBaseGroup)
             dict_nest_rule_tree[key] = nested_list
 
@@ -297,7 +304,6 @@ class MsaQgis:
                                                          f' taxon_percentage) VALUES('
                                     taxon_name = line[0]
                                     taxon_percent = line[sample_csv_index]
-
                                     cursor.execute(f'{insert_into_string}"{sample_site}", "{taxon_name}" , {taxon_percent})')
                                     conn.commit()
         update_msa_string = f'UPDATE sampling_sites SET msa_id = (SELECT msa_id FROM "{basemap}" WHERE "{basemap}".geom_x = ' \
@@ -415,7 +421,6 @@ class MsaQgis:
             update_distance_string = f'UPDATE dist_dir SET distance = (SQRT(((geom_x-{snapped_x}) * (geom_x - {snapped_x}))' \
                                      f'+ ((geom_y - {snapped_y}) * (geom_y - {snapped_y})))) WHERE site_name = "{sample_site}"'
 
-            print(update_distance_string)
             cursor.execute(update_distance_string)
             # Determine direction
             update_direction_string = f'UPDATE dist_dir SET direction = (SELECT CARDDIR((geom_x - {snapped_x}), ' \
@@ -1038,6 +1043,7 @@ class MsaQgis:
                         values_string +='""'
                     else:
                         values_string += f'"{str(feature.attribute(field.name()))}"'
+
             insert_string = start_string + columns_string + middle_string + values_string + end_string
             cursor.execute(insert_string)
             conn.commit()

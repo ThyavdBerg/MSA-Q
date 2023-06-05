@@ -281,7 +281,6 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
     #Save what needs to be saved
     cursor.execute(f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
     #Save all the simulated pollen
-    print(scenario_dict)
     for key in scenario_dict:
         if scenario_dict[key][1]==True:  #check if final rule
             map_name = f"{key}_{iteration}"
@@ -557,6 +556,7 @@ def assignVegCom(dict_nest_rule, conn, cursor, map_name, rule, spacing, number_o
         string_condition_rule = string_condition_rule[:-4] + ';'
     #print(f'condition string {map_name} took {time.time()-save_time} to run', flush=True)
     save_time = time.time()
+    print(string_condition_rule)
     cursor.execute(string_condition_rule)
     conn.commit()
     #print(f'running rule {map_name} took {time.time()-save_time} to run', flush=True)
@@ -717,6 +717,7 @@ def simulatePollen(map_name,iteration, conn, cursor, windrose, fit_stats, nested
 
                 insert_pollen_percent_str += f'(SELECT ((SELECT SUM({taxon}_PL) FROM {site_name}{map_name})/' \
                                              f'{total_pollen_load}) * 100), '
+
         cursor.execute(insert_pollen_percent_str)
         conn.commit()
     # Insert map in to maps table
