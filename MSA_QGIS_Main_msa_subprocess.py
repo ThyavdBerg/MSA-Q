@@ -461,8 +461,19 @@ def assignVegCom(dict_nest_rule, conn, cursor, map_name, rule, spacing, number_o
         elif dict_nest_rule[rule][9][0] == 'Empty':
             string_condition_prev_veg_com = '"veg_com" = "Empty" AND '
         else:
-            for prev_veg_com in list_of_prev_vegcom:
-                string_condition_prev_veg_com +=f'"veg_com" = "{prev_veg_com}" AND '
+            counter = 1
+            if len(list_of_prev_vegcom)> 1:
+                for prev_veg_com in list_of_prev_vegcom:
+                    if counter == len(list_of_prev_vegcom):
+                        string_condition_prev_veg_com +=f'"veg_com" = "{prev_veg_com}") AND '
+                    elif counter == 1:
+                        string_condition_prev_veg_com += f'("veg_com" = "{prev_veg_com}" OR '
+                        counter +=1
+                    else:
+                        string_condition_prev_veg_com += f'"veg_com" = "{prev_veg_com}" OR '
+                        counter +=1
+            else:
+                string_condition_prev_veg_com += f'("veg_com" = "{list_of_prev_vegcom[0]}") AND '
     elif rule_type == 'Encroach':
         # Get n_of_points and calculate the distance within which the encroachable points must be. Should be very clear in the manual what is included per encroach!
         encroachable_distance = dict_nest_rule[rule][5]
@@ -593,7 +604,7 @@ def simulatePollen(map_name,iteration, conn, cursor, windrose, fit_stats, nested
         # Create a new table per site
         cursor.execute(f'SELECT site_name FROM "sampling_sites" WHERE rowid IS {row+1}')
         site_name = cursor.fetchone()[0]
-        create_table_str = f'CREATE TABLE {site_name}{map_name}(msa_id INT, pseudo_id INT, '
+        create_table_str = f'CREATE TABLE "{site_name}{map_name}"(msa_id INT, pseudo_id INT, '
         for row2 in range(n_of_taxa):
             cursor.execute(f'SELECT taxon_code FROM "taxa" WHERE rowid IS {row2+1}')
             taxon = cursor.fetchone()[0]
