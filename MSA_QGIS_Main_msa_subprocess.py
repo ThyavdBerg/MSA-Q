@@ -249,7 +249,7 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
 
     :param dict_rule_tree: nested, simplefied dictionary derived from rule tree widgets given by user
     :type dict_rule_tree: dict """
-    retries = 20 # number of times the connection will retry to save the table to file.
+    retries = 50 # number of times the connection will retry to save the table to file.
     # Open a connection to the basemap to copy everything.
     try:
         conn = copySqlitetoMem(save_directory,file)
@@ -285,6 +285,8 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
         if scenario_dict[key][1]==True:  #check if final rule
             map_name = f"{key}_{iteration}"
             for increment in range(retries):
+                if increment == retries - 1:
+                    print(f'Final Retry For pollen percent  {map_name}')
                 try:
                     for row in range(n_of_sites):
                         cursor.execute(f'SELECT site_name FROM "sampling_sites" WHERE rowid IS {row + 1}')
@@ -311,8 +313,18 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
                         conn.commit()
                     break
                 except sqlite3.OperationalError as e:
-                    print("retry connection (simulated pollen)...", flush=True)
+                    print(f"retry connection {increment} (simulated pollen)...", flush=True)
                     time.sleep(increment)
+                except Exception as e:
+                    print(f"exception other than connection error in saving simulated pollen \n {e}")
+                    #check if line was added to table after all before trying again.
+                    cursor.execute(f'SELECT map_id, site_name FROM file_db.[simulated_pollen] WHERE EXISTS ('
+                                   f'SELECT 1 FROM file_db.[simulated_pollen] WHERE (map_id = {map_name}) AND (site_name = {site_name}))')
+                    if cursor.rowcount == 0:
+                        pass #will automatically retry
+                    else:
+                        break #row was added despite error, do not try again as this may create a duplicate.
+
 
     if fit_stats[3] == 'True':
         # Only save maps that made fit
@@ -331,21 +343,29 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
         for map in maps_to_save:
             for site in sampling_sites:
                 for increment in range(retries):
+                    if increment == retries - 1:
+                        print(f'Final Retry For {site[0]}{map[0]}')
                     try:
                         cursor.execute(f'CREATE TABLE file_db.[{site[0]}{map[0]}] AS SELECT * FROM [{site[0]}{map[0]}]')
                         break
                     except sqlite3.OperationalError: # TODO needs to catch only database locked
-                        print("retry connection 3...", flush=True)
+                        print(f"retry connection (pollen loading table) for {site[0]}{map[0]}... {increment}", flush=True)
                         time.sleep(increment)
+                    except Exception as e:
+                        print(f"exception other than connection error in creating copy pollen loading table {site[0]}{map[0]} \n {e}")
                 conn.commit()
     for map in maps_to_save:
         for increment in range(retries):
+            if increment == retries - 1:
+                print(f'Final Retry For {map[0]}')
             try:
                 cursor.execute(f"CREATE TABLE file_db.[{map[0]}] AS SELECT * FROM [{map[0]}]")
                 break
             except sqlite3.OperationalError: # TODO needs to catch only database locked
-                print("retry connection 2...", flush=True)
+                print(f"retry connection (map table) for {map[0]} {increment}...", flush=True)
                 time.sleep(increment)
+            except Exception as e:
+                print(f"exception other than connection error in creating copy map table {map[0]} \n {e}")
         conn.commit()
         cursor.execute(f'SELECT * FROM "{map[0]}"')
         with open(path.join(save_directory, str(map[0])+'.csv'), 'w', newline='') as csv_file:
@@ -353,17 +373,21 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
             csv_writer.writerow([i[0] for i in cursor.description])
             csv_writer.writerows(cursor)
     for increment in range(retries):
+        if increment == retries-1:
+            print(f'Final Retry For {map_name}')
         try:
             cursor.execute(f'INSERT INTO file_db.[maps] SELECT * FROM [maps]')
             conn.commit()
             break
-        except Exception as e: # TODO needs to catch only database locked
-            print(f"retry connection 1 for {map_name}...\n{e}", flush=True)
+        except sqlite3.OperationalError:
+            print(f"retry connection (saving map) for {map_name}...{increment}", flush=True)
             cursor.execute(f"DETACH DATABASE file_db")
             conn.commit()
             time.sleep(increment)
             cursor.execute(f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
             conn.commit()
+        except Exception as e:
+            print(f"exception other than connection error in saving map {map_name} \n {e}")
 
 
     cursor.execute(f"DETACH DATABASE file_db")
@@ -542,11 +566,13 @@ def assignVegCom(dict_nest_rule, conn, cursor, map_name, rule, spacing, number_o
                 string_condition_env_var = f'{string_condition_env_var}("{key}" = "{dict_env_var[key][0]}") AND '
         else:
             if isinstance(dict_env_var[key][0], str):  # Column with multiple categories to select for
-                string_to_insert = f'("{key}" = "'
+                string_multi_env_var = "("
                 for entry in dict_env_var[key]:
-                    string_to_insert = f'{string_to_insert}{entry}" OR "'
-                string_to_insert +='") AND '
-                string_condition_env_var +=string_to_insert
+                    string_multi_env_var += f'"{key}" = "{entry}" OR '
+                string_multi_env_var = string_multi_env_var[:-2]
+                string_multi_env_var+= ') AND '
+                string_condition_env_var += string_multi_env_var
+
             elif len(dict_env_var[key]) == 2:  # Column with a single range to select between
 
                 string_condition_env_var += f'("{key}" BETWEEN {str(dict_env_var[key][0])} ' \
