@@ -267,7 +267,6 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
         cursor.execute(f'CREATE TABLE "{map_name}" AS SELECT * FROM "{start_point}";')
         conn.commit()
         cursor.execute(f'CREATE INDEX "{map_name}_idx" ON "{map_name}"(msa_id);')
-        conn.commit()
         print(f'{map_name} was created, start_point was {start_point}', flush=True)
         for item in scenario_dict[key][2]:
             assignVegCom(dict_nest_rule, conn, cursor, map_name, dict_rule_tree[item][3], spacing, number_of_entries)
@@ -440,7 +439,7 @@ def assignVegCom(dict_nest_rule, conn, cursor, map_name, rule, spacing, number_o
     """
     vegcom_start_time = time.time()
     print(f"{vegcom_start_time}: Assigning veg_com for {map_name} using rule {rule}", flush = True)
-
+    print(f"dict nest rule \n {dict_nest_rule[rule]} ")
     veg_com = dict_nest_rule[rule][2]
     rule_type = dict_nest_rule[rule][3]
     list_of_prev_vegcom = dict_nest_rule[rule][9]
@@ -453,7 +452,7 @@ def assignVegCom(dict_nest_rule, conn, cursor, map_name, rule, spacing, number_o
     else:
         cursor.execute(f'UPDATE "{map_name}" SET "chance_to_happen" = 0')
         conn.commit()
-        string_chance = f'("chance_to_happen" = "1") AND '
+        string_chance = f'(t1."chance_to_happen" = "1") AND '
         chance *=100 # to make compatible with integers despite 2 decimals
         timer = time.time()
         random_numbers = random.randint(1, 10000, size=number_of_entries)
@@ -475,42 +474,66 @@ def assignVegCom(dict_nest_rule, conn, cursor, map_name, rule, spacing, number_o
     #print(f'chance time {map_name} took {time.time()-save_time} to run', flush=True)
     save_time = time.time()
 
-    start_string = f'UPDATE "{map_name}" SET "veg_com" = "{veg_com}" WHERE '
+
     #create conditional update string
     string_condition_prev_veg_com = ''
     if rule_type == '(Re)place':
+        start_string = f'UPDATE "{map_name}" AS t1 SET "veg_com" = "{veg_com}" WHERE '
         # Implement limitation previous veg_com
         if dict_nest_rule[rule][8]:  # Check if all veg coms was checked
             string_condition_prev_veg_com = ''
         elif dict_nest_rule[rule][9][0] == 'Empty':
-            string_condition_prev_veg_com = '"veg_com" = "Empty" AND '
+            string_condition_prev_veg_com = 't1."veg_com" = "Empty" AND '
         else:
             counter = 1
             if len(list_of_prev_vegcom)> 1:
                 for prev_veg_com in list_of_prev_vegcom:
                     if counter == len(list_of_prev_vegcom):
-                        string_condition_prev_veg_com +=f'"veg_com" = "{prev_veg_com}") AND '
+                        string_condition_prev_veg_com +=f't1."veg_com" = "{prev_veg_com}") AND '
                     elif counter == 1:
-                        string_condition_prev_veg_com += f'("veg_com" = "{prev_veg_com}" OR '
+                        string_condition_prev_veg_com += f'(t1."veg_com" = "{prev_veg_com}" OR '
                         counter +=1
                     else:
-                        string_condition_prev_veg_com += f'"veg_com" = "{prev_veg_com}" OR '
+                        string_condition_prev_veg_com += f't1."veg_com" = "{prev_veg_com}" OR '
                         counter +=1
             else:
-                string_condition_prev_veg_com += f'("veg_com" = "{list_of_prev_vegcom[0]}") AND '
+                string_condition_prev_veg_com += f'(t1."veg_com" = "{list_of_prev_vegcom[0]}") AND '
     elif rule_type == 'Encroach':
-        # Get n_of_points and calculate the distance within which the encroachable points must be. Should be very clear in the manual what is included per encroach!
-        encroachable_distance = dict_nest_rule[rule][5]
-        # Select the points that are next to the chosen veg com. Requires creating a temporary table that has all the entries from the veg_com to encroach,
-        # as otherwise the table will update while running and increase the number of points while running, which changes the entire map to the encroaching veg_com.
-        string_create_temp_table = f'CREATE TEMPORARY TABLE temp AS SELECT * FROM "{map_name}" WHERE veg_com = "{veg_com}"'
-        cursor.execute(string_create_temp_table)
-        string_condition_prev_veg_com = f'"veg_com" <> "{veg_com}" AND EXISTS ' \
-                                        f'(SELECT 1 FROM "temp" WHERE ' \
-                                        f'"{map_name}".geom_x BETWEEN temp.geom_x - {encroachable_distance} ' \
-                                        f'AND temp.geom_x + {encroachable_distance} AND' \
-                                        f'"{map_name}".geom_y BETWEEN temp.geom_y - {encroachable_distance} ' \
-                                        f'AND temp.geom_y + {encroachable_distance}) AND'
+        #calc distance
+        encroachable_distance = int(dict_nest_rule[rule][5]) + (0.00000012*int(dict_nest_rule[rule][5])) # deal with rounding errors see https://www.sqlite.org/rtree.html
+        #create rtree
+        cursor.execute(f'CREATE VIRTUAL TABLE geom_r_tree USING rtree(msa_id, minx, maxx, miny, maxy);')
+        with conn:
+            conn.executemany(f'INSERT INTO geom_r_tree(msa_id, minx, maxx, miny, maxy) values (?,?,?,?,?)',
+                               ((msa_id, geom_x - encroachable_distance, geom_x + encroachable_distance, geom_y - encroachable_distance, geom_y + encroachable_distance)
+                                for msa_id, geom_x, geom_y, veg_com in conn.execute(f'SELECT msa_id, geom_x, geom_y, veg_com FROM '
+                                                                           f'"{map_name}"')))
+        #create table with all instances of veg_com
+        cursor.execute(f'CREATE TEMPORARY TABLE temp1 AS SELECT geom_x, geom_y FROM "{map_name}" WHERE "{map_name}"."veg_com" = "{veg_com}"')
+        cursor.execute('SELECT * FROM temp1')
+        temp1 = cursor.fetchall()
+        cursor.execute('CREATE TEMPORARY TABLE temp2(msa_id INT PRIMARY KEY)')
+        conn.commit()
+        cursor.execute('BEGIN TRANSACTION')
+        for entries in temp1:
+            try:
+                insert_statement = f'INSERT INTO temp2 SELECT "msa_id" FROM "geom_r_tree" WHERE ' \
+                                   f'((geom_r_tree.minx<={entries[0]} AND geom_r_tree.maxx>={entries[0]}) AND ' \
+                                   f'(geom_r_tree.miny<={entries[1]} AND geom_r_tree.maxy>={entries[1]})) '
+
+                print(insert_statement)
+                cursor.execute(insert_statement)
+            except sqlite3.IntegrityError:
+                print('not unique, skip')
+        cursor.execute('COMMIT')
+        cursor.execute('SELECT * FROM temp2')
+        print(cursor.fetchall())
+
+        cursor.execute('SELECT * FROM temp2')
+        print(cursor.fetchall())
+        #update map based on temp2
+        start_string = f'UPDATE "{map_name}" AS t1 SET "veg_com" = "bullshite" WHERE '
+        string_condition_prev_veg_com = '(t1.msa_id IN "temp2") AND '
     elif rule_type == 'Adjacent':  # TODO needs significant changes to the UI. Postpone as a workaround by creating buffer maps in QGIS is possible.
         return
     elif rule_type == 'Extent':  # TODO needs significant changes to the UI. Postpone as a workaround by drawing the extent in QGIS is possible.
@@ -538,7 +561,7 @@ def assignVegCom(dict_nest_rule, conn, cursor, map_name, rule, spacing, number_o
             else:
                 dict_env_var[associated_column_name] = [dict_nest_rule[rule][10][key]]
 
-        else:  # Range constraint
+        else:  # Range constraint TODO SLOW!
             # Get the column name
             list_split_name_ui_env_var = split(' - ', key)
             env_var = list_split_name_ui_env_var[1]
@@ -556,51 +579,58 @@ def assignVegCom(dict_nest_rule, conn, cursor, map_name, rule, spacing, number_o
                                                         dict_nest_rule[rule][10][key][1]]
     #print(f'condition dict {map_name} took {time.time()-save_time} to run', flush=True)
     save_time = time.time()
-    # Create the conditional update string(take into account that having multiple of the same env_var need to be treated as OR not AND
+    # Create the conditional update string
     string_condition_env_var = ''
     for key in dict_env_var:
         if len(dict_env_var[key]) == 1:
             if key == 'Empty':
                 break  # Leaves string_condition_env_var empty
             else:  # Column with 1 category to select for
-                string_condition_env_var = f'{string_condition_env_var}("{key}" = "{dict_env_var[key][0]}") AND '
+                string_condition_env_var = f'{string_condition_env_var}(t1."{key}" = "{dict_env_var[key][0]}") AND '
         else:
             if isinstance(dict_env_var[key][0], str):  # Column with multiple categories to select for
                 string_multi_env_var = "("
                 for entry in dict_env_var[key]:
-                    string_multi_env_var += f'"{key}" = "{entry}" OR '
-                string_multi_env_var = string_multi_env_var[:-2]
+                    string_multi_env_var += f't1."{key}" = "{entry}" OR '
+                string_multi_env_var = string_multi_env_var[:-3]
                 string_multi_env_var+= ') AND '
                 string_condition_env_var += string_multi_env_var
 
             elif len(dict_env_var[key]) == 2:  # Column with a single range to select between
 
-                string_condition_env_var += f'("{key}" BETWEEN {str(dict_env_var[key][0])} ' \
+                string_condition_env_var += f'(t1."{key}" BETWEEN {str(dict_env_var[key][0])} ' \
                                                                       f'AND {str(dict_env_var[key][1])}) AND '
             else:  # Column with multiple ranges to select between
                 string_to_insert = '("'
                 for index in range(len(dict_env_var[key]), 2):
 
-                    string_to_insert += f'{key}" BETWEEN {str(dict_env_var[key][index])} AND ' \
-                                                          f'{str(dict_env_var[key][index + 1])} OR "'
+                    string_to_insert += f't1."{key}" BETWEEN {str(dict_env_var[key][index])} AND ' \
+                                                          f'{str(dict_env_var[key][index + 1])} OR '
 
-                string_to_insert = string_to_insert[:-4] + ') AND'
+                string_to_insert = string_to_insert[:-3] + ') AND'
                 string_condition_env_var += string_to_insert
     string_condition_rule = start_string + string_condition_prev_veg_com + string_chance + string_condition_env_var
     if string_condition_prev_veg_com == '' and string_chance == '' and string_condition_env_var =='':
         string_condition_rule = string_condition_rule[:-6]+';'
     else:
-        string_condition_rule = string_condition_rule[:-4] + ';'
+        string_condition_rule = string_condition_rule[:-4]
     #print(f'condition string {map_name} took {time.time()-save_time} to run', flush=True)
     save_time = time.time()
     print(string_condition_rule)
+    cursor.execute(f'EXPLAIN QUERY PLAN {string_condition_rule}')
+    print(cursor.fetchall())
     cursor.execute(string_condition_rule)
     conn.commit()
     #print(f'running rule {map_name} took {time.time()-save_time} to run', flush=True)
 
     # If the enroach rule was run, the temp table needs to be dropped
-    cursor.execute('DROP TABLE IF EXISTS "temp";')
+    cursor.execute('DROP TABLE IF EXISTS "temp1";')
+    cursor.execute('DROP TABLE IF EXISTS "temp2";')
+    cursor.execute('DROP TABLE IF EXISTS "temp_index";')
+    cursor.execute('DROP TABLE IF EXISTS geom_r_tree')
     print(f"assigning vegcom for {map_name} with {rule} took {time.time()-vegcom_start_time}", flush = True)
+
+
 
 
 
@@ -751,7 +781,6 @@ def simulatePollen(map_name,iteration, conn, cursor, windrose, fit_stats, nested
                 insert_pollen_percent_str += f'(SELECT ((SELECT SUM({taxon}_PL) FROM {site_name}{map_name})/' \
                                              f'{total_pollen_load}) * 100))'
             else:
-
                 insert_pollen_percent_str += f'(SELECT ((SELECT SUM({taxon}_PL) FROM {site_name}{map_name})/' \
                                              f'{total_pollen_load}) * 100), '
 
