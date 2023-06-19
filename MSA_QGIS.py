@@ -37,6 +37,7 @@ from qgis.core import QgsApplication, QgsMessageLog, Qgis,  QgsVectorLayer, QgsF
 from qgis.utils import iface
 from PyQt5.QtWidgets import QTableWidgetItem
 from subprocess import Popen, PIPE
+import traceback
 
 # Initialize Qt resources from file resources.py. IDE will tell you it's not importing anything, IDE is wrong.
 from .resources import *
@@ -218,6 +219,7 @@ class MsaQgis:
         """
         #print(self.dlg.dict_ruleTreeWidgets)
         dict_nest_rule_tree = {}
+        print(self.dlg.dict_ruleTreeWidgets)
         for key in self.dlg.dict_ruleTreeWidgets:
             nested_list = []
             nested_list.append(self.dlg.dict_ruleTreeWidgets[key].next_ruleTreeWidgets)
@@ -229,21 +231,17 @@ class MsaQgis:
             else:
                 # if there are duplicate ruletreewidgets, rule name needs to be taken from the non-duplicate rule which
                 # has the correct rule given in the UI by the user
-                try:
-                    visible_duplicate = min(self.dlg.dict_ruleTreeWidgets[key].duplicate_ruleTreeWidgets)
-                    nested_list.append(self.dlg.dict_ruleTreeWidgets[visible_duplicate].comboBox_name.currentText())
-                except Exception as exception:
-                    print(exception)
-                    visible_duplicate = min(self.dlg.dict_ruleTreeWidgets[key].duplicate_ruleTreeWidgets)
-                    print(key)
-                    print(visible_duplicate)
+
+                visible_duplicate = min(self.dlg.dict_ruleTreeWidgets[key].duplicate_ruleTreeWidgets)
+                nested_list.append(self.dlg.dict_ruleTreeWidgets[visible_duplicate].comboBox_name.currentText())
+
             nested_list.append(self.dlg.dict_ruleTreeWidgets[key].isBaseGroup)
             dict_nest_rule_tree[key] = nested_list
 
         with open (file_name, 'wb') as pkl_file:
             pickledump(dict_nest_rule_tree, pkl_file)
 
-    #** WRITE SQLite TABLES
+#** WRITE SQLite TABLES
     def createSiteTables(self, conn, cursor, basemap):
         """ Forms sql strings and executes them to create a table containing samples and associated tables with
         pollen data per sample, which it gets from the file paths given in the UI
@@ -454,18 +452,17 @@ class MsaQgis:
         # insert a column for likelihood scores per site
         for row in range(self.dlg.tableWidget_sites.rowCount()):
             site_name = self.dlg.tableWidget_sites.item(row, 0).text()
-            site_string = f'likelihood_{site_name} REAL, '
+            site_string = f'"likelihood_{site_name}" REAL, '
             create_table_string += site_string
         # insert a column for %vegetation community per map
         for row in range(self.dlg.tableWidget_vegCom.rowCount()):
             veg_com = self.dlg.tableWidget_vegCom.item(row, 0).text()
             if row + 1 == self.dlg.tableWidget_vegCom.rowCount():  # final row
-                veg_com_string = f'percent_{veg_com} REAL)'
+                veg_com_string = f'"percent_{veg_com}" REAL)'
                 create_table_string += veg_com_string
             else:
-                veg_com_string = f'percent_{veg_com} REAL, '
+                veg_com_string = f'"percent_{veg_com}" REAL, '
                 create_table_string += veg_com_string
-
         cursor.execute(create_table_string)
         conn.commit()
         QgsMessageLog.logMessage("Creation of site tables finished", 'MSA_QGIS',
@@ -1316,6 +1313,10 @@ class MsaQgis:
                                      'MSA_QGIS', Qgis.Critical)
             #TODO this error should be moved to UI/dialog to prevent setup of unsuccesful runs.
 
+    def cleanQGIS(self):
+        """Closes tables and maps that are no longer necessary after the point-sampled map has been made"""
+        pass
+
 #** RUN METHOD
     def run(self):
         """Run method that performs all the real work. First, the dialog is run, and once the user presses ok, the MSA
@@ -1391,10 +1392,12 @@ class MsaQgis:
                                              Qgis.Info)
 
                 except Exception as e:
+                    exc_type, exc_value, exc_traceback = sys.exc_info()
+                    formatted_exception = traceback.format_exception(exc_type, exc_value, exc_traceback)
                     QgsMessageLog.logMessage("Exception raised, native point sampling could not run, abort run",
                                              'MSA_QGIS',
                                              Qgis.Warning)
-                    QgsMessageLog.logMessage(str(e), 'MSA_QGIS', Qgis.Critical)
+                    QgsMessageLog.logMessage(formatted_exception, 'MSA_QGIS', Qgis.Critical)
                     #message = 'Point sampling failed'
                     #self.dlg.runAbortedPopup(message, e) #not yet functional
             if self.dlg.run_type < 1:
