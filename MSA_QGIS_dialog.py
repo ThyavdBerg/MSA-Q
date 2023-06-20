@@ -28,6 +28,7 @@ import re # for various string operations
 import csv # for reading and writing .csv files
 import time # for reporting date and time in the interface
 from os.path import exists # for checking whether files exist before loading
+import gc
 
 # Imports from QGIS package
 from PyQt5.QtCore import QTimer, QBasicTimer
@@ -718,7 +719,6 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         #Empty the layout and dict
         self.clearLayout(self.ruleTreeLayout)
         self.dict_ruleTreeWidgets = {}
-
 
         #reconstruct the rule tree and ruletreedict
         x_position_for_spoilerplate = self.scrollArea_ruleTree.x() + self.tab_top.x() + self.x()
@@ -1994,6 +1994,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                         # Add previous rtw to prev_ruleTreeWidgets
                         self.dict_ruleTreeWidgets[rule_id_duplicate].prev_ruleTreeWidgets = self.dict_ruleTreeWidgets[
                             rtw].prev_ruleTreeWidgets.copy()
+                        self.dict_ruleTreeWidgets[rule_id_duplicate].prev_ruleTreeWidgets.append(rtw)
 
                         # Add to duplicates to visible rules' list
                         self.dict_ruleTreeWidgets[rule_id].duplicate_ruleTreeWidgets.append(rule_id_duplicate)
