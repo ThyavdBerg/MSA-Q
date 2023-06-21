@@ -115,60 +115,72 @@ def copySqlitetoMem(save_directory, file):
     source.close()
     return conn
 
-def prepareMSA(dict_rule_tree):
-
+def prepareMSA(dict_rule_tree): #NEW
     """ Writes a dict based on dict_rule_tree that is keyed by scenario, with a list of all previous rules and itself.
     The dict is ordered by key. List associated with containsL
     [0]: start_point (str)
     [1]: is_final_rule (bool)
     [2]: run_list (list)
+    [3]: n_branches (integer)
+    [4]: n_branches_used (integer) = 0
 
     :param dict_rule_tree: Simplefied version of the dictionary of the order the user has given to complete rules
     :type dict_rule_tree: dict"""
+    #id and remove all basegroup rule blocks
 
-    # remove all of the basegroup rules
-    list_base_group_ids = [key for key in dict_rule_tree if dict_rule_tree[key][4]] #4 is isBaseGroup bool
-    list_branch_points_ids = [key for key in dict_rule_tree if len(dict_rule_tree[key][0])>1]
-    # identify final rules, make a dict with final rules as keys and all prev rules, minus those of basegroup, as list
-    for item in list_base_group_ids:
-        dict_rule_tree.pop(item)
-    start_point = "basemap"
+    #id all branch rule blocks
+
+    #identify final rule blocks
+
+    #assign start points
+
+    #assign n of branches
+
+    #assign n branches used is 0
+
+    #assign the run list and remove everything lower than the start point from the list
     scenario_dict = {}
-    for key in dict_rule_tree:
-        if len(dict_rule_tree[key][0]) > 1: #is branch point
-            is_final_rule = False
-            list_possible_start_points = []
-            for entry in dict_rule_tree[key][1]:
-                if entry in list_branch_points_ids:
-                    list_possible_start_points.append(int(entry))
-            if list_possible_start_points != []:
-                start_point = max(list_possible_start_points)
-                run_list = [item for item in dict_rule_tree[key][1] if
-                            item not in list_base_group_ids and int(item) > start_point]
-            else:
-                run_list = [item for item in dict_rule_tree[key][1] if
+    list_base_group_ids = [key for key in dict_rule_tree if dict_rule_tree[key][4]] #4 is isBaseGroup bool
+    list_branch_ids = [key for key in dict_rule_tree if len(dict_rule_tree[key][0])>1]
+    list_final_ids = [key for key in dict_rule_tree if dict_rule_tree[key][0] == []]
+    #add all branches
+    for branch_point in list_branch_ids:
+        start_point = "basemap"
+        list_possible_start_points = []
+        for rule_block in dict_rule_tree[branch_point][1]:
+            if rule_block in list_branch_ids:
+                list_possible_start_points.append(rule_block)
+            if len(list_possible_start_points) == 0:
+                start_point = "basemap"
+                run_list = [item for item in dict_rule_tree[branch_point][1] if
                             item not in list_base_group_ids]
-            run_list.append(key)
-            scenario_dict[key] = [str(start_point),is_final_rule, run_list]
-
-        if dict_rule_tree[key][0] == []: #is final rule
-            is_final_rule = True
-            list_possible_start_points = []
-            if list_branch_points_ids == []:
-                run_list = [item for item in dict_rule_tree[key][1] if item not in list_base_group_ids]
-                run_list.append(key)
             else:
-                for entry in dict_rule_tree[key][1]:
-                    if entry in list_branch_points_ids:
-                        list_possible_start_points.append(int(entry))
                 start_point = max(list_possible_start_points)
-                run_list = [item for item in dict_rule_tree[key][1] if item not in list_base_group_ids and int(item) > start_point]
-                run_list.append(key)
-            scenario_dict[key] = [str(start_point),is_final_rule, run_list]
-    #sort the dictionary by key
+                run_list = [item for item in dict_rule_tree[branch_point][1] if
+                            item not in list_base_group_ids and int(item) > start_point]
+            n_branches = len(dict_rule_tree[branch_point][0])
+        scenario_dict[branch_point] = [start_point, False, run_list, n_branches, 0]
+
+    #add all final rules
+    for final_id in list_final_ids:
+        start_point = "basemap"
+        list_possible_start_points = []
+        for rule_block in dict_rule_tree[final_id][1]:
+            if rule_block in list_branch_ids:
+                list_possible_start_points.append(rule_block)
+            if len(list_possible_start_points) == 0:
+                start_point = "basemap"
+                run_list = [item for item in dict_rule_tree[final_id][1] if
+                            item not in list_base_group_ids]
+            else:
+                start_point = max(list_possible_start_points)
+                run_list = [item for item in dict_rule_tree[final_id][1] if
+                            item not in list_base_group_ids and int(item) > start_point]
+        scenario_dict[final_id] = [start_point, True, run_list, 0,0]
     scenario_dict= dict(sorted(scenario_dict.items()))
 
     return scenario_dict
+
 
 def setupMSA(dict_rule_tree, dict_nest_rule, spacing, save_directory, file_name,windrose, fit_stats,number_of_entries, nested,n_of_sites, n_of_taxa, n_of_vegcom, run_type):
     """ Sets up the multiprocessing environment for the various iterations of the MSA.
@@ -227,8 +239,7 @@ def setupMSA(dict_rule_tree, dict_nest_rule, spacing, save_directory, file_name,
         csv_writer.writerows(cursor)
     output_conn.close()
 
-
-def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict_rule_tree, file,windrose, fit_stats,number_of_entries, nested,n_of_sites, n_of_taxa, n_of_vegcom, run_type):
+def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict_rule_tree, file,windrose, fit_stats,number_of_entries, nested,n_of_sites, n_of_taxa, n_of_vegcom, run_type): #NEW
     """ This is where rules are initiated in order of the rule tree. It is a single iteration of the MSA. Can be
     multiprocessed.
 
@@ -249,8 +260,9 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
 
     :param dict_rule_tree: nested, simplefied dictionary derived from rule tree widgets given by user
     :type dict_rule_tree: dict """
-    retries = 50 # number of times the connection will retry to save the table to file.
-    # Open a connection to the basemap to copy everything.
+    #TODO re-add option to only save selectively.
+    retries = 50
+    # Open a connection to the temp map to copy everything
     try:
         conn = copySqlitetoMem(save_directory,file)
     except Exception as e:
@@ -258,6 +270,11 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
         print(error_statement, flush = True)
         return error_statement
     cursor = conn.cursor()
+    #iterate over the scenario dict
+    #every time a start_point is encountered, add a count to n_branches_used for the associated key in dict
+    #if n_branches_used == n_branches, the table can be dropped
+    #every final rule is saved to file immediately, and then the table dropped
+
     for key in scenario_dict:
         map_name = f"{key}_{iteration}"
         if scenario_dict[key][0] == "basemap":
@@ -266,18 +283,74 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
             start_point = f'{scenario_dict[key][0]}_{iteration}'
         cursor.execute(f'CREATE TABLE "{map_name}" AS SELECT * FROM "{start_point}";')
         conn.commit()
-        cursor.execute(f'CREATE INDEX "{map_name}_idx" ON "{map_name}"(msa_id);')
+        cursor.execute(f'CREATE UNIQUE INDEX "{map_name}_idx" ON "{map_name}"(msa_id);')
         print(f'{map_name} was created, start_point was {start_point}', flush=True)
-        for item in scenario_dict[key][2]:
+        # assign vegetation
+        for item in scenario_dict[key][2]: #run_list
             assignVegCom(dict_nest_rule, conn, cursor, map_name, dict_rule_tree[item][3], spacing, number_of_entries)
+        #then for the final rule itself
+        assignVegCom(dict_nest_rule, conn, cursor, map_name, dict_rule_tree[key][3], spacing, number_of_entries)
+        # if final rule, calculate fit, save to file and drop table
         if scenario_dict[key][1]:
             if nested == True:
-                cursor.execute(f'CREATE INDEX "{map_name}_idx_res" on "{map_name}"(resolution);')
-            simulatePollen(map_name, iteration, conn,cursor, windrose, fit_stats, nested,n_of_sites, n_of_taxa, n_of_vegcom)
+                cursor.execute(f'CREATE INDEX "{map_name}_idx_res" on "{map_name}"(resolution, msa_id);')
+            simulatePollen(map_name, iteration, conn, cursor, windrose, fit_stats, nested, n_of_sites, n_of_taxa,
+                           n_of_vegcom)
             if run_type == "3":
-                calculateFit(map_name,n_of_sites, n_of_taxa, conn, cursor, iteration,fit_stats)
+                calculateFit(map_name, n_of_sites, n_of_taxa, conn, cursor, iteration, fit_stats)
+            # save the map
+            cursor.execute(f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
+            for increment in range(retries):
+                try:
+                    cursor.execute(f'CREATE TABLE file_db.[{map_name}] AS SELECT * FROM [{map_name}]')
+                    conn.commit()
+                    cursor.execute(f'SELECT * FROM "{map_name}"')
+                    with open(path.join(save_directory, str(map_name) + '.csv'), 'w', newline='') as csv_file:
+                        csv_writer = csv.writer(csv_file)
+                        csv_writer.writerow([i[0] for i in cursor.description])
+                        csv_writer.writerows(cursor)
 
-    #Save what needs to be saved
+                    cursor.execute((f'DROP TABLE IF EXISTS "{map_name}"'))
+                    cursor.execute((f'DROP TABLE IF EXISTS "{map_name}_idx"'))
+                    cursor.execute((f'DROP TABLE IF EXISTS "{map_name}_idx_res"'))
+                    conn.commit()
+                    break
+                except sqlite3.OperationalError:  # TODO needs to catch only database locked
+                    print(f"retry connection (saving map) for {map_name}... {increment}", flush=True)
+                    time.sleep(increment)
+                except Exception as e:
+                    print(
+                        f"exception other than connection error in creating copy map table  {map_name} \n {e}")
+
+            #save the pollen loadings
+
+            cursor.execute(f'SELECT site_name FROM "sampling_sites"')
+            sampling_sites = cursor.fetchall()
+            for site in sampling_sites:
+                for increment in range(retries):
+                    if increment == retries - 1:
+                        print(f'Final Retry For {site[0]}{map_name}')
+                    try:
+                        print(f'saving map {site[0]}{map_name}')
+                        cursor.execute(f'CREATE TABLE file_db.[{site[0]}{map_name}] AS SELECT * FROM [{site[0]}{map_name}]')
+                        conn.commit()
+                        cursor.execute((f'DROP TABLE IF EXISTS "{site[0]}{map_name}"'))
+                        break
+                    except sqlite3.OperationalError as e: # TODO needs to catch only database locked
+                        print(f"retry connection (pollen loading table) for {site[0]}{map_name}... {increment}\n {e}", flush=True)
+                        time.sleep(increment)
+                    except Exception as e:
+                        print(f"exception other than connection error in creating copy pollen loading table {site[0]}{map_name} \n {e}")
+            cursor.execute(f"DETACH DATABASE file_db")
+        # if all branches of a branch_point have been used, drop table
+        if scenario_dict[key][0] != "basemap":
+            scenario_dict[scenario_dict[key][0]][4] = scenario_dict[scenario_dict[key][0]][4] +1
+
+            if scenario_dict[scenario_dict[key][0]][4] == scenario_dict[scenario_dict[key][0]][3]:
+                #if n_branches = n_branches_used for the start point, drop branch_point
+                cursor.execute(f'DROP TABLE IF EXISTS "{scenario_dict[key][0]}_{iteration}"')
+
+    # Save simulated pollen percentages and landscape cover
     cursor.execute(f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
     #Save all the simulated pollen
     for key in scenario_dict:
@@ -324,53 +397,7 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
                     else:
                         break #row was added despite error, do not try again as this may create a duplicate.
 
-
-    if fit_stats[3] == 'True':
-        # Only save maps that made fit
-        cursor.execute(f'SELECT map_id FROM maps WHERE (likelihood_met = "Yes")')
-        maps_to_save = cursor.fetchall()
-    elif fit_stats[4] == 'True':
-        # Keep all maps
-        cursor.execute(f'SELECT map_id FROM maps')
-        maps_to_save = cursor.fetchall()
-    else:
-        #Keep maps and also save loadings
-        cursor.execute(f'SELECT map_id FROM maps')
-        maps_to_save = cursor.fetchall()
-        cursor.execute(f'SELECT site_name FROM "sampling_sites"')
-        sampling_sites = cursor.fetchall()
-        for map in maps_to_save:
-            for site in sampling_sites:
-                for increment in range(retries):
-                    if increment == retries - 1:
-                        print(f'Final Retry For {site[0]}{map[0]}')
-                    try:
-                        cursor.execute(f'CREATE TABLE file_db.[{site[0]}{map[0]}] AS SELECT * FROM [{site[0]}{map[0]}]')
-                        break
-                    except sqlite3.OperationalError: # TODO needs to catch only database locked
-                        print(f"retry connection (pollen loading table) for {site[0]}{map[0]}... {increment}", flush=True)
-                        time.sleep(increment)
-                    except Exception as e:
-                        print(f"exception other than connection error in creating copy pollen loading table {site[0]}{map[0]} \n {e}")
-                conn.commit()
-    for map in maps_to_save:
-        for increment in range(retries):
-            if increment == retries - 1:
-                print(f'Final Retry For {map[0]}')
-            try:
-                cursor.execute(f"CREATE TABLE file_db.[{map[0]}] AS SELECT * FROM [{map[0]}]")
-                break
-            except sqlite3.OperationalError: # TODO needs to catch only database locked
-                print(f"retry connection (map table) for {map[0]} {increment}...", flush=True)
-                time.sleep(increment)
-            except Exception as e:
-                print(f"exception other than connection error in creating copy map table {map[0]} \n {e}")
-        conn.commit()
-        cursor.execute(f'SELECT * FROM "{map[0]}"')
-        with open(path.join(save_directory, str(map[0])+'.csv'), 'w', newline='') as csv_file:
-            csv_writer = csv.writer(csv_file)
-            csv_writer.writerow([i[0] for i in cursor.description])
-            csv_writer.writerows(cursor)
+    #save fit and landscape percentages
     for increment in range(retries):
         if increment == retries-1:
             print(f'Final Retry For {map_name}')
@@ -392,6 +419,8 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
     cursor.execute(f"DETACH DATABASE file_db")
     conn.commit()
     conn.close()
+
+
 
 
 def makeBasemap(conn, cursor, dict_rule_tree, dict_nest_rule,spacing, save_directory, number_of_entries):
@@ -521,18 +550,13 @@ def assignVegCom(dict_nest_rule, conn, cursor, map_name, rule, spacing, number_o
                                    f'((geom_r_tree.minx<={entries[0]} AND geom_r_tree.maxx>={entries[0]}) AND ' \
                                    f'(geom_r_tree.miny<={entries[1]} AND geom_r_tree.maxy>={entries[1]})) '
 
-                print(insert_statement)
                 cursor.execute(insert_statement)
             except sqlite3.IntegrityError:
-                print('not unique, skip')
+                pass #entry not unique, skip
         cursor.execute('COMMIT')
-        cursor.execute('SELECT * FROM temp2')
-        print(cursor.fetchall())
 
-        cursor.execute('SELECT * FROM temp2')
-        print(cursor.fetchall())
         #update map based on temp2
-        start_string = f'UPDATE "{map_name}" AS t1 SET "veg_com" = "bullshite" WHERE '
+        start_string = f'UPDATE "{map_name}" AS t1 SET "veg_com" = "{veg_com}" WHERE '
         string_condition_prev_veg_com = '(t1.msa_id IN "temp2") AND '
     elif rule_type == 'Adjacent':  # TODO needs significant changes to the UI. Postpone as a workaround by creating buffer maps in QGIS is possible.
         return
@@ -631,9 +655,6 @@ def assignVegCom(dict_nest_rule, conn, cursor, map_name, rule, spacing, number_o
     print(f"assigning vegcom for {map_name} with {rule} took {time.time()-vegcom_start_time}", flush = True)
 
 
-
-
-
 def simulatePollen(map_name,iteration, conn, cursor, windrose, fit_stats, nested,n_of_sites, n_of_taxa, n_of_vegcom):
     """Simulates the pollen per map, per site and determines whether the fit between the simulated pollen and actual
      pollen is close enough to retain the map if the user selected to retain only fitted maps.
@@ -670,6 +691,7 @@ def simulatePollen(map_name,iteration, conn, cursor, windrose, fit_stats, nested
                 create_table_str = f'{create_table_str}{taxon}_PL REAL, '
         cursor.execute(create_table_str)
         conn.commit()
+
         #fill table
         cursor.execute('BEGIN TRANSACTION')
         cursor.execute(f'INSERT INTO {site_name}{map_name}(msa_id) '
@@ -680,11 +702,17 @@ def simulatePollen(map_name,iteration, conn, cursor, windrose, fit_stats, nested
                        f'(SELECT "msa_id" FROM "pseudo_points" WHERE "site_name" = "{site_name}") '
                        f'WHERE pseudo_id >= 0')
         cursor.execute('COMMIT')
+        # Create index
+        cursor.execute(f'CREATE INDEX "{site_name}{map_name}_idx" ON {site_name}{map_name}(msa_id)')
+        conn.commit()
+        cursor.execute(f'CREATE INDEX "{site_name}{map_name}_idx_pseudo" ON {site_name}{map_name}(pseudo_id)')
+        conn.commit()
+
         #calculate pollen load
         cursor.execute('BEGIN TRANSACTION')
         for row2 in range(n_of_taxa):  #FIXME: This part of the code is a speed bottleneck, but I don't see how it could be improved.
-            cursor.execute(f'SELECT taxon_code FROM "taxa" WHERE rowid IS {row2+1}')
-            taxon = cursor.fetchone()[0]
+            cursor.execute(f'SELECT taxon_code, RelPP FROM "taxa" WHERE rowid IS {row2+1}')
+            taxon, RelPP = cursor.fetchall()[0]
             if nested == "True":
                 update_table_str = f'UPDATE {site_name}{map_name} SET "{taxon}_PL" = (SELECT(' \
                                    f'SELECT "RelPP" FROM taxa WHERE "taxon_code" = "{taxon}") * (' \
@@ -701,18 +729,31 @@ def simulatePollen(map_name,iteration, conn, cursor, windrose, fit_stats, nested
                                    f'(SELECT "distance" FROM pseudo_points WHERE (pseudo_id = {site_name}{map_name}.pseudo_id))) END)'
 
             else:
-                update_table_str = f'UPDATE {site_name}{map_name} SET "{taxon}_PL" = (SELECT(' \
-                                   f'SELECT "RelPP" FROM taxa WHERE "taxon_code" = "{taxon}") * (' \
+                # OLD
+                # update_table_str = f'UPDATE {site_name}{map_name} SET "{taxon}_PL" = (SELECT(' \
+                #                    f'SELECT "RelPP" FROM taxa WHERE "taxon_code" = "{taxon}") * (' \
+                #                    f'SELECT "vegcom_percent" FROM vegcom WHERE "taxon_code" = "{taxon}" ' \
+                #                    f'AND "veg_com" = (SELECT "veg_com" FROM "{map_name}" WHERE (' \
+                #                    f'msa_id = {site_name}{map_name}.msa_id))) * ' \
+                #                    f'(CASE WHEN {site_name}{map_name}.pseudo_id is NULL THEN ' \
+                #                    f'(SELECT "{taxon}_DW" FROM PollenLookup WHERE PollenLookup.distance = ' \
+                #                    f'(SELECT "distance" FROM dist_dir WHERE (msa_id = {site_name}{map_name}.msa_id) ' \
+                #                    f'AND (site_name = "{site_name}"))) ' \
+                #                    f'ELSE ' \
+                #                    f'(SELECT "{taxon}_DW" FROM PollenLookup WHERE PollenLookup.distance = ' \
+                #                    f'(SELECT "distance" FROM pseudo_points WHERE (pseudo_id = {site_name}{map_name}.pseudo_id))) END)'
+                # NEW
+                update_table_str = f'UPDATE {site_name}{map_name} SET "{taxon}_PL" = ({RelPP} * (' \
                                    f'SELECT "vegcom_percent" FROM vegcom WHERE "taxon_code" = "{taxon}" ' \
                                    f'AND "veg_com" = (SELECT "veg_com" FROM "{map_name}" WHERE (' \
                                    f'msa_id = {site_name}{map_name}.msa_id))) * ' \
-                                   f'(CASE WHEN {site_name}{map_name}.pseudo_id is NULL THEN ' \
+                                   f'(CASE WHEN {site_name}{map_name}.pseudo_id NOT NULL THEN ' \
                                    f'(SELECT "{taxon}_DW" FROM PollenLookup WHERE PollenLookup.distance = ' \
-                                   f'(SELECT "distance" FROM dist_dir WHERE (msa_id = {site_name}{map_name}.msa_id) ' \
-                                   f'AND (site_name = "{site_name}"))) ' \
+                                   f'(SELECT "distance" FROM pseudo_points WHERE (pseudo_id = {site_name}{map_name}.pseudo_id)))' \
                                    f'ELSE ' \
                                    f'(SELECT "{taxon}_DW" FROM PollenLookup WHERE PollenLookup.distance = ' \
-                                   f'(SELECT "distance" FROM pseudo_points WHERE (pseudo_id = {site_name}{map_name}.pseudo_id))) END)'
+                                   f'(SELECT "distance" FROM dist_dir WHERE (msa_id = {site_name}{map_name}.msa_id) ' \
+                                   f'AND (site_name = "{site_name}"))) END)'
 
             if windrose == "True":
                 find_windrose_str=(f' * (SELECT "windrose_weight" FROM windrose WHERE ('
@@ -724,6 +765,8 @@ def simulatePollen(map_name,iteration, conn, cursor, windrose, fit_stats, nested
                 update_table_str += find_windrose_str
             else:
                 update_table_str += ')'
+
+
             cursor.execute(update_table_str)
         cursor.execute('COMMIT')
         conn.commit()
@@ -735,6 +778,30 @@ def simulatePollen(map_name,iteration, conn, cursor, windrose, fit_stats, nested
                            f'SELECT "{taxon}_PL" * 0.25) WHERE pseudo_id IS NOT NULL')
         conn.commit()
     print(f'calculating pollen loadings for {map_name}took {time.time()-time_polload} to run', flush=True)
+
+    #try new versio
+    cursor.execute('BEGIN TRANSACTION')
+    cursor.execute("SELECT * FROM vegcom_list")
+    for vegcom in cursor.fetchall()[0]:
+        cursor.execute(f"SELECT taxon_code FROM vegcom WHERE veg_com = {vegcom} AND vegcom_percent NOT 0")
+        for taxon in cursor.fetchall()[0]:
+            cursor.execute(f'SELECT vegcom_percent FROM vegcom WHERE veg_com = {vegcom} AND vegcom_code = {taxon}')
+            pollen_percent = cursor.fetchone()[0]
+            cursor.execute(f'SELECT RelPP FROM taxa WHERE taxon_code = {taxon}')
+            relative_pollen_productivity = cursor.fetchone()[0]
+            update_table_str = f'UPDATE {site_name}{map_name} SET "{taxon}_PL" = {pollen_percent} * {relative_pollen_productivity} * ' \
+                               f'(CASE WHEN {site_name}{map_name}.pseudo_id NOT NULL THEN ' \
+                               f'(SELECT "{taxon}_DW FROM PollenLookup WHERE PollenLookup.distance = ' \
+                               f'(SELECT "distance" FROM pseudo_points WHERE (pseudo_id = {site_name}{map_name}.pseudo_id)))' \
+                               f'ELSE' \
+                               f'(SELECT "{taxon}_DW" FROM PollenLookup WHERE PollenLookup.distance = ' \
+                               f'(SELECT distance FROM dist_dir WHERE ' \
+                               f'(msa_id = {site_name}{map_name}.msa_id) AND ' \
+                               f'(site_name = "{site_name}"))) END) WHERE {site_name}{map_name}.msa_id = ' \
+                               f'(SELECT "msa_id" FROM "{map_name}" WHERE veg_com = "{vegcom}")'
+            cursor.execute(update_table_str)
+
+
 
     # Create table for calculating pollen percentages
     create_table_str = f'CREATE TABLE simpol_{map_name}(site_name TEXT, '
