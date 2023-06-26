@@ -32,7 +32,7 @@ def checkInput():
                 from_basemap = line[:-1]
                 count +=1
             else:
-                if path.exists(from_basemap):
+                if path.exists(line[:-1]):
                     from_basemap = line[:-1]
                     count+=1
                 else:
@@ -270,6 +270,21 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
         print(error_statement, flush = True)
         return error_statement
     cursor = conn.cursor()
+    #get resolution information
+    if nested  == "True":
+        cursor.execute(
+            f'SELECT DISTINCT resolution from "basemap"')  # will likely want to move this out of this loop for speed, but test for now
+        res1, res2 = cursor.fetchall()
+        res1 = res1[0]
+        res2 = res2[0]
+        areares1 = res1 * res1
+        areares2 = res2 * res2
+        cursor.execute(f'SELECT'
+                       f'(SELECT (SELECT COUNT(*) FROM "basemap" WHERE resolution = {res1}) * {areares1})'
+                       f'+'
+                       f'(SELECT (SELECT COUNT(*) FROM "basemap" WHERE resolution = {res2}) * {areares2})')
+        total_area = cursor.fetchone()[0]
+
     #iterate over the scenario dict
     #every time a start_point is encountered, add a count to n_branches_used for the associated key in dict
     #if n_branches_used == n_branches, the table can be dropped
@@ -292,10 +307,13 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
         assignVegCom(dict_nest_rule, conn, cursor, map_name, dict_rule_tree[key][3], spacing, number_of_entries)
         # if final rule, calculate fit, save to file and drop table
         if scenario_dict[key][1]:
-            if nested == True:
+            if nested  == "True":
                 cursor.execute(f'CREATE INDEX "{map_name}_idx_res" on "{map_name}"(resolution, msa_id);')
-            simulatePollen(map_name, iteration, conn, cursor, windrose, fit_stats, nested, n_of_sites, n_of_taxa,
-                           n_of_vegcom)
+                simulatePollen(map_name, iteration, conn, cursor, windrose, fit_stats, nested, n_of_sites, n_of_taxa,
+                               n_of_vegcom, res1, res2, areares1, areares2, total_area)
+            else:
+                simulatePollen(map_name, iteration, conn, cursor, windrose, fit_stats, nested, n_of_sites, n_of_taxa,
+                               n_of_vegcom)
             if run_type == "3":
                 calculateFit(map_name, n_of_sites, n_of_taxa, conn, cursor, iteration, fit_stats)
             # save the map
@@ -655,7 +673,7 @@ def assignVegCom(dict_nest_rule, conn, cursor, map_name, rule, spacing, number_o
     print(f"assigning vegcom for {map_name} with {rule} took {time.time()-vegcom_start_time}", flush = True)
 
 
-def simulatePollen(map_name,iteration, conn, cursor, windrose, fit_stats, nested,n_of_sites, n_of_taxa, n_of_vegcom):
+def simulatePollen(map_name,iteration, conn, cursor, windrose, fit_stats, nested,n_of_sites, n_of_taxa, n_of_vegcom, res1=None, res2=None, areares1=None, areares2=None, total_area=None):
     """Simulates the pollen per map, per site and determines whether the fit between the simulated pollen and actual
      pollen is close enough to retain the map if the user selected to retain only fitted maps.
 
@@ -729,20 +747,7 @@ def simulatePollen(map_name,iteration, conn, cursor, windrose, fit_stats, nested
                                    f'(SELECT "distance" FROM pseudo_points WHERE (pseudo_id = {site_name}{map_name}.pseudo_id))) END)'
 
             else:
-                # OLD
-                # update_table_str = f'UPDATE {site_name}{map_name} SET "{taxon}_PL" = (SELECT(' \
-                #                    f'SELECT "RelPP" FROM taxa WHERE "taxon_code" = "{taxon}") * (' \
-                #                    f'SELECT "vegcom_percent" FROM vegcom WHERE "taxon_code" = "{taxon}" ' \
-                #                    f'AND "veg_com" = (SELECT "veg_com" FROM "{map_name}" WHERE (' \
-                #                    f'msa_id = {site_name}{map_name}.msa_id))) * ' \
-                #                    f'(CASE WHEN {site_name}{map_name}.pseudo_id is NULL THEN ' \
-                #                    f'(SELECT "{taxon}_DW" FROM PollenLookup WHERE PollenLookup.distance = ' \
-                #                    f'(SELECT "distance" FROM dist_dir WHERE (msa_id = {site_name}{map_name}.msa_id) ' \
-                #                    f'AND (site_name = "{site_name}"))) ' \
-                #                    f'ELSE ' \
-                #                    f'(SELECT "{taxon}_DW" FROM PollenLookup WHERE PollenLookup.distance = ' \
-                #                    f'(SELECT "distance" FROM pseudo_points WHERE (pseudo_id = {site_name}{map_name}.pseudo_id))) END)'
-                # NEW
+
                 update_table_str = f'UPDATE {site_name}{map_name} SET "{taxon}_PL" = ({RelPP} * (' \
                                    f'SELECT "vegcom_percent" FROM vegcom WHERE "taxon_code" = "{taxon}" ' \
                                    f'AND "veg_com" = (SELECT "veg_com" FROM "{map_name}" WHERE (' \
@@ -778,30 +783,6 @@ def simulatePollen(map_name,iteration, conn, cursor, windrose, fit_stats, nested
                            f'SELECT "{taxon}_PL" * 0.25) WHERE pseudo_id IS NOT NULL')
         conn.commit()
     print(f'calculating pollen loadings for {map_name}took {time.time()-time_polload} to run', flush=True)
-
-    #try new versio
-    cursor.execute('BEGIN TRANSACTION')
-    cursor.execute("SELECT * FROM vegcom_list")
-    for vegcom in cursor.fetchall()[0]:
-        cursor.execute(f"SELECT taxon_code FROM vegcom WHERE veg_com = {vegcom} AND vegcom_percent NOT 0")
-        for taxon in cursor.fetchall()[0]:
-            cursor.execute(f'SELECT vegcom_percent FROM vegcom WHERE veg_com = {vegcom} AND vegcom_code = {taxon}')
-            pollen_percent = cursor.fetchone()[0]
-            cursor.execute(f'SELECT RelPP FROM taxa WHERE taxon_code = {taxon}')
-            relative_pollen_productivity = cursor.fetchone()[0]
-            update_table_str = f'UPDATE {site_name}{map_name} SET "{taxon}_PL" = {pollen_percent} * {relative_pollen_productivity} * ' \
-                               f'(CASE WHEN {site_name}{map_name}.pseudo_id NOT NULL THEN ' \
-                               f'(SELECT "{taxon}_DW FROM PollenLookup WHERE PollenLookup.distance = ' \
-                               f'(SELECT "distance" FROM pseudo_points WHERE (pseudo_id = {site_name}{map_name}.pseudo_id)))' \
-                               f'ELSE' \
-                               f'(SELECT "{taxon}_DW" FROM PollenLookup WHERE PollenLookup.distance = ' \
-                               f'(SELECT distance FROM dist_dir WHERE ' \
-                               f'(msa_id = {site_name}{map_name}.msa_id) AND ' \
-                               f'(site_name = "{site_name}"))) END) WHERE {site_name}{map_name}.msa_id = ' \
-                               f'(SELECT "msa_id" FROM "{map_name}" WHERE veg_com = "{vegcom}")'
-            cursor.execute(update_table_str)
-
-
 
     # Create table for calculating pollen percentages
     create_table_str = f'CREATE TABLE simpol_{map_name}(site_name TEXT, '
@@ -862,10 +843,22 @@ def simulatePollen(map_name,iteration, conn, cursor, windrose, fit_stats, nested
     for row in range(n_of_vegcom):
         cursor.execute(f'SELECT veg_com FROM "vegcom_list" WHERE rowid IS {row + 1}')
         veg_com = cursor.fetchone()[0]
-        cursor.execute(
-            f'UPDATE maps SET "percent_{veg_com}" = (SELECT (SELECT(SELECT COUNT(*) FROM "{map_name}" WHERE veg_com = "{veg_com}")*1.0)/' \
-            f'(SELECT(SELECT COUNT(*) FROM "{map_name}")*1.0)* 100.0) WHERE map_id = "{map_name}";')
+        if nested  == "True":
+            string_landscape_percent = f'UPDATE maps SET "percent_{veg_com}" = ' \
+                                       f'(SELECT ' \
+                                       f'(SELECT' \
+                                       f'(SELECT (SELECT COUNT(*) FROM "{map_name}" WHERE veg_com = "{veg_com}" AND resolution = {res1}) * {areares1}*1.0)' \
+                                       f' + ' \
+                                       f'(SELECT (SELECT COUNT(*) FROM "{map_name}" WHERE veg_com = "{veg_com}" AND resolution = {res2}) * {areares2}*1.0))' \
+                                       f'/ {total_area}) WHERE map_id = "{map_name}";'
+            cursor.execute(string_landscape_percent)
+        else: # when simple map with a single resolution, no weighting by resolution necessary
+            cursor.execute(
+                f'UPDATE maps SET "percent_{veg_com}" = (SELECT (SELECT(SELECT COUNT(*) FROM "{map_name}" WHERE veg_com = "{veg_com}")*1.0)/' \
+                f'(SELECT(SELECT COUNT(*) FROM "{map_name}")*1.0)* 100.0) WHERE map_id = "{map_name}";')
     conn.commit()
+
+
 
     end_time_pol = time.time() - start_time
     print(f'calculating pollen percentages for {map_name} took {str(end_time_pol)} to run', flush=True)
