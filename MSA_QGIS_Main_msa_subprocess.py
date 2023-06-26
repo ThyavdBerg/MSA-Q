@@ -316,49 +316,59 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
                                n_of_vegcom)
             if run_type == "3":
                 calculateFit(map_name, n_of_sites, n_of_taxa, conn, cursor, iteration, fit_stats)
-            # save the map
+
+            # save the map (optional: if fit met)
+            save_map = "Yes"
+            print( 'fit stat 3 ', fit_stats[3])
+            print( 'fit stat 4 ', fit_stats[4])
+            if fit_stats[3] == "True": # keep only fitted
+                cursor.execute(f'SELECT likelihood_met FROM maps WHERE map_id = "{map_name}"')
+                save_map = cursor.fetchone()[0]
+                print('likelihood met ',save_map)
             cursor.execute(f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
-            for increment in range(retries):
-                try:
-                    cursor.execute(f'CREATE TABLE file_db.[{map_name}] AS SELECT * FROM [{map_name}]')
-                    conn.commit()
-                    cursor.execute(f'SELECT * FROM "{map_name}"')
-                    with open(path.join(save_directory, str(map_name) + '.csv'), 'w', newline='') as csv_file:
-                        csv_writer = csv.writer(csv_file)
-                        csv_writer.writerow([i[0] for i in cursor.description])
-                        csv_writer.writerows(cursor)
-
-                    cursor.execute((f'DROP TABLE IF EXISTS "{map_name}"'))
-                    cursor.execute((f'DROP TABLE IF EXISTS "{map_name}_idx"'))
-                    cursor.execute((f'DROP TABLE IF EXISTS "{map_name}_idx_res"'))
-                    conn.commit()
-                    break
-                except sqlite3.OperationalError:  # TODO needs to catch only database locked
-                    print(f"retry connection (saving map) for {map_name}... {increment}", flush=True)
-                    time.sleep(increment)
-                except Exception as e:
-                    print(
-                        f"exception other than connection error in creating copy map table  {map_name} \n {e}")
-
-            #save the pollen loadings
-
-            cursor.execute(f'SELECT site_name FROM "sampling_sites"')
-            sampling_sites = cursor.fetchall()
-            for site in sampling_sites:
+            if save_map == "Yes":
                 for increment in range(retries):
-                    if increment == retries - 1:
-                        print(f'Final Retry For {site[0]}{map_name}')
-                    try:
-                        print(f'saving map {site[0]}{map_name}')
-                        cursor.execute(f'CREATE TABLE file_db.[{site[0]}{map_name}] AS SELECT * FROM [{site[0]}{map_name}]')
-                        conn.commit()
-                        cursor.execute((f'DROP TABLE IF EXISTS "{site[0]}{map_name}"'))
-                        break
-                    except sqlite3.OperationalError as e: # TODO needs to catch only database locked
-                        print(f"retry connection (pollen loading table) for {site[0]}{map_name}... {increment}\n {e}", flush=True)
-                        time.sleep(increment)
-                    except Exception as e:
-                        print(f"exception other than connection error in creating copy pollen loading table {site[0]}{map_name} \n {e}")
+
+                        try:
+                            cursor.execute(f'CREATE TABLE file_db.[{map_name}] AS SELECT * FROM [{map_name}]')
+                            conn.commit()
+                            cursor.execute(f'SELECT * FROM "{map_name}"')
+                            with open(path.join(save_directory, str(map_name) + '.csv'), 'w', newline='') as csv_file:
+                                csv_writer = csv.writer(csv_file)
+                                csv_writer.writerow([i[0] for i in cursor.description])
+                                csv_writer.writerows(cursor)
+
+                            cursor.execute((f'DROP TABLE IF EXISTS "{map_name}"'))
+                            cursor.execute((f'DROP TABLE IF EXISTS "{map_name}_idx"'))
+                            cursor.execute((f'DROP TABLE IF EXISTS "{map_name}_idx_res"'))
+                            conn.commit()
+                            break
+                        except sqlite3.OperationalError:  # TODO needs to catch only database locked
+                            print(f"retry connection (saving map) for {map_name}... {increment}", flush=True)
+                            time.sleep(increment)
+                        except Exception as e:
+                            print(
+                                f"exception other than connection error in creating copy map table  {map_name} \n {e}")
+
+            #save the pollen loadings (if desired)
+            if fit_stats[3] == "False" and fit_stats[4] == "False":
+                cursor.execute(f'SELECT site_name FROM "sampling_sites"')
+                sampling_sites = cursor.fetchall()
+                for site in sampling_sites:
+                    for increment in range(retries):
+                        if increment == retries - 1:
+                            print(f'Final Retry For {site[0]}{map_name}')
+                        try:
+                            print(f'saving map {site[0]}{map_name}')
+                            cursor.execute(f'CREATE TABLE file_db.[{site[0]}{map_name}] AS SELECT * FROM [{site[0]}{map_name}]')
+                            conn.commit()
+                            cursor.execute((f'DROP TABLE IF EXISTS "{site[0]}{map_name}"'))
+                            break
+                        except sqlite3.OperationalError as e: # TODO needs to catch only database locked
+                            print(f"retry connection (pollen loading table) for {site[0]}{map_name}... {increment}\n {e}", flush=True)
+                            time.sleep(increment)
+                        except Exception as e:
+                            print(f"exception other than connection error in creating copy pollen loading table {site[0]}{map_name} \n {e}")
             cursor.execute(f"DETACH DATABASE file_db")
         # if all branches of a branch_point have been used, drop table
         if scenario_dict[key][0] != "basemap":
