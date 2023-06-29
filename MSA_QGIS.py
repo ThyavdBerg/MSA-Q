@@ -28,8 +28,9 @@ import sqlite3
 import sys
 from os import remove, path
 from math import sqrt
-from pandas import read_csv
-from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, QVariant
+#from pandas import read_csv #TODO this is currently not functional as pandas does not work in Linus QGIS and so needs to be turned off
+
+from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, QVariant, QLocale
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
 from qgis._core import QgsRectangle
@@ -427,7 +428,9 @@ class MsaQgis:
 
 
         cursor.execute('COMMIT')
-        cursor.execute('CREATE INDEX dist_dir_dist_name_dir_idx ON dist_dir(distance, direction, site_name);')
+        # cursor.execute('CREATE INDEX dist_dir_dist_name_dir_idx ON dist_dir(distance, direction, site_name);')
+        # conn.commit()
+        cursor.execute('CREATE UNIQUE INDEX dist_dir_id_name_idx ON dist_dir(msa_id, site_name)')
         conn.commit()
 
         end_time = time() - start_time
@@ -620,7 +623,7 @@ class MsaQgis:
                 cursor.execute(update_DWPA_string)
 
         cursor.execute('COMMIT')
-        cursor.execute('CREATE INDEX PollenLookup_dist_idx ON PollenLookup(distance);')
+        cursor.execute('CREATE UNIQUE INDEX PollenLookup_dist_idx ON PollenLookup(distance);')
         conn.commit()
 
         # Template add distance weighting function
@@ -1299,13 +1302,22 @@ class MsaQgis:
                             QgsMessageLog.logMessage(f'run of MSA_QGIS unsuccesful',
                                                      'MSA_QGIS', Qgis.Critical)
                             return "fail"
+                # else:
+                #     #TODO this is currently not functional as pandas does not work in Linux QGIS and so needs to be turned off
+                #     #TODO replace with pure sqlite3 version
+                #     QgsMessageLog.logMessage(f'Input point-sampled csv file invalid, currently not functional as pandas does not work in Linux QGIS and so needs to be turned off'
+                #                              f'{self.dlg.tableWidget_selected.item(row, 1).text()}',
+                #                              'MSA_QGIS', Qgis.Critical)
+                #     csv_file = read_csv(point_sampled_file)
+                #     csv_file.to_sql('empty_basemap', conn, if_exists='fail', index=False, chunksize=10000)
+                #     string_vacuum_into = f'VACUUM INTO "{path.join(save_directory, file_name)}";'
+                #     cursor.execute(string_vacuum_into)
+                #     conn.close()
+                #     return path.join(save_directory,file_name)
                 else:
-                    csv_file = read_csv(point_sampled_file)
-                    csv_file.to_sql('empty_basemap', conn, if_exists='fail', index=False, chunksize=10000)
-                    string_vacuum_into = f'VACUUM INTO "{path.join(save_directory, file_name)}";'
-                    cursor.execute(string_vacuum_into)
-                    conn.close()
-                    return path.join(save_directory,file_name)
+                    pass
+
+
         else:
             QgsMessageLog.logMessage(f'Input point sampled file invalid, not a .sqlite file ',
                                      'MSA_QGIS', Qgis.Critical)
@@ -1500,7 +1512,7 @@ class MsaQgis:
             subprocess_time=time()
             basepath = path.dirname(path.abspath(__file__))
             file_to_run = path.join(basepath, "MSA_QGIS_Main_msa_subprocess.py")
-            running_msa = Popen(["python", file_to_run], stdout= PIPE, stdin=PIPE, stderr=PIPE, text= True)
+            running_msa = Popen(["python3", file_to_run], stdout= PIPE, stdin=PIPE, stderr=PIPE, text= True)
             subprocess_input_save_dir = running_msa.communicate(
                 input=  f"{save_directory}\n{from_basemap}\n{run_type}\n{number_of_iters}\n{self.spacing}\n"
                         f"{self.dlg.checkBox_enableWindrose.isChecked()}\n{self.dlg.doubleSpinBox_fit.value()}\n"
@@ -1515,6 +1527,21 @@ class MsaQgis:
             QgsMessageLog.logMessage(f"processing time = {time()-startTime}", 'MSA_QGIS', Qgis.Info)
 
 ### Cleanup
+            #remove temp files
+            try:
+                remove(path.join(save_directory,'temp_file_sql_input.sqlite'))
+            except:
+                QgsMessageLog.logMessage("Could not delete temp file temp_file_sql_input.sqlite, delete this file manually", 'MSA_QGIS', Qgis.Warning)
+            try:
+                remove(path.join(save_directory,'temp_save_rule_dict.pkl'))
+            except:
+                QgsMessageLog.logMessage("Could not delete temp file temp_save_rule_dict.pkl, delete this file manually", 'MSA_QGIS', Qgis.Warning)
+            try:
+                remove(path.join(save_directory,'temp_save_ruletree_dict.pkl'))
+            except:
+                QgsMessageLog.logMessage("Could not delete temp file temp_save_ruletree_dict.pkl, delete this file manually", 'MSA_QGIS', Qgis.Warning)
+
+
             #Let user load data after finishing
             conn = sqlite3.connect(path.join(save_directory,'MSA_output.sqlite'))
             cursor = conn.cursor()
@@ -1535,25 +1562,11 @@ class MsaQgis:
                 conn.close()
             except:
                 pass
-            try:
-                remove(path.join(save_directory,'temp_file_sql_input.sqlite'))
-            except:
-                QgsMessageLog.logMessage("Could not delete temp file temp_file_sql_input.sqlite, delete this file manually", 'MSA_QGIS', Qgis.Warning)
-            try:
-                remove(path.join(save_directory,'temp_save_rule_dict.pkl'))
-            except:
-                QgsMessageLog.logMessage("Could not delete temp file temp_save_rule_dict.pkl, delete this file manually", 'MSA_QGIS', Qgis.Warning)
-            try:
-                remove(path.join(save_directory,'temp_save_ruletree_dict.pkl'))
 
-            except:
-                QgsMessageLog.logMessage("Could not delete temp file temp_save_ruletree_dict.pkl, delete this file manually", 'MSA_QGIS', Qgis.Warning)
-
-            #TODO close connection to log file
 
             executionTime = (time() - startTime)
             QgsMessageLog.logMessage(
                 'Total execution time in seconds: ' + str(executionTime),'MSA_QGIS',Qgis.Info)
             QgsMessageLog.logMessage("MSA_QGIS finished sucessfully", 'MSA_QGIS', Qgis.Info)
 
-
+            QgsApplication.messageLog().messageReceived.disconnect(self.writeLogMessage)
