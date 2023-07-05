@@ -256,6 +256,7 @@ def setupMSA(dict_rule_tree, dict_nest_rule, spacing, save_directory, file_name,
         process.join()
 
     # Save important tables
+    print('saving percentages to files code reached')
     output_conn = sqlite3.connect(path.join(save_directory, "MSA_output.sqlite"))
     cursor = output_conn.cursor()
     cursor.execute(f'SELECT * FROM "simulated_pollen"')
@@ -370,17 +371,25 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
                                 csv_writer.writerows(cursor)
 
                             cursor.execute((f'DROP TABLE IF EXISTS "{map_name}"'))
-                            cursor.execute((f'DROP TABLE IF EXISTS "{map_name}_idx"'))
-                            cursor.execute((f'DROP TABLE IF EXISTS "{map_name}_idx_res"'))
+                            cursor.execute((f'DROP INDEX IF EXISTS "{map_name}_idx"'))
+                            cursor.execute((f'DROP INDEX IF EXISTS "{map_name}_idx_res"'))
                             conn.commit()
                             break
                         except sqlite3.OperationalError:  # TODO needs to catch only database locked
                             print(f"retry connection (saving map) for {map_name}... {increment}", flush=True)
+                            cursor.execute(f"DETACH DATABASE file_db")
                             time.sleep(increment)
+                            cursor.execute(
+                                f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
+
                         except Exception as e:
                             print(
                                 f"exception other than connection error in creating copy map table  {map_name} \n {e}")
-
+            else:
+                cursor.execute((f'DROP TABLE IF EXISTS "{map_name}"'))
+                cursor.execute((f'DROP INDEX IF EXISTS "{map_name}_idx"'))
+                cursor.execute((f'DROP INDEX IF EXISTS "{map_name}_idx_res"'))
+                conn.commit()
             #save the pollen loadings (if desired)
             if fit_stats[3] == "False" and fit_stats[4] == "False":
                 cursor.execute(f'SELECT site_name FROM "sampling_sites"')
@@ -394,12 +403,26 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
                             cursor.execute(f'CREATE TABLE file_db.[{site[0]}{map_name}] AS SELECT * FROM [{site[0]}{map_name}]')
                             conn.commit()
                             cursor.execute((f'DROP TABLE IF EXISTS "{site[0]}{map_name}"'))
+                            cursor.execute((f'DROP INDEX IF EXISTS "{site[0]}{map_name}_idx"'))
+                            cursor.execute((f'DROP INDEX IF EXISTS "{site[0]}{map_name}_idx_pseudo"'))
                             break
                         except sqlite3.OperationalError as e: # TODO needs to catch only database locked
                             print(f"retry connection (pollen loading table) for {site[0]}{map_name}... {increment}\n {e}", flush=True)
+                            cursor.execute(f"DETACH DATABASE file_db")
                             time.sleep(increment)
+                            cursor.execute(
+                                f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
+
                         except Exception as e:
                             print(f"exception other than connection error in creating copy pollen loading table {site[0]}{map_name} \n {e}")
+            else:
+                cursor.execute(f'SELECT site_name FROM "sampling_sites"')
+                sampling_sites = cursor.fetchall()
+                for site in sampling_sites:
+                    cursor.execute((f'DROP TABLE IF EXISTS "{site[0]}{map_name}"'))
+                    cursor.execute((f'DROP INDEX IF EXISTS "{site[0]}{map_name}_idx"'))
+                    cursor.execute((f'DROP INDEX IF EXISTS "{site[0]}{map_name}_idx_pseudo"'))
+                    conn.commit()
             cursor.execute(f"DETACH DATABASE file_db")
         # if all branches of a branch_point have been used, drop table
         if scenario_dict[key][0] != "basemap":
@@ -408,6 +431,9 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
             if scenario_dict[scenario_dict[key][0]][4] == scenario_dict[scenario_dict[key][0]][3]:
                 #if n_branches = n_branches_used for the start point, drop branch_point
                 cursor.execute(f'DROP TABLE IF EXISTS "{scenario_dict[key][0]}_{iteration}"')
+                cursor.execute((f'DROP INDEX IF EXISTS "{scenario_dict[key][0]}_{iteration}_idx"'))
+                cursor.execute((f'DROP INDEX IF EXISTS "{scenario_dict[key][0]}_{iteration}_idx_res"'))
+                conn.commit()
 
     # Save simulated pollen percentages and landscape cover
     cursor.execute(f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
@@ -444,8 +470,12 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
                         conn.commit()
                     break
                 except sqlite3.OperationalError as e:
-                    print(f"retry connection {increment} (simulated pollen)...", flush=True)
+                    print(f"retry connection {increment} (simulated pollen)...\n {e}", flush=True)
+                    cursor.execute(f"DETACH DATABASE file_db")
                     time.sleep(increment)
+                    cursor.execute(
+                        f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
+
                 except Exception as e:
                     print(f"exception other than connection error in saving simulated pollen \n {e}")
                     #check if line was added to table after all before trying again.
@@ -478,9 +508,6 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
     cursor.execute(f"DETACH DATABASE file_db")
     conn.commit()
     conn.close()
-
-
-
 
 def makeBasemap(conn, cursor, dict_rule_tree, dict_nest_rule,spacing, save_directory, number_of_entries):
     """ This deals with the order of rules in the dict_rule_tree for the making of a basemap, so that they can be dealt
