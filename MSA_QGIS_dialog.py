@@ -2162,7 +2162,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                             self.dict_ruleTreeWidgets[key].next_layout.deleteLater()
                         self.dict_ruleTreeWidgets[key].deleteLater()
                         list_to_delete.append(key)
-                    #check if rule is duplicate of selected rule, if yes delete that rule
+                    #check if rule is duplicate of selected rule, if yes delete that rule and all rules following that duplicate
                     elif selected_rule in self.dict_ruleTreeWidgets[key].duplicate_ruleTreeWidgets:
                         if self.dict_ruleTreeWidgets[key].own_layout:
                             self.dict_ruleTreeWidgets[key].own_layout.deleteLater()
@@ -2170,6 +2170,14 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                             self.dict_ruleTreeWidgets[key].next_layout.deleteLater()
                         self.dict_ruleTreeWidgets[key].deleteLater()
                         list_to_delete.append(key)
+                        for key2 in self.dict_ruleTreeWidgets:
+                            if key in self.dict_ruleTreeWidgets[key2].prev_ruleTreeWidgets:
+                                if self.dict_ruleTreeWidgets[key2].own_layout:
+                                    self.dict_ruleTreeWidgets[key2].own_layout.deleteLater()
+                                if self.dict_ruleTreeWidgets[key2].next_layout:
+                                    self.dict_ruleTreeWidgets[key2].next_layout.deleteLater()
+                                self.dict_ruleTreeWidgets[key2].deleteLater()
+                                list_to_delete.append(key2)
                 #then delete the selected rule and its layouts itself
                 if self.dict_ruleTreeWidgets[selected_rule].own_layout:
                     self.dict_ruleTreeWidgets[selected_rule].own_layout.deleteLater()
