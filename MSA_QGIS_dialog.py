@@ -1168,13 +1168,25 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             for row in reader:
 
                 if row[0] == 'x_min':
-                    x_min = float(row[1])
+                    if row[1] == 'No extent set':
+                        pass
+                    else:
+                        x_min = float(row[1])
                 elif row[0] == 'x_max':
-                    x_max = float(row[1])
+                    if row[1] == 'No extent set':
+                        pass
+                    else:
+                        x_max = float(row[1])
                 elif row[0] == 'y_min':
-                    y_min = float(row[1])
+                    if row[1] == 'No extent set':
+                        pass
+                    else:
+                        y_min = float(row[1])
                 elif row[0] == 'y_max':
-                    y_max = float(row[1])
+                    if row[1] == 'No extent set':
+                        pass
+                    else:
+                        y_max = float(row[1])
                 elif row[0] == 'CRS':
                     crs_string = row[1]
                     crs= QgsCoordinateReferenceSystem(crs_string)
@@ -1294,23 +1306,34 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                     self.doubleSpinBox_fit.setValue(float(row[2]))
                     self.doubleSpinBox_cumulFit.setValue(float(row[3]))
                 elif row[0] == 'maps':
+                    print('row maps')
                     if row[1] == 'Keep all + loadings':
+                        print('keep all + loadings')
                         self.radioButton_keepFitted.setChecked(False)
                         self.radioButton_keepTwo.setChecked(False)
                         self.radioButton_keepAll.setChecked(True)
                     elif row[1] == 'Keep all - loadings':
+                        print('keep all - loadings')
                         self.radioButton_keepFitted.setChecked(False)
                         self.radioButton_keepTwo.setChecked(True)
                         self.radioButton_keepAll.setChecked(False)
                     elif row[1] == 'Keep fitted':
+                        print('keep fitted')
                         self.radioButton_keepFitted.setChecked(True)
                         self.radioButton_keepTwo.setChecked(False)
                         self.radioButton_keepAll.setChecked(False)
+                elif row[0] == '1':
+                    return
                 else:
+                    print(f'row passed with name {row[0]}')
                     pass
-
-            rectangle = QgsRectangle(x_min,y_min,x_max,y_max)
+        try:
+            rectangle = QgsRectangle(x_min, y_min, x_max, y_max)
             self.mExtentGroupBox.setOutputExtentFromUser(rectangle, crs)
+        except Exception as e:
+            iface.messageBar().pushMessage(
+                'Error loading extent, either there was no extent, or the extent is corrupted. Check the intputstate.csv file', level=1)
+
 
         pass
 
