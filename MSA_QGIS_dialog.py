@@ -695,6 +695,9 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             for key in self.nest_dict_rules:
                 self.listWidget_rules.addItem(self.nest_dict_rules[key][1])
                 self.rule_number += 1
+        # sort the rule dict after loading (for compatibility with older versions)
+        # TODO this was only an issue in old, unpublished versions, so this can be removed if no older projects are being used anymore
+        self.nest_dict_rules = dict(sorted(self.nest_dict_rules.items()))
 
     def saveHandbagFile(self):
         """ Saves all of the input data that is backwards compatible with HUMPOL/LandPolFlow into a single text file (.hum)"""
@@ -1306,26 +1309,19 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                     self.doubleSpinBox_fit.setValue(float(row[2]))
                     self.doubleSpinBox_cumulFit.setValue(float(row[3]))
                 elif row[0] == 'maps':
-                    print('row maps')
                     if row[1] == 'Keep all + loadings':
-                        print('keep all + loadings')
                         self.radioButton_keepFitted.setChecked(False)
                         self.radioButton_keepTwo.setChecked(False)
                         self.radioButton_keepAll.setChecked(True)
                     elif row[1] == 'Keep all - loadings':
-                        print('keep all - loadings')
                         self.radioButton_keepFitted.setChecked(False)
                         self.radioButton_keepTwo.setChecked(True)
                         self.radioButton_keepAll.setChecked(False)
                     elif row[1] == 'Keep fitted':
-                        print('keep fitted')
                         self.radioButton_keepFitted.setChecked(True)
                         self.radioButton_keepTwo.setChecked(False)
                         self.radioButton_keepAll.setChecked(False)
-                elif row[0] == '1':
-                    return
                 else:
-                    print(f'row passed with name {row[0]}')
                     pass
         try:
             rectangle = QgsRectangle(x_min, y_min, x_max, y_max)
@@ -1334,8 +1330,6 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             iface.messageBar().pushMessage(
                 'Error loading extent, either there was no extent, or the extent is corrupted. Check the intputstate.csv file', level=1)
 
-
-        pass
 
     def saveFiles(self):
         self.popup_save_file = MsaQgisSaveLoadDialog('save')
@@ -1613,6 +1607,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         if self.add_rule_popup.exec_():
             # Add the rule to the dictionary and rule description to the rule listWidget
             self.nest_dict_rules['Rule ' + str(rule_number)] = self.add_rule_popup.list_for_rules_dict
+            self.nest_dict_rules = dict(sorted(self.nest_dict_rules.items()))
             self.listWidget_rules.addItem(self.nest_dict_rules['Rule ' + str(rule_number)][1])
 
     def deleteRule(self):
@@ -1967,7 +1962,6 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 length_first_after_series = len(first_after_series)
                 for key in self.dict_ruleTreeWidgets:
                     if first_in_series == str(self.dict_ruleTreeWidgets[key].order_id)[:length_first_in_series]:
-                        print('are same')
                         for digit in str(self.dict_ruleTreeWidgets[key].order_id)[length_first_in_series:]:
                             if digit != '1':
                                 contains_only_1 = False
