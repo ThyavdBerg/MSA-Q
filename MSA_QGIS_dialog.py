@@ -1302,7 +1302,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                         self.radioButton_keepFitted.setChecked(False)
                         self.radioButton_keepTwo.setChecked(True)
                         self.radioButton_keepAll.setChecked(False)
-                    elif row[1] == 'Keep fit':
+                    elif row[1] == 'Keep fitted':
                         self.radioButton_keepFitted.setChecked(True)
                         self.radioButton_keepTwo.setChecked(False)
                         self.radioButton_keepAll.setChecked(False)
