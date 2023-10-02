@@ -70,7 +70,7 @@
         <string notr="true">tab_rules {background-color: rgb(240, 240, 240)};</string>
        </property>
        <property name="currentIndex">
-        <number>5</number>
+        <number>3</number>
        </property>
        <widget class="QWidget" name="tab_envAndSpatial">
         <attribute name="title">
@@ -114,7 +114,7 @@
              <rect>
               <x>0</x>
               <y>0</y>
-              <width>688</width>
+              <width>507</width>
               <height>709</height>
              </rect>
             </property>
@@ -551,8 +551,8 @@
              <rect>
               <x>0</x>
               <y>0</y>
-              <width>705</width>
-              <height>623</height>
+              <width>252</width>
+              <height>549</height>
              </rect>
             </property>
             <layout class="QGridLayout" name="gridLayout_2">
@@ -699,6 +699,9 @@
                    <property name="toolTip">
                     <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Remove a taxon from the table of taxa.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                    </property>
+                   <property name="styleSheet">
+                    <string notr="true">color: rgb(255, 0, 0);</string>
+                   </property>
                    <property name="text">
                     <string>Remove</string>
                    </property>
@@ -770,6 +773,9 @@
                   <widget class="QPushButton" name="pushButton_removeVegCom">
                    <property name="toolTip">
                     <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Remove the selected vegetation community from the table of vegetation communities&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                   </property>
+                   <property name="styleSheet">
+                    <string notr="true">color: rgb(255, 0, 0);</string>
                    </property>
                    <property name="text">
                     <string>Remove</string>
@@ -867,6 +873,9 @@
             <widget class="QPushButton" name="pushButton_removeRule">
              <property name="toolTip">
               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Remove a selected rule from the list of rules. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <property name="styleSheet">
+              <string notr="true">color: rgb(255, 0, 0);</string>
              </property>
              <property name="text">
               <string>Remove rule</string>
@@ -972,9 +981,45 @@
                 </widget>
                </item>
                <item>
+                <widget class="QPushButton" name="pushButton_copyBranch">
+                 <property name="toolTip">
+                  <string>This selects a branch from the selected rule block onwards.</string>
+                 </property>
+                 <property name="text">
+                  <string>Copy branch</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="pushButton_pasteBranch">
+                 <property name="toolTip">
+                  <string>This pastes a previously selected branch under the currently selected rule block. Note that the branch to be copied must still exist!</string>
+                 </property>
+                 <property name="text">
+                  <string>Paste branch</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <spacer name="verticalSpacer">
+                 <property name="orientation">
+                  <enum>Qt::Vertical</enum>
+                 </property>
+                 <property name="sizeHint" stdset="0">
+                  <size>
+                   <width>20</width>
+                   <height>40</height>
+                  </size>
+                 </property>
+                </spacer>
+               </item>
+               <item>
                 <widget class="QPushButton" name="pushButton_deleteBranch">
                  <property name="toolTip">
                   <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;This deletes a branch from the selected rule onward.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                 </property>
+                 <property name="styleSheet">
+                  <string notr="true">color: rgb(255, 0, 0)</string>
                  </property>
                  <property name="text">
                   <string>Delete branch</string>
@@ -982,7 +1027,7 @@
                 </widget>
                </item>
                <item>
-                <spacer name="verticalSpacer">
+                <spacer name="verticalSpacer_7">
                  <property name="orientation">
                   <enum>Qt::Vertical</enum>
                  </property>
@@ -1050,6 +1095,9 @@
                  <bold>true</bold>
                 </font>
                </property>
+               <property name="toolTip">
+                <string>Opens a second window with a copy of the list of rules, so that you don't have to keep going back and forth between the tabs.</string>
+               </property>
                <property name="text">
                 <string>View rule list</string>
                </property>
@@ -1100,8 +1148,8 @@
              <rect>
               <x>0</x>
               <y>0</y>
-              <width>705</width>
-              <height>623</height>
+              <width>365</width>
+              <height>455</height>
              </rect>
             </property>
             <layout class="QGridLayout" name="gridLayout_3" rowstretch="0,0,0,0,0">
@@ -1241,6 +1289,9 @@
              </item>
              <item row="1" column="2">
               <widget class="QPushButton" name="pushButton_removeSite">
+               <property name="styleSheet">
+                <string notr="true">color: rgb(255, 0, 0);</string>
+               </property>
                <property name="text">
                 <string>Remove Sampling Site</string>
                </property>
@@ -1248,6 +1299,9 @@
              </item>
              <item row="3" column="2">
               <widget class="QPushButton" name="pushButton_removePollenFile">
+               <property name="styleSheet">
+                <string notr="true">color: rgb(255, 0, 0);</string>
+               </property>
                <property name="text">
                 <string>Remove Pollen File</string>
                </property>
@@ -1776,6 +1830,9 @@
            </item>
            <item>
             <widget class="QPushButton" name="pushButton_removeChangeLog">
+             <property name="styleSheet">
+              <string notr="true">color: rgb(255, 0, 0);</string>
+             </property>
              <property name="text">
               <string>Remove last entry</string>
              </property>
