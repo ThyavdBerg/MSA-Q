@@ -1531,13 +1531,13 @@ class MsaQgis:
             # subprocess_output, subprocess_error = running_msa.communicate()
             # QgsMessageLog.logMessage(f'output = {subprocess_output} \n error = {subprocess_error}', 'MSA_QGIS', Qgis.Info)
 
-            with Popen(["python3", file_to_run], stdout= PIPE, stdin=PIPE, stderr=STDOUT, text= True, bufsize =1) as running_msa:
+            with Popen(["python3","-u", file_to_run], stdout= PIPE, stdin=PIPE, stderr=STDOUT, text= True, bufsize =1) as running_msa:
                 running_msa.stdin.write(f"{save_directory}\n{from_basemap}\n{run_type}\n{number_of_iters}\n{self.spacing}\n"
                           f"{self.dlg.checkBox_enableWindrose.isChecked()}\n{self.dlg.doubleSpinBox_fit.value()}\n"
                           f"{self.dlg.doubleSpinBox_cumulFit.value()}\n{self.dlg.comboBox_fit.currentText()}\n"
                           f"{self.dlg.radioButton_keepFitted.isChecked()}\n{self.dlg.radioButton_keepTwo.isChecked()}\n"
                           f"{number_of_entries}\n{self.dlg.radioButton_nestedMap.isChecked()}\n"
-                          f"{n_of_sites}\n{n_of_taxa}\n{n_of_vegcom}")
+                          f"{n_of_sites}\n{n_of_taxa}\n{n_of_vegcom}\n{self.dlg.spinBox_randomSeed.value()}")
                 running_msa.stdin.flush()
                 running_msa.stdin.close()
                 for line in running_msa.stdout:

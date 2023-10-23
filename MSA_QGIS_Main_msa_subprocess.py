@@ -107,13 +107,16 @@ def checkInput():
         elif count == 15:
             n_of_taxa = int(line[:-1])
             count +=1
+        elif count == 16:
+            n_of_vegcom = int(line[:-1])
+            count +=1
         else:
-            n_of_vegcom = int(line)
+            random_seed = int(line)
 
 
 
 
-    return save_directory, from_basemap, run_type, number_of_iters, spacing, windrose, [likelihood_threshold, cumulative_likelihood_threshold, fit_formula, keep_fitted, keep_two], number_of_entries, nested, n_of_sites, n_of_taxa, n_of_vegcom
+    return save_directory, from_basemap, run_type, number_of_iters, spacing, windrose, [likelihood_threshold, cumulative_likelihood_threshold, fit_formula, keep_fitted, keep_two], number_of_entries, nested, n_of_sites, n_of_taxa, n_of_vegcom, random_seed
 
 def loadFiles(save_directory):
     """Loads the files required for running the MSA.
@@ -198,7 +201,7 @@ def prepareMSA(dict_rule_tree):
     scenario_dict= dict(sorted(scenario_dict.items()))
     return scenario_dict
 
-def setupMSA(dict_rule_tree, dict_nest_rule, spacing, save_directory, file_name,windrose, fit_stats,number_of_entries, nested,n_of_sites, n_of_taxa, n_of_vegcom, run_type):
+def setupMSA(dict_rule_tree, dict_nest_rule, spacing, save_directory, file_name,windrose, fit_stats,number_of_entries, nested,n_of_sites, n_of_taxa, n_of_vegcom, run_type,random_seed):
     """ Sets up the multiprocessing environment for the various iterations of the MSA.
 
     :param spacing: resolution of the vector point grid
@@ -227,12 +230,13 @@ def setupMSA(dict_rule_tree, dict_nest_rule, spacing, save_directory, file_name,
     process_list = []
     #TODO hard-code limit iterations by number of cores and/or RAM available?
     for iteration in range(1, int(number_of_iters) + 1):
+        random_seed = random_seed + iteration
         process = Process(target=runMSA,
                           args=(
                               iteration, spacing, scenario_dict, save_directory,
                               dict_nest_rule,
                               dict_rule_tree, file_name, windrose, fit_stats,number_of_entries, nested,n_of_sites,
-                              n_of_taxa, n_of_vegcom, run_type))
+                              n_of_taxa, n_of_vegcom, run_type, random_seed))
         process_list.append(process)
 
     for process in process_list:
@@ -242,7 +246,7 @@ def setupMSA(dict_rule_tree, dict_nest_rule, spacing, save_directory, file_name,
         process.join()
 
     # Save important tables
-    print('setupMSA saving percentages')
+    print('setupMSA saving percentages', flush = True)
     output_conn = sqlite3.connect(path.join(save_directory, "MSA_output.sqlite"))
     cursor = output_conn.cursor()
     cursor.execute(f'SELECT * FROM "simulated_pollen"')
@@ -257,7 +261,7 @@ def setupMSA(dict_rule_tree, dict_nest_rule, spacing, save_directory, file_name,
         csv_writer.writerows(cursor)
     output_conn.close()
 
-def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict_rule_tree, file,windrose, fit_stats,number_of_entries, nested,n_of_sites, n_of_taxa, n_of_vegcom, run_type):
+def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict_rule_tree, file,windrose, fit_stats,number_of_entries, nested,n_of_sites, n_of_taxa, n_of_vegcom, run_type,random_seed):
     """ This is where rules are initiated in order of the rule tree. It is a single iteration of the MSA. Can be
     multiprocessed.
 
@@ -279,6 +283,9 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
     :param dict_rule_tree: nested, simplefied dictionary derived from rule tree widgets given by user
     :type dict_rule_tree: dict """
     #TODO re-add option to only save selectively.
+    #initialize the random generator with seed
+    random.seed(random_seed)
+
     retries = 50
     # Open a connection to the temp map to copy everything
     try:
@@ -337,7 +344,6 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
                                n_of_vegcom)
             if run_type == "3":
                 calculateFit(map_name, n_of_sites, n_of_taxa, conn, cursor, fit_stats)
-
             # save the map (optional: if fit met)
             save_map = "Yes"
             if fit_stats[3] == "True": # keep only fitted
@@ -346,6 +352,7 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
             for increment in range(retries):
                 try:
                     cursor.execute(f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
+                    break
                 except sqlite3.OperationalError:
                     time.sleep(increment)
             if save_map == "Yes":
@@ -353,11 +360,11 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
                         try:
                             cursor.execute(f'CREATE TABLE file_db.[{map_name}] AS SELECT * FROM [{map_name}]')
                             conn.commit()
-                            cursor.execute(f'SELECT * FROM "{map_name}"')
-                            with open(path.join(save_directory, str(map_name) + '.csv'), 'w', newline='') as csv_file:
-                                csv_writer = csv.writer(csv_file)
-                                csv_writer.writerow([i[0] for i in cursor.description])
-                                csv_writer.writerows(cursor)
+                            # cursor.execute(f'SELECT * FROM "{map_name}"')
+                            # with open(path.join(save_directory, str(map_name) + '.csv'), 'w', newline='') as csv_file:
+                            #     csv_writer = csv.writer(csv_file)
+                            #     csv_writer.writerow([i[0] for i in cursor.description])
+                            #     csv_writer.writerows(cursor)
 
                             cursor.execute(f'DROP TABLE IF EXISTS "{map_name}"')
                             conn.commit()
@@ -370,11 +377,12 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
                                 try:
                                     cursor.execute(
                                         f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
+                                    break
                                 except sqlite3.OperationalError:
                                     time.sleep(increment)
                         except Exception as e:
                             print(
-                                f"runMSA exception other than connection error in creating copy map table  {map_name} \n {e}")
+                                f"runMSA exception other than connection error in creating copy map table  {map_name} \n {e}", flush = True)
                             cursor.execute(f'DROP TABLE IF EXISTS "{map_name}"')
                             conn.commit()
             else:
@@ -391,6 +399,7 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
                             try:
                                 cursor.execute(
                                     f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
+                                break
                             except sqlite3.OperationalError:
                                 time.sleep(increment)
             #save the pollen loadings (if desired)
@@ -400,9 +409,9 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
                 for site in sampling_sites:
                     for increment in range(retries):
                         if increment == retries - 1:
-                            print(f'runMSA Final try {site[0]}{map_name}')
+                            print(f'runMSA Final try {site[0]}{map_name}', flush =True)
                         try:
-                            print(f'runMSA saving map {site[0]}{map_name}')
+                            print(f'runMSA saving map {site[0]}{map_name}', flush = True)
                             cursor.execute(f'CREATE TABLE file_db.[{site[0]}{map_name}] AS SELECT * FROM [{site[0]}{map_name}]')
                             conn.commit()
                             cursor.execute(f'DROP TABLE IF EXISTS "{site[0]}{map_name}"')
@@ -416,10 +425,11 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
                                 try:
                                     cursor.execute(
                                         f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
+                                    break
                                 except sqlite3.OperationalError:
                                     time.sleep(increment)
                         except Exception as e:
-                            print(f"runMSA exception other than connection error in creating copy pollen loading table {site[0]}{map_name} \n {e}")
+                            print(f"runMSA exception other than connection error in creating copy pollen loading table {site[0]}{map_name} \n {e}", flush = True)
                             cursor.execute(f'DROP TABLE IF EXISTS "{site[0]}{map_name}"')
                             conn.commit()
             else:
@@ -440,6 +450,7 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
                                 try:
                                     cursor.execute(
                                         f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
+                                    break
                                 except sqlite3.OperationalError:
                                     time.sleep(increment)
 
@@ -457,6 +468,7 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
     for increment in range(retries):
         try:
             cursor.execute(f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
+            break
         except sqlite3.OperationalError:
             time.sleep(increment)
 
@@ -466,7 +478,7 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
             map_name = f"{key}_{iteration}"
             for increment in range(retries):
                 if increment == retries - 1:
-                    print(f'runMSA Final try pollen percent {map_name}')
+                    print(f'runMSA Final try pollen percent {map_name}', flush = True)
                 try:
                     for row in range(n_of_sites):
                         cursor.execute(f'SELECT site_name FROM "sampling_sites" WHERE rowid IS {row + 1}')
@@ -500,11 +512,12 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
                         try:
                             cursor.execute(
                                 f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
+                            break
                         except sqlite3.OperationalError:
                             time.sleep(increment)
 
                 except Exception as e:
-                    print(f"runMSA exception other than connection error in saving simulated pollen \n {e}")
+                    print(f"runMSA exception other than connection error in saving simulated pollen \n {e}", flush = True)
                     #check if line was added to table after all before trying again.
                     cursor.execute(f'SELECT map_id, site_name FROM file_db.[simulated_pollen] WHERE EXISTS ('
                                    f'SELECT 1 FROM file_db.[simulated_pollen] WHERE (map_id = {map_name}) AND (site_name = {site_name}))')
@@ -518,7 +531,7 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
     #save fit and landscape percentages
     for increment in range(retries):
         if increment == retries-1:
-            print(f'runMSA Final try {map_name}')
+            print(f'runMSA Final try {map_name}', flush = True)
         try:
             cursor.execute(f'INSERT INTO file_db.[maps] SELECT * FROM [maps]')
             conn.commit()
@@ -535,7 +548,7 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
                     time.sleep(increment)
             conn.commit()
         except Exception as e:
-            print(f"runMSA exception other than connection error in saving map {map_name} \n {e}")
+            print(f"runMSA exception other than connection error in saving map {map_name} \n {e}", flush = True)
 
     cursor.execute(f"DETACH DATABASE file_db")
     conn.commit()
@@ -585,7 +598,7 @@ def assignVegCom(dict_nest_rule, conn, cursor, map_name, rule, number_of_entries
     :type rule: str or int
     """
     vegcom_start_time = time.time()
-    print(f"assignVegCom {map_name}, rule {rule}")
+    print(f"assignVegCom {map_name}, rule {rule}", flush = True)
     veg_com = dict_nest_rule[rule][2]
     rule_type = dict_nest_rule[rule][3]
     list_of_prev_vegcom = dict_nest_rule[rule][9]
@@ -604,7 +617,7 @@ def assignVegCom(dict_nest_rule, conn, cursor, map_name, rule, number_of_entries
         # timer = time.time()
         tuple_ids_above_chance = tuple([msa_id+1 for msa_id in range(number_of_entries) if random_numbers.item(msa_id) <chance])
         if tuple_ids_above_chance == (): # None of the random numbers were above chance, so the rule does not happen
-            print(f'assignVegCom Skip random with no assigned points, rule {rule}, {veg_com}, {map_name}.')
+            print(f'assignVegCom Skip random with no assigned points, rule {rule}, {veg_com}, {map_name}.', flush = True)
             # print(f"assigning vegcom for {map_name} with {rule} took {time.time() - vegcom_start_time}", flush=True)
             return
         if len(tuple_ids_above_chance) ==1:
@@ -782,7 +795,7 @@ def simulatePollen(map_name,iteration, conn, cursor, windrose, fit_stats, nested
      type cursor: SQLite cursor"""
 
     start_time = time.time()
-    print(f"simulatePollen {map_name}")
+    print(f"simulatePollen {map_name}", flush = True)
     # Calculate the pollen loadings
     for row in range(n_of_sites):
         # Create a new table per site
@@ -948,7 +961,7 @@ def simulatePollen(map_name,iteration, conn, cursor, windrose, fit_stats, nested
 
 def calculateFit(map_name,n_of_sites, n_of_taxa, conn, cursor, fit_stats):
     """When running a full MSA reconstruction, calculates the fit in comparison to the actual pollen."""
-    print(f'calculateFit {map_name} started')
+    print(f'calculateFit {map_name} started', flush = True)
     start_time = time.time()
     conn.create_function("SQRT", 1, SqlSqrt)
     cumul_fit = 0
@@ -1001,7 +1014,7 @@ def calculateFit(map_name,n_of_sites, n_of_taxa, conn, cursor, fit_stats):
 if __name__ == "__main__":
     ##Main code
     # check if save input is correct. If not will automatically error and quit
-    save_directory, from_basemap, run_type, number_of_iters, spacing, windrose, fit_stats,number_of_entries, nested, n_of_sites, n_of_taxa, n_of_vegcom = checkInput()
+    save_directory, from_basemap, run_type, number_of_iters, spacing, windrose, fit_stats,number_of_entries, nested, n_of_sites, n_of_taxa, n_of_vegcom, random_seed = checkInput()
     # Open pickled files
     dict_nest_rule, dict_rule_tree = loadFiles(save_directory)
     # Create the basemap if necessary
@@ -1015,7 +1028,7 @@ if __name__ == "__main__":
             if run_type == "1":
                 sys.exit("Error in subprocess, run_type = 2 (make only basemap), but no entries in rule tree were designated as base group")
             else: #Carry on to do a full MSA, but start from point_sampled_map
-                setupMSA(dict_rule_tree,dict_nest_rule, spacing,save_directory, "temp_file_sql_input.sqlite", windrose, fit_stats,number_of_entries, nested, n_of_sites, n_of_taxa, n_of_vegcom, run_type)
+                setupMSA(dict_rule_tree,dict_nest_rule, spacing,save_directory, "temp_file_sql_input.sqlite", windrose, fit_stats,number_of_entries, nested, n_of_sites, n_of_taxa, n_of_vegcom, run_type, random_seed)
         else: #some entries were designated as basegroup
              if run_type == "1" or run_type == "2" or run_type == "3":
                  # Create the basemap
@@ -1030,14 +1043,14 @@ if __name__ == "__main__":
                      #basemap is saved as part of makeBasemap, move on to end subprocess
                      pass
                  elif run_type == "2" or run_type == "3": #continue with full MSA
-                     setupMSA(dict_rule_tree,dict_nest_rule, spacing,save_directory, "output_basemap.sqlite", windrose, fit_stats, number_of_entries, nested,n_of_sites, n_of_taxa, n_of_vegcom,run_type)
+                     setupMSA(dict_rule_tree,dict_nest_rule, spacing,save_directory, "output_basemap.sqlite", windrose, fit_stats, number_of_entries, nested,n_of_sites, n_of_taxa, n_of_vegcom,run_type,random_seed)
              else: # Some error occurred in setting up the run, this code should not be reached
                  sys.exit(f"Error in subprocess, run_type is incorrect, \n run_type = {run_type}")
     else: #A basemap exists
         if run_type == "1":
             sys.exit(f"Error in subprocess, run_type is make basemap, but a basemap already exists. Quitting run")
         elif run_type == "2" or run_type == "3":
-            setupMSA(dict_rule_tree,dict_nest_rule, spacing,save_directory, "temp_file_sql_input.sqlite", windrose, fit_stats, number_of_entries, nested,n_of_sites, n_of_taxa, n_of_vegcom, run_type)
+            setupMSA(dict_rule_tree,dict_nest_rule, spacing,save_directory, "temp_file_sql_input.sqlite", windrose, fit_stats, number_of_entries, nested,n_of_sites, n_of_taxa, n_of_vegcom, run_type,random_seed)
         else:
             sys.exit(f"Error in subprocess, run_type is incorrect for full run, \n run_type = {run_type}")
 
