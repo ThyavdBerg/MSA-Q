@@ -9,7 +9,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>719</width>
+    <width>718</width>
     <height>877</height>
    </rect>
   </property>
@@ -925,7 +925,7 @@
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>529</width>
+                <width>528</width>
                 <height>584</height>
                </rect>
               </property>
@@ -1066,6 +1066,32 @@
                  </property>
                  <property name="value">
                   <number>0</number>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="label_randomSeed">
+                 <property name="toolTip">
+                  <string>The seed for random generation makes sure that the parts that are randomly generated are the same, so long as the Random Seed is the same. It is good open science practice to provide this for reproducibility purposes. </string>
+                 </property>
+                 <property name="text">
+                  <string>Random Seed</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QSpinBox" name="spinBox_randomSeed">
+                 <property name="toolTip">
+                  <string>Fill in a number between 1 and 10000</string>
+                 </property>
+                 <property name="minimum">
+                  <number>1</number>
+                 </property>
+                 <property name="maximum">
+                  <number>10000</number>
+                 </property>
+                 <property name="value">
+                  <number>333</number>
                  </property>
                 </widget>
                </item>
@@ -1876,7 +1902,7 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>694</width>
+        <width>693</width>
         <height>223</height>
        </rect>
       </property>
