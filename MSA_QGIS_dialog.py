@@ -1874,6 +1874,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
 
                 # Check if selected rule has duplicates and if yes create duplicates for new rule
                 if self.dict_ruleTreeWidgets[selected_rule].duplicate_ruleTreeWidgets:
+                    duplicate_id_list = []
                     for duplicate in self.dict_ruleTreeWidgets[selected_rule].duplicate_ruleTreeWidgets:
                         #determine rule id
                         if type(self.dict_ruleTreeWidgets[duplicate]) == list:
@@ -1897,11 +1898,20 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                         duplicate_list_rule[2].append(duplicate)
                         # add to next_ruleTreeWidgets of prev
                         self.dict_ruleTreeWidgets[duplicate][3].append(rule_id_duplicate)
-                        # add duplicate rule Tree Widgets index
+                        # add duplicate rule Tree Widgets to non-duplicate RTW
                         ruleTreeWidget.duplicate_ruleTreeWidgets.append(rule_id_duplicate)
-                        duplicate_list_rule[4].append(rule_id)
+                        #add duplicate id to list of duplicates to add to each other's index later
+                        duplicate_id_list.append(rule_id_duplicate)
                         # add to dictionary
                         self.dict_ruleTreeWidgets[rule_id_duplicate] = duplicate_list_rule
+                    #further add to duplicate lists
+                    for duplicate in duplicate_id_list:
+                        # add non-duplicate rule to duplicate index
+                        self.dict_ruleTreeWidgets[duplicate][4].append(rule_id)
+                        # add duplicates to each other's indices
+                        for duplicate_id in duplicate_id_list:
+                            if duplicate != duplicate_id:
+                                self.dict_ruleTreeWidgets[duplicate][4].append(duplicate_id)
 
                         # # Create widget OLD
                         # ruleTreeWidget_duplicate = RuleTreeWidget(self.nest_dict_rules, rule_id_duplicate, None, None)
@@ -2175,8 +2185,8 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 ruleTreeWidget_series.prev_ruleTreeWidgets = ruleTreeWidget_top.prev_ruleTreeWidgets.copy()
                 ruleTreeWidget_series.prev_ruleTreeWidgets.append(ruleTreeWidget_top.order_id)
                 ruleTreeWidget_bottom.prev_ruleTreeWidgets = ruleTreeWidget_series.prev_ruleTreeWidgets.copy()
-                ruleTreeWidget_series_two.prev_ruleTreeWidgets = ruleTreeWidget_series.prev_ruleTreeWidgets.copy()
                 ruleTreeWidget_bottom.prev_ruleTreeWidgets.append(ruleTreeWidget_series.order_id)
+                ruleTreeWidget_series_two.prev_ruleTreeWidgets = ruleTreeWidget_series.prev_ruleTreeWidgets.copy()
                 ruleTreeWidget_series_two.prev_ruleTreeWidgets.append(ruleTreeWidget_series.order_id)
                 ruleTree_duplicate[2] = ruleTreeWidget_series_two.prev_ruleTreeWidgets.copy()
                 ruleTree_duplicate[2].append(ruleTreeWidget_series_two.order_id)
