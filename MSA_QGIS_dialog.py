@@ -1720,7 +1720,6 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             if has_values == 0 and tableWidget_vegCom.horizontalHeaderItem(column).text() != "Name":
                 columns_to_remove.append(column)
         for column in reversed(columns_to_remove):
-            print(f'remove column {tableWidget_vegCom.horizontalHeaderItem(column).text()}')
             tableWidget_vegCom.removeColumn(column)
 
                     
@@ -1993,7 +1992,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         # Determine the id of the next widget to be placed
         if self.dict_ruleTreeWidgets[
             selected_rule].next_ruleTreeWidgets:  # NOTE max number of branches possible is 10
-            first_id_branch = max(self.dict_ruleTreeWidgets[selected_rule].next_ruleTreeWidgets) + 1
+            first_id_branch = max(self.dict_ruleTreeWidgets[selected_rule].next_ruleTreeWidgets) + 1 #TODO add warning for too many branches
         else:
             first_id_branch = int(str(self.dict_ruleTreeWidgets[selected_rule].order_id) + '0')
         # create the dictionary of rule blocks to copy
@@ -2037,13 +2036,11 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 # figure out the ID of the next normal rule, which should be this rule plus '00'
                 next_normal_rule = int(str(rule_block_id) + '00')
                 # check how many previous rules that rule has that contain the current rule and whether their type is 'series', this is the number of rules in series
-                list_rules_in_series= []
-                for prev_rule in self.dict_ruleTreeWidgets[next_normal_rule].prev_ruleTreeWidgets:
-                    if rule_block_id == prev_rule:
-                        pass #we can ignore an exact match
-                    elif str(rule_block_id) in str(prev_rule):
-                        list_rules_in_series.append(prev_rule)
-                n_rules_in_series = len(list_rules_in_series) -2
+                # n duplicates of final series rule/ n duplicates of rule_block_id (series start) = n rules in series
+                n_duplicates_final_in_series = len(self.dict_ruleTreeWidgets[int(str(rule_block_id) + '00')].duplicate_ruleTreeWidgets)+1
+                n_duplicates_series_start = len(self.dict_ruleTreeWidgets[rule_block_id].duplicate_ruleTreeWidgets) +1
+                n_rules_in_series = int(n_duplicates_final_in_series/n_duplicates_series_start)
+
                 series_start_id = self.addRuleToTreeSeries() #add first set of rules
                 # set correct rule selection for first set of rules
                 copied_rule = self.dict_ruleTreeWidgets[rule_block_id].comboBox_name.currentText()
@@ -2060,7 +2057,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 self.dict_ruleTreeWidgets[selected_rule].clicked.emit()
                 self.dict_ruleTreeWidgets[series_start_id].clicked.emit()
                 #add further series
-                for series_block in range(1,n_rules_in_series):
+                for series_block in range(2,n_rules_in_series):# start at 2 since the first rule is already implemented as part of the standard series
                     self.addRuleToTreeSeries()
                     ones_to_add = '0' + series_block * '1'
                     copied_rule = self.dict_ruleTreeWidgets[int(str(rule_block_id) + ones_to_add)].comboBox_name.currentText()
@@ -2562,12 +2559,9 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             else:
                 if self.dict_ruleTreeWidgets[selected_rule].duplicate_ruleTreeWidgets:
                     for duplicate in self.dict_ruleTreeWidgets[selected_rule].duplicate_ruleTreeWidgets:
-                        print('duplicate is ', duplicate)
                         length_rule_to_rm = len(str(duplicate))
                         for key in self.dict_ruleTreeWidgets:
-                            print(str(key)[:length_rule_to_rm], ' for ', key)
                             if str(key)[:length_rule_to_rm] == str(duplicate):
-                                print('add to delete list')
                                 list_to_delete.append(key)
                                 if type(self.dict_ruleTreeWidgets[key]) != list:
                                     if self.dict_ruleTreeWidgets[key].own_layout:
@@ -2577,9 +2571,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                                     self.dict_ruleTreeWidgets[key].deleteLater()
                 length_rule_to_rm = len(str(selected_rule))
                 for key in self.dict_ruleTreeWidgets:
-                    print(str(key)[:length_rule_to_rm], ' for ', key)
                     if str(key)[:length_rule_to_rm] == str(selected_rule):
-                        print('add to delete list')
                         list_to_delete.append(key)
                         if type(self.dict_ruleTreeWidgets[key]) != list:
                             if self.dict_ruleTreeWidgets[key].own_layout:
