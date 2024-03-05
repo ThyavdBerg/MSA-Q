@@ -353,7 +353,8 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
                 try:
                     cursor.execute(f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
                     break
-                except sqlite3.OperationalError:
+                except sqlite3.OperationalError as e:
+                    print(f"Database could not be attached : {e}")
                     time.sleep(increment)
             if save_map == "Yes":
                 for increment in range(retries):
@@ -378,7 +379,8 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
                                     cursor.execute(
                                         f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
                                     break
-                                except sqlite3.OperationalError:
+                                except sqlite3.OperationalError as e:
+                                    print(f"Database could not be attached : {e}")
                                     time.sleep(increment)
                         except Exception as e:
                             print(
@@ -400,7 +402,8 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
                                 cursor.execute(
                                     f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
                                 break
-                            except sqlite3.OperationalError:
+                            except sqlite3.OperationalError as e:
+                                print(f"Database could not be attached : {e}")
                                 time.sleep(increment)
             #save the pollen loadings (if desired)
             if fit_stats[3] == "False" and fit_stats[4] == "False":
@@ -426,7 +429,8 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
                                     cursor.execute(
                                         f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
                                     break
-                                except sqlite3.OperationalError:
+                                except sqlite3.OperationalError as e:
+                                    print(f"Database could not be attached : {e}")
                                     time.sleep(increment)
                         except Exception as e:
                             print(f"runMSA exception other than connection error in creating copy pollen loading table {site[0]}{map_name} \n {e}", flush = True)
@@ -442,7 +446,7 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
                             conn.commit()
                             break
                         except sqlite3.OperationalError as e:  # TODO needs to catch only database locked
-                            print(f"runMSA retry  save pollen loading {site[0]}{map_name} - {increment}\n {e}",
+                            print(f"runMSA retry save pollen loading {site[0]}{map_name} - {increment}\n {e}",
                                   flush=True)
                             cursor.execute(f"DETACH DATABASE file_db")
                             time.sleep(increment)
@@ -451,7 +455,8 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
                                     cursor.execute(
                                         f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
                                     break
-                                except sqlite3.OperationalError:
+                                except sqlite3.OperationalError as e:
+                                    print(f"Database could not be attached : {e}")
                                     time.sleep(increment)
 
             cursor.execute(f"DETACH DATABASE file_db")
@@ -469,7 +474,8 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
         try:
             cursor.execute(f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
             break
-        except sqlite3.OperationalError:
+        except sqlite3.OperationalError as e:
+            print(f"Database could not be attached : {e}")
             time.sleep(increment)
 
     #Save all the simulated pollen
@@ -505,7 +511,7 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
                         conn.commit()
                     break
                 except sqlite3.OperationalError as e:
-                    print(f"runMSA retry simulated pollen {increment} - \n {e}", flush=True)
+                    print(f"runMSA retry simulated pollen {increment} : {e}", flush=True)
                     cursor.execute(f"DETACH DATABASE file_db")
                     time.sleep(increment)
                     for increment2 in range(retries):
@@ -513,7 +519,8 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
                             cursor.execute(
                                 f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
                             break
-                        except sqlite3.OperationalError:
+                        except sqlite3.OperationalError as e:
+                            print(f"Database could not be attached : {e}")
                             time.sleep(increment)
 
                 except Exception as e:
@@ -544,7 +551,8 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
             for increment2 in range(retries):
                 try:
                     cursor.execute(f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
-                except sqlite3.OperationalError:
+                except sqlite3.OperationalError as e:
+                    print(f"Database could not be attached : {e}")
                     time.sleep(increment)
             conn.commit()
         except Exception as e:

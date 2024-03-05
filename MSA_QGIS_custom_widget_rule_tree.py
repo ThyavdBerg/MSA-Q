@@ -94,6 +94,7 @@ class RuleTreeWidget(QFrame):
 
 class RuleTreeComboBox(QComboBox):
     """ Creates the label with the rule number in it"""
+    #TODO disable accidentally changing the rule in the comboBox by scrolling
     def __init__(self, nest_dict_rule, parent = None):
         super(RuleTreeComboBox, self).__init__(parent)
         self.nest_dict_rule = nest_dict_rule
