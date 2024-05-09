@@ -166,37 +166,35 @@ def prepareMSA(dict_rule_tree):
     list_final_ids = [key for key in dict_rule_tree if dict_rule_tree[key][0] == []]
     #add all branches TODO breaks when rule block 1 is a branched rule
     for branch_point in list_branch_ids:
-        start_point = "basemap"
         list_possible_start_points = []
         for rule_block in dict_rule_tree[branch_point][1]:
             if rule_block in list_branch_ids:
                 list_possible_start_points.append(rule_block)
-            if len(list_possible_start_points) == 0:
-                start_point = "basemap"
-                run_list = [item for item in dict_rule_tree[branch_point][1] if
-                            item not in list_base_group_ids]
-            else:
-                start_point = max(list_possible_start_points)
-                run_list = [item for item in dict_rule_tree[branch_point][1] if
-                            item not in list_base_group_ids and int(item) > start_point]
-            n_branches = len(dict_rule_tree[branch_point][0])
+        if len(list_possible_start_points) == 0:
+            start_point = "basemap"
+            run_list = [item for item in dict_rule_tree[branch_point][1] if
+                        item not in list_base_group_ids]
+        else:
+            start_point = max(list_possible_start_points)
+            run_list = [item for item in dict_rule_tree[branch_point][1] if
+                        item not in list_base_group_ids and int(item) > start_point]
+        n_branches = len(dict_rule_tree[branch_point][0])
         scenario_dict[branch_point] = [start_point, False, run_list, n_branches, 0]
 
     #add all final rules
     for final_id in list_final_ids:
-        start_point = "basemap"
         list_possible_start_points = []
         for rule_block in dict_rule_tree[final_id][1]:
             if rule_block in list_branch_ids:
                 list_possible_start_points.append(rule_block)
-            if len(list_possible_start_points) == 0:
-                start_point = "basemap"
-                run_list = [item for item in dict_rule_tree[final_id][1] if
-                            item not in list_base_group_ids]
-            else:
-                start_point = max(list_possible_start_points)
-                run_list = [item for item in dict_rule_tree[final_id][1] if
-                            item not in list_base_group_ids and int(item) > start_point]
+        if len(list_possible_start_points) == 0:
+            start_point = "basemap"
+            run_list = [item for item in dict_rule_tree[final_id][1] if
+                        item not in list_base_group_ids]
+        else:
+            start_point = max(list_possible_start_points)
+            run_list = [item for item in dict_rule_tree[final_id][1] if
+                        item not in list_base_group_ids and int(item) > start_point]
         scenario_dict[final_id] = [start_point, True, run_list, 0,0]
     scenario_dict= dict(sorted(scenario_dict.items()))
     return scenario_dict
@@ -263,43 +261,51 @@ def setupMSA(dict_rule_tree, dict_nest_rule, spacing, save_directory, file_name,
 
 def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict_rule_tree, file,windrose, fit_stats,number_of_entries, nested,n_of_sites, n_of_taxa, n_of_vegcom, run_type,random_seed):
     """ This is where rules are initiated in order of the rule tree. It is a single iteration of the MSA. Can be
-    multiprocessed.
+        multiprocessed.
 
-    :param iter: iteration being run
-    :type iter: int
+        :param iter: iteration being run
+        :type iter: int
 
-    :param spacing: resolution of the vector point grid
-    :type spacing: int
+        :param spacing: resolution of the vector point grid
+        :type spacing: int
 
-    :param scenario_dict: sorted dictionary of ruletreewidget ids to be processed
-    :type scenario_dict: dict
+        :param scenario_dict: sorted dictionary of ruletreewidget ids to be processed
+        :type scenario_dict: dict
 
-    :param save_directory: URL location of the location where temp files and output files are stored.
-    :type save_directory: str
+        :param save_directory: URL location of the location where temp files and output files are stored.
+        :type save_directory: str
 
-    :param dict_nest_rule: nested dictionary of rules given by user
-    :type dict_nest_rule: dict
+        :param dict_nest_rule: nested dictionary of rules given by user
+        :type dict_nest_rule: dict
 
-    :param dict_rule_tree: nested, simplefied dictionary derived from rule tree widgets given by user
-    :type dict_rule_tree: dict """
-    #TODO re-add option to only save selectively.
-    #initialize the random generator with seed
+        :param dict_rule_tree: nested, simplefied dictionary derived from rule tree widgets given by user
+        :type dict_rule_tree: dict """
+    # initialize random seed
     random.seed(random_seed)
-
-    retries = 50
-    # Open a connection to the temp map to copy everything
+    # set nr of retries
+    retries = 100
+    # Open temp map in memory
     try:
         conn = copySqlitetoMem(save_directory,file)
     except Exception as e:
-        error_statement = f"{e}\nFor run {iteration}"
-        print(error_statement, flush = True)
+        print(f"runMSA Copying map to memory failed for run {iteration}, aborting run: {e}\n ", flush = True)
         try:
             conn.close()
-        except:
-            pass
-        return error_statement
+            print(f"runMSA {iteration} memory connection closed")
+        except Exception as e:
+            print(f"runMSA {iteration} CRITICAL memory connection could not be closed, restart QGIS to resolve: {e}")
+        return
     cursor = conn.cursor()
-    #get resolution information
+    # attach the on-disk database
+    try:
+        cursor.execute(
+            f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
+        print(f"runMSA {iteration} MSA_output.sqlite attached")
+    except Exception as e:
+        print(f"runMSA {iteration} MSA_output.sqlite could not be attached: {e}")
+        return
+
+    # get resolution information
     if nested == "True":
         cursor.execute(
             f'SELECT DISTINCT resolution from "basemap"')  # will likely want to move this out of this loop for speed, but test for now
@@ -317,24 +323,24 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
     #iterate over the scenario dict
     #every time a start_point is encountered, add a count to n_branches_used for the associated key in dict
     #if n_branches_used == n_branches, the table can be dropped
-    #every final rule is saved to file immediately, and then the table dropped
+    #every final rule is saved to file immediately, and saved tables are dropped
 
-    for key in scenario_dict:
-        map_name = f"{key}_{iteration}"
-        if scenario_dict[key][0] == "basemap":
-            start_point = scenario_dict[key][0]
+    for scenario in scenario_dict:
+        map_name = f"{scenario}_{iteration}"
+        if scenario_dict[scenario][0] == "basemap":
+            start_point = scenario_dict[scenario][0]
         else:
-            start_point = f'{scenario_dict[key][0]}_{iteration}'
+            start_point = f'{scenario_dict[scenario][0]}_{iteration}'
         cursor.execute(f'CREATE TABLE "{map_name}" AS SELECT * FROM "{start_point}";')
         conn.commit()
         cursor.execute(f'CREATE UNIQUE INDEX "{map_name}_idx" ON "{map_name}"(msa_id);')
         # assign vegetation
-        for item in scenario_dict[key][2]: #run_list
+        for item in scenario_dict[scenario][2]: #run_list
             assignVegCom(dict_nest_rule, conn, cursor, map_name, dict_rule_tree[item][3], number_of_entries)
-        #then for the final rule itself
-        assignVegCom(dict_nest_rule, conn, cursor, map_name, dict_rule_tree[key][3], number_of_entries)
+        # then for the final rule itself
+        assignVegCom(dict_nest_rule, conn, cursor, map_name, dict_rule_tree[scenario][3], number_of_entries)
         # if final rule, calculate fit, save to file, and drop table
-        if scenario_dict[key][1]:
+        if scenario_dict[scenario][1]:
             if nested == "True":
                 cursor.execute(f'CREATE INDEX "{map_name}_idx_res" on "{map_name}"(resolution, msa_id);')
                 simulatePollen(map_name, iteration, conn, cursor, windrose, fit_stats, nested, n_of_sites, n_of_taxa,
@@ -344,147 +350,85 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
                                n_of_vegcom)
             if run_type == "3":
                 calculateFit(map_name, n_of_sites, n_of_taxa, conn, cursor, fit_stats)
-            # save the map (optional: if fit met)
+
+            # save map (optional: if fit met)
             save_map = "Yes"
-            if fit_stats[3] == "True": # keep only fitted
+            if fit_stats[3] == "True":  # keep only fitted
                 cursor.execute(f'SELECT likelihood_met FROM maps WHERE map_id = "{map_name}"')
                 save_map = cursor.fetchone()[0]
-            for increment in range(retries):
-                try:
-                    cursor.execute(f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
-                    break
-                except sqlite3.OperationalError as e:
-                    print(f"Database could not be attached : {e}")
-                    time.sleep(increment)
             if save_map == "Yes":
                 for increment in range(retries):
-                        try:
-                            cursor.execute(f'CREATE TABLE file_db.[{map_name}] AS SELECT * FROM [{map_name}]')
-                            conn.commit()
-                            # cursor.execute(f'SELECT * FROM "{map_name}"')
-                            # with open(path.join(save_directory, str(map_name) + '.csv'), 'w', newline='') as csv_file:
-                            #     csv_writer = csv.writer(csv_file)
-                            #     csv_writer.writerow([i[0] for i in cursor.description])
-                            #     csv_writer.writerows(cursor)
-
-                            cursor.execute(f'DROP TABLE IF EXISTS "{map_name}"')
-                            conn.commit()
-                            break
-                        except sqlite3.OperationalError:  # TODO needs to catch only database locked
-                            print(f"runMSA retry {increment} saving map {map_name}", flush=True)
-                            cursor.execute(f"DETACH DATABASE file_db")
-                            time.sleep(increment)
-                            for increment2 in range(retries):
-                                try:
-                                    cursor.execute(
-                                        f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
-                                    break
-                                except sqlite3.OperationalError as e:
-                                    print(f"Database could not be attached : {e}")
-                                    time.sleep(increment)
-                        except Exception as e:
-                            print(
-                                f"runMSA exception other than connection error in creating copy map table  {map_name} \n {e}", flush = True)
-                            cursor.execute(f'DROP TABLE IF EXISTS "{map_name}"')
-                            conn.commit()
-            else:
-                for increment in range(retries):
+                    if increment == (retries - 1):
+                        print(f"runMSA {iteration} Final try saving map {map_name}", flush= True)
                     try:
-                        cursor.execute(f'DROP TABLE IF EXISTS "{map_name}"')
+                        cursor.execute(f'CREATE TABLE file_db.[{map_name}] AS SELECT * FROM [{map_name}]')
+                        #TODO create way to turn saving to .csv on or off
+
+                        # cursor.execute(f'SELECT * FROM "{map_name}"')
+                        # with open(path.join(save_directory, str(map_name) + '.csv'), 'w', newline='') as csv_file:
+                        #     csv_writer = csv.writer(csv_file)
+                        #     csv_writer.writerow([i[0] for i in cursor.description])
+                        #     csv_writer.writerows(cursor)
                         conn.commit()
                         break
-                    except sqlite3.OperationalError:  # TODO needs to catch only database locked
-                        print(f"runMSA retry {increment} dropping map {map_name}", flush=True)
-                        cursor.execute(f"DETACH DATABASE file_db")
+                    except sqlite3.OperationalError as e:
+                        print(f"runMSA {iteration} retry saving map {map_name} - {increment}: {e}")
                         time.sleep(increment)
-                        for increment2 in range(retries):
-                            try:
-                                cursor.execute(
-                                    f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
-                                break
-                            except sqlite3.OperationalError as e:
-                                print(f"Database could not be attached : {e}")
-                                time.sleep(increment)
-            #save the pollen loadings (if desired)
+                    except Exception as e:
+                        print(f"runMSA {iteration} saving map {map_name} failed: {e}")
+                        break
+            # regardless of whether it was saved or not, drop map table to free up memory
+            try:
+                cursor.execute(f'DROP TABLE IF EXISTS "{map_name}"')
+                conn.commit()
+            except Exception as e:
+                print(f"runMSA {iteration} map {map_name} was not dropped: {e}")
+
+            # (Optional: Save pollen loadings)
             if fit_stats[3] == "False" and fit_stats[4] == "False":
                 cursor.execute(f'SELECT site_name FROM "sampling_sites"')
                 sampling_sites = cursor.fetchall()
                 for site in sampling_sites:
                     for increment in range(retries):
-                        if increment == retries - 1:
-                            print(f'runMSA Final try {site[0]}{map_name}', flush =True)
-                        try:
-                            print(f'runMSA saving map {site[0]}{map_name}', flush = True)
-                            cursor.execute(f'CREATE TABLE file_db.[{site[0]}{map_name}] AS SELECT * FROM [{site[0]}{map_name}]')
-                            conn.commit()
-                            cursor.execute(f'DROP TABLE IF EXISTS "{site[0]}{map_name}"')
-                            conn.commit()
-                            break
-                        except sqlite3.OperationalError as e: # TODO needs to catch only database locked
-                            print(f"runMSA retry  save pollen loading {site[0]}{map_name} - {increment}\n {e}", flush=True)
-                            cursor.execute(f"DETACH DATABASE file_db")
-                            time.sleep(increment)
-                            for increment2 in range(retries):
-                                try:
-                                    cursor.execute(
-                                        f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
-                                    break
-                                except sqlite3.OperationalError as e:
-                                    print(f"Database could not be attached : {e}")
-                                    time.sleep(increment)
-                        except Exception as e:
-                            print(f"runMSA exception other than connection error in creating copy pollen loading table {site[0]}{map_name} \n {e}", flush = True)
-                            cursor.execute(f'DROP TABLE IF EXISTS "{site[0]}{map_name}"')
-                            conn.commit()
-            else:
-                cursor.execute(f'SELECT site_name FROM "sampling_sites"')
-                sampling_sites = cursor.fetchall()
-                for site in sampling_sites:
-                    for increment in range(retries):
-                        try:
-                            cursor.execute(f'DROP TABLE IF EXISTS "{site[0]}{map_name}"')
-                            conn.commit()
-                            break
-                        except sqlite3.OperationalError as e:  # TODO needs to catch only database locked
-                            print(f"runMSA retry save pollen loading {site[0]}{map_name} - {increment}\n {e}",
-                                  flush=True)
-                            cursor.execute(f"DETACH DATABASE file_db")
-                            time.sleep(increment)
-                            for increment2 in range(retries):
-                                try:
-                                    cursor.execute(
-                                        f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
-                                    break
-                                except sqlite3.OperationalError as e:
-                                    print(f"Database could not be attached : {e}")
-                                    time.sleep(increment)
-
-            cursor.execute(f"DETACH DATABASE file_db")
-            conn.commit()
+                        if increment == (retries-1):
+                            print(f"runMSA {iteration} Final Try saving pollen loadings {site[0]}{map_name}")
+                            try:
+                                cursor.execute(
+                                    f'CREATE TABLE file_db.[{site[0]}{map_name}] AS SELECT * FROM [{site[0]}{map_name}]')
+                                conn.commit()
+                                print(f"runMSA {iteration} pollen loading {site[0]}{map_name} saved succesfully")
+                                break
+                            except sqlite3.OperationalError as e:
+                                print(f"runMSA {iteration} retry saving pollen loading {map_name} - {increment}")
+                                time.sleep(increment)
+                            except Exception as e:
+                                print(f"runMSA {iteration} WARNING pollen loading {site[0]}{map_name} not saved")
+            # regardless of whether they were saved or not, drop the pollen loading tables
+            cursor.execute(f'SELECT site_name FROM "sampling_sites"')
+            sampling_sites = cursor.fetchall()
+            for site in sampling_sites:
+                try:
+                    cursor.execute(f'DROP TABLE IF EXISTS "{site[0]}{map_name}"')
+                except Exception as e:
+                    print(f"runMSA {iteration} pollen loadings {site[0]}{map_name} was not dropped: {e}")
         # if all branches of a branch_point have been used, drop table
-        if scenario_dict[key][0] != "basemap":
-            scenario_dict[scenario_dict[key][0]][4] = scenario_dict[scenario_dict[key][0]][4] +1
-            if scenario_dict[scenario_dict[key][0]][4] == scenario_dict[scenario_dict[key][0]][3]:
+        if scenario_dict[scenario][0] != "basemap":
+            scenario_dict[scenario_dict[scenario][0]][4] = scenario_dict[scenario_dict[scenario][0]][4] +1
+            if scenario_dict[scenario_dict[scenario][0]][4] == scenario_dict[scenario_dict[scenario][0]][3]:
                 #if n_branches = n_branches_used for the start point, drop branch_point
-                cursor.execute(f'DROP TABLE IF EXISTS "{scenario_dict[key][0]}_{iteration}"')
-                conn.commit()
+                try:
+                    cursor.execute(f'DROP TABLE IF EXISTS "{scenario_dict[scenario][0]}_{iteration}"')
+                    conn.commit()
+                except:
+                    print(f"runMSA {iteration} table {scenario_dict[scenario][0]}_{iteration} was not dropped: {e}")
 
-    # Save simulated pollen percentages and landscape cover
-    for increment in range(retries):
-        try:
-            cursor.execute(f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
-            break
-        except sqlite3.OperationalError as e:
-            print(f"Database could not be attached : {e}")
-            time.sleep(increment)
-
-    #Save all the simulated pollen
-    for key in scenario_dict:
-        if scenario_dict[key][1]==True:  #check if final rule
-            map_name = f"{key}_{iteration}"
+    # save simulated pollen percentages
+    for scenario in scenario_dict:
+        if scenario_dict[scenario][1] == True:  # check if final rule
+            map_name = f"{scenario}_{iteration}"
             for increment in range(retries):
-                if increment == retries - 1:
-                    print(f'runMSA Final try pollen percent {map_name}', flush = True)
+                if increment == (retries - 1):
+                    print(f"runMSA {iteration}  Final Try saving simulated pollen {map_name}")
                 try:
                     for row in range(n_of_sites):
                         cursor.execute(f'SELECT site_name FROM "sampling_sites" WHERE rowid IS {row + 1}')
@@ -511,56 +455,384 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
                         conn.commit()
                     break
                 except sqlite3.OperationalError as e:
-                    print(f"runMSA retry simulated pollen {increment} : {e}", flush=True)
-                    cursor.execute(f"DETACH DATABASE file_db")
+                    print(f"runMSA {iteration} retry saving simulated pollen {map_name} - {increment} \n{e}")
                     time.sleep(increment)
-                    for increment2 in range(retries):
-                        try:
-                            cursor.execute(
-                                f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
-                            break
-                        except sqlite3.OperationalError as e:
-                            print(f"Database could not be attached : {e}")
-                            time.sleep(increment)
-
                 except Exception as e:
-                    print(f"runMSA exception other than connection error in saving simulated pollen \n {e}", flush = True)
-                    #check if line was added to table after all before trying again.
-                    cursor.execute(f'SELECT map_id, site_name FROM file_db.[simulated_pollen] WHERE EXISTS ('
-                                   f'SELECT 1 FROM file_db.[simulated_pollen] WHERE (map_id = {map_name}) AND (site_name = {site_name}))')
-                    if cursor.rowcount == 0:
-                        pass #will automatically retry
-                    else:
-                        break #row was added despite error, do not try again as this may create a duplicate.
-            cursor.execute(f'DROP TABLE IF EXISTS simpol_{map_name}')
-            conn.commit()
+                    print(f"runMSA {iteration} CRITICAL saving simulated pollen {map_name} failed. Data incomplete. Report issue: {e}")
+                    break
+            try:
+                cursor.execute(f'DROP TABLE IF EXISTS simpol_{map_name}')
+                conn.commit()
+            except Exception as e:
+                print(f"runMSA {iteration} table simpol_{map_name} was not dropped: {e}")
 
-    #save fit and landscape percentages
+    # Save fit and landscape percentages
     for increment in range(retries):
-        if increment == retries-1:
-            print(f'runMSA Final try {map_name}', flush = True)
+        if increment == (retries-1):
+            print(f"runMSA {iteration} Final try saving fit and landscape percentages")
         try:
             cursor.execute(f'INSERT INTO file_db.[maps] SELECT * FROM [maps]')
             conn.commit()
             break
-        except sqlite3.OperationalError:
-            print(f"runMSA retry saving map {map_name} - {increment}", flush=True)
-            cursor.execute(f"DETACH DATABASE file_db")
-            conn.commit()
+        except sqlite3.OperationalError as e:
+            print(f"runMSA {iteration} retry saving fit and landscape percentages - {increment} \n{e}")
             time.sleep(increment)
-            for increment2 in range(retries):
-                try:
-                    cursor.execute(f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
-                except sqlite3.OperationalError as e:
-                    print(f"Database could not be attached : {e}")
-                    time.sleep(increment)
-            conn.commit()
         except Exception as e:
-            print(f"runMSA exception other than connection error in saving map {map_name} \n {e}", flush = True)
+            print(f"runMSA {iteration} CRITICAL saving fit and landscape percentages failed")
+            break
 
-    cursor.execute(f"DETACH DATABASE file_db")
     conn.commit()
     conn.close()
+
+# OLD
+# def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict_rule_tree, file,windrose, fit_stats,number_of_entries, nested,n_of_sites, n_of_taxa, n_of_vegcom, run_type,random_seed):
+#     """ This is where rules are initiated in order of the rule tree. It is a single iteration of the MSA. Can be
+#     multiprocessed.
+#
+#     :param iter: iteration being run
+#     :type iter: int
+#
+#     :param spacing: resolution of the vector point grid
+#     :type spacing: int
+#
+#     :param scenario_dict: sorted dictionary of ruletreewidget ids to be processed
+#     :type scenario_dict: dict
+#
+#     :param save_directory: URL location of the location where temp files and output files are stored.
+#     :type save_directory: str
+#
+#     :param dict_nest_rule: nested dictionary of rules given by user
+#     :type dict_nest_rule: dict
+#
+#     :param dict_rule_tree: nested, simplefied dictionary derived from rule tree widgets given by user
+#     :type dict_rule_tree: dict """
+#     #TODO re-add option to only save selectively.
+#     #initialize the random generator with seed
+#     random.seed(random_seed)
+#
+#     retries = 100
+#     # Open a connection to the temp map to copy everything
+#     try:
+#         conn = copySqlitetoMem(save_directory,file)
+#     except Exception as e:
+#         error_statement = f"{e}\nFor run {iteration}"
+#         print(error_statement, flush = True)
+#         try:
+#             conn.close()
+#         except:
+#             pass
+#         return error_statement
+#     cursor = conn.cursor()
+#     #get resolution information
+#     if nested == "True":
+#         cursor.execute(
+#             f'SELECT DISTINCT resolution from "basemap"')  # will likely want to move this out of this loop for speed, but test for now
+#         res1, res2 = cursor.fetchall()
+#         res1 = res1[0]
+#         res2 = res2[0]
+#         areares1 = res1 * res1
+#         areares2 = res2 * res2
+#         cursor.execute(f'SELECT'
+#                        f'(SELECT (SELECT COUNT(*) FROM "basemap" WHERE resolution = {res1}) * {areares1})'
+#                        f'+'
+#                        f'(SELECT (SELECT COUNT(*) FROM "basemap" WHERE resolution = {res2}) * {areares2})')
+#         total_area = cursor.fetchone()[0]
+#
+#     #iterate over the scenario dict
+#     #every time a start_point is encountered, add a count to n_branches_used for the associated key in dict
+#     #if n_branches_used == n_branches, the table can be dropped
+#     #every final rule is saved to file immediately, and then the table dropped
+#
+#     for key in scenario_dict:
+#         map_name = f"{key}_{iteration}"
+#         if scenario_dict[key][0] == "basemap":
+#             start_point = scenario_dict[key][0]
+#         else:
+#             start_point = f'{scenario_dict[key][0]}_{iteration}'
+#         cursor.execute(f'CREATE TABLE "{map_name}" AS SELECT * FROM "{start_point}";')
+#         conn.commit()
+#         cursor.execute(f'CREATE UNIQUE INDEX "{map_name}_idx" ON "{map_name}"(msa_id);')
+#         # assign vegetation
+#         for item in scenario_dict[key][2]: #run_list
+#             assignVegCom(dict_nest_rule, conn, cursor, map_name, dict_rule_tree[item][3], number_of_entries)
+#         #then for the final rule itself
+#         assignVegCom(dict_nest_rule, conn, cursor, map_name, dict_rule_tree[key][3], number_of_entries)
+#         # if final rule, calculate fit, save to file, and drop table
+#         if scenario_dict[key][1]:
+#             if nested == "True":
+#                 cursor.execute(f'CREATE INDEX "{map_name}_idx_res" on "{map_name}"(resolution, msa_id);')
+#                 simulatePollen(map_name, iteration, conn, cursor, windrose, fit_stats, nested, n_of_sites, n_of_taxa,
+#                                n_of_vegcom, res1, res2, areares1, areares2, total_area)
+#             else:
+#                 simulatePollen(map_name, iteration, conn, cursor, windrose, fit_stats, nested, n_of_sites, n_of_taxa,
+#                                n_of_vegcom)
+#             if run_type == "3":
+#                 calculateFit(map_name, n_of_sites, n_of_taxa, conn, cursor, fit_stats)
+#             # save the map (optional: if fit met)
+#             save_map = "Yes"
+#             if fit_stats[3] == "True": # keep only fitted
+#                 cursor.execute(f'SELECT likelihood_met FROM maps WHERE map_id = "{map_name}"')
+#                 save_map = cursor.fetchone()[0]
+#             if save_map == "Yes":
+#                 #attach db
+#                 for increment in range(retries):
+#                     if increment == (retries - 1):
+#                         print(f'runMSA Final try attaching db (1) for saving map {map_name}', flush=True)
+#                     try:
+#                         cursor.execute(
+#                             f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
+#                         break
+#                     except Exception as e:
+#                         print(f"Database for saving {map_name} could not be attached : {e}")
+#                         time.sleep(increment)
+#
+#                 for increment in range(retries):
+#                     if increment == (retries - 1):
+#                         print(f'runMSA Final try saving map {map_name}', flush=True)
+#                     try:
+#                         cursor.execute(f'CREATE TABLE file_db.[{map_name}] AS SELECT * FROM [{map_name}]')
+#                         conn.commit()
+#                         # cursor.execute(f'SELECT * FROM "{map_name}"')
+#                         # with open(path.join(save_directory, str(map_name) + '.csv'), 'w', newline='') as csv_file:
+#                         #     csv_writer = csv.writer(csv_file)
+#                         #     csv_writer.writerow([i[0] for i in cursor.description])
+#                         #     csv_writer.writerows(cursor)
+#
+#                         cursor.execute(f'DROP TABLE IF EXISTS "{map_name}"')
+#                         conn.commit()
+#                         break
+#                     except sqlite3.OperationalError as e:  # TODO needs to catch only database locked
+#                         print(f"runMSA retry saving map {map_name} - {increment}: {e}", flush=True)
+#                         try:
+#                             cursor.execute(f"DETACH DATABASE file_db")
+#                         except Exception as e:
+#                             print(f'database could not be detached {e}, re-attempt')
+#                             time.sleep(increment)
+#                         for increment2 in range(retries):
+#                             if increment2 == (retries - 1):
+#                                 print(f'runMSA Final try attaching db (2) for saving map {map_name}', flush=True)
+#                             try:
+#                                 cursor.execute(
+#                                     f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
+#                                 break
+#                             except Exception as e:
+#                                 print(f"Database could not be attached : {e}")
+#                                 time.sleep(increment)
+#                     except Exception as e:
+#                         print(
+#                             f"runMSA exception other than connection error in creating copy map table  {map_name} \n {e}", flush = True)
+#                         cursor.execute(f'DROP TABLE IF EXISTS "{map_name}"')
+#                         conn.commit()
+#             else:
+#                 for increment in range(retries):
+#                     if increment == (retries - 1):
+#                         print(f'runMSA Final try dropping map for saving map {map_name}', flush=True)
+#                     try:
+#                         cursor.execute(f'DROP TABLE IF EXISTS "{map_name}"')
+#                         conn.commit()
+#                         break
+#                     except sqlite3.OperationalError:  # TODO needs to catch only database locked
+#                         print(f"runMSA retry {increment} dropping map {map_name}", flush=True)
+#                         try:
+#                             cursor.execute(f"DETACH DATABASE file_db")
+#                         except Exception as e:
+#                             print(f'database could not be detached dropping map {map_name} {e}, re-attempt')
+#                             time.sleep(increment)
+#                         for increment2 in range(retries):
+#                             if increment2 == (retries - 1):
+#                                 print(f'runMSA Final try attaching map for dropping map {map_name}', flush=True)
+#                             try:
+#                                 cursor.execute(
+#                                     f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
+#                                 break
+#                             except Exception as e:
+#                                 print(f"Database could not be attached for dropping map {map_name}: {e}")
+#                                 time.sleep(increment)
+#             #save the pollen loadings (if desired)
+#             if fit_stats[3] == "False" and fit_stats[4] == "False":
+#                 cursor.execute(f'SELECT site_name FROM "sampling_sites"')
+#                 sampling_sites = cursor.fetchall()
+#                 for site in sampling_sites:
+#                     for increment in range(retries):
+#                         if increment == retries - 1:
+#                             print(f'runMSA Final try {site[0]}{map_name}', flush =True)
+#                         try:
+#                             print(f'runMSA saving pollen loading {site[0]}{map_name}', flush = True)
+#                             cursor.execute(f'CREATE TABLE file_db.[{site[0]}{map_name}] AS SELECT * FROM [{site[0]}{map_name}]')
+#                             conn.commit()
+#                             cursor.execute(f'DROP TABLE IF EXISTS "{site[0]}{map_name}"')
+#                             conn.commit()
+#                             break
+#                         except sqlite3.OperationalError as e: # TODO needs to catch only database locked
+#                             print(f"runMSA retry  save pollen loading {site[0]}{map_name} - {increment}\n {e}", flush=True)
+#                             try:
+#                                 cursor.execute(f"DETACH DATABASE file_db")
+#                             except Exception as e:
+#                                 print(f'database could not be detached {e}, re-attempt')
+#                                 time.sleep(increment)
+#                             for increment2 in range(retries):
+#                                 if increment2 == (retries - 1):
+#                                     print(f'runMSA Final try attaching db for saving pollen loading {map_name}', flush=True)
+#                                 try:
+#                                     cursor.execute(
+#                                         f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
+#                                     break
+#                                 except Exception as e:
+#                                     print(f"Database could not be attached : {e}")
+#                                     time.sleep(increment)
+#                         except Exception as e:
+#                             print(f"runMSA exception other than connection error in creating copy pollen loading table {site[0]}{map_name} \n {e}", flush = True)
+#                             cursor.execute(f'DROP TABLE IF EXISTS "{site[0]}{map_name}"')
+#                             conn.commit()
+#             else:
+#                 cursor.execute(f'SELECT site_name FROM "sampling_sites"')
+#                 sampling_sites = cursor.fetchall()
+#                 for site in sampling_sites:
+#                     for increment in range(retries):
+#                         if increment == (retries - 1):
+#                             print(f'runMSA Final try dropping table for saving pollen loading {map_name}', flush=True)
+#                         try:
+#                             cursor.execute(f'DROP TABLE IF EXISTS "{site[0]}{map_name}"')
+#                             conn.commit()
+#                             break
+#                         except sqlite3.OperationalError as e:  # TODO needs to catch only database locked
+#                             print(f"runMSA retry save pollen loading {site[0]}{map_name} - {increment}\n {e}",
+#                                   flush=True)
+#                             try:
+#                                 cursor.execute(f"DETACH DATABASE file_db")
+#                             except Exception as e:
+#                                 print(f'database could not be detached {e}, re-attempt')
+#                                 time.sleep(increment)
+#                             for increment2 in range(retries):
+#                                 if increment2 == (retries - 1):
+#                                     print(f'runMSA Final try attaching db for dropping pollen loading {map_name}', flush=True)
+#                                 try:
+#                                     cursor.execute(
+#                                         f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
+#                                     break
+#                                 except Exception as e:
+#                                     print(f"Database could not be attached : {e}")
+#                                     time.sleep(increment)
+#
+#             try:
+#                 cursor.execute(f"DETACH DATABASE file_db")
+#             except Exception as e:
+#                 print(f'database could not be detached {e}, re-attempt')
+#             conn.commit()
+#         # if all branches of a branch_point have been used, drop table
+#         if scenario_dict[key][0] != "basemap":
+#             scenario_dict[scenario_dict[key][0]][4] = scenario_dict[scenario_dict[key][0]][4] +1
+#             if scenario_dict[scenario_dict[key][0]][4] == scenario_dict[scenario_dict[key][0]][3]:
+#                 #if n_branches = n_branches_used for the start point, drop branch_point
+#                 cursor.execute(f'DROP TABLE IF EXISTS "{scenario_dict[key][0]}_{iteration}"')
+#                 conn.commit()
+#
+#     # Save simulated pollen percentages
+#
+#
+#     #Save all the simulated pollen
+#     for key in scenario_dict:
+#         if scenario_dict[key][1]==True:  #check if final rule
+#             map_name = f"{key}_{iteration}"
+#             for increment in range(retries):
+#                 if increment == (retries - 1):
+#                     print(f'runMSA Final attaching db for saving simulated pollen {map_name}', flush=True)
+#                 try:
+#                     cursor.execute(
+#                         f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
+#                     break
+#                 except Exception as e:
+#                     print(f"Database could not be attached : {e}")
+#                     time.sleep(increment)
+#             for increment in range(retries):
+#                 if increment == retries - 1:
+#                     print(f'runMSA Final try saving simulated pollen {map_name}', flush = True)
+#                 try:
+#                     for row in range(n_of_sites):
+#                         cursor.execute(f'SELECT site_name FROM "sampling_sites" WHERE rowid IS {row + 1}')
+#                         site_name = cursor.fetchone()[0]
+#                         insert_simulated_pollen = (f'INSERT INTO file_db.[simulated_pollen](map_id, site_name, ')
+#                         for row2 in range(n_of_taxa):
+#                             cursor.execute(f'SELECT taxon_code FROM "taxa" WHERE rowid IS {row2 + 1}')
+#                             taxon = cursor.fetchone()[0]
+#                             # Add all columns of taxon percent
+#                             if row2 + 1 == n_of_taxa:
+#                                 insert_simulated_pollen += f'sim_{taxon}_percent)'
+#                             else:
+#                                 insert_simulated_pollen += f'sim_{taxon}_percent, '
+#                         # Add all values
+#                         insert_simulated_pollen += f'VALUES("{map_name}", "{site_name}", '
+#                         for row2 in range(n_of_taxa):
+#                             cursor.execute(f'SELECT taxon_code FROM "taxa" WHERE rowid IS {row2 + 1}')
+#                             taxon = cursor.fetchone()[0]
+#                             if row2 + 1 == n_of_taxa:
+#                                 insert_simulated_pollen += f'(SELECT sim_{taxon}_percent FROM simpol_{map_name} WHERE "site_name" = "{site_name}"))'
+#                             else:
+#                                 insert_simulated_pollen += f'(SELECT sim_{taxon}_percent FROM simpol_{map_name} WHERE "site_name" = "{site_name}"),'
+#                         cursor.execute(insert_simulated_pollen)
+#                         conn.commit()
+#                     break
+#                 except sqlite3.OperationalError as e:
+#                     print(f"runMSA retry simulated pollen {increment} : {e}", flush=True)
+#                     time.sleep(increment)
+#                     try:
+#                         cursor.execute(f"DETACH DATABASE file_db")
+#                     except Exception as e:
+#                         print(f'database could not be detached {e}, re-attempt')
+#                         time.sleep(increment)
+#                     for increment2 in range(retries):
+#                         try:
+#                             cursor.execute(
+#                                 f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
+#                             break
+#                         except Exception as e:
+#                             print(f"Database could not be attached : {e}")
+#                             time.sleep(increment)
+#
+#                 except Exception as e:
+#                     print(f"runMSA exception other than connection error in saving simulated pollen \n {e}", flush = True)
+#                     #check if line was added to table after all before trying again.
+#                     cursor.execute(f'SELECT map_id, site_name FROM file_db.[simulated_pollen] WHERE EXISTS ('
+#                                    f'SELECT 1 FROM file_db.[simulated_pollen] WHERE (map_id = {map_name}) AND (site_name = {site_name}))')
+#                     if cursor.rowcount == 0:
+#                         pass #will automatically retry
+#                     else:
+#                         break #row was added despite error, do not try again as this may create a duplicate.
+#             cursor.execute(f'DROP TABLE IF EXISTS simpol_{map_name}')
+#             conn.commit()
+#
+#     #save fit and landscape percentages
+#     for increment in range(retries):
+#         if increment == (retries-1):
+#             print(f'runMSA Final try saving fit & landscape percentages {map_name}', flush = True)
+#         try:
+#             cursor.execute(f'INSERT INTO file_db.[maps] SELECT * FROM [maps]')
+#             conn.commit()
+#             break
+#         except sqlite3.OperationalError as e:
+#             print(f"runMSA retry saving fit & landscape percentages {map_name} - {increment}: {e}", flush=True)
+#             try:
+#                 cursor.execute(f"DETACH DATABASE file_db")
+#             except Exception as e:
+#                 print(f'database could not be detached {e} while saving map {map_name} - {increment}, re-attempt')
+#             conn.commit()
+#             time.sleep(increment)
+#             for increment2 in range(retries):
+#                 if increment2 == (retries - 1):
+#                     print(f'runMSA Final try attaching map fit & landscape percentages {map_name}', flush=True)
+#                 try:
+#                     cursor.execute(
+#                         f"ATTACH DATABASE '{path.join(save_directory, 'MSA_output.sqlite')}' as file_db")
+#                     break
+#                 except Exception as e:
+#                     print(f"Database could not be attached while saving map {map_name} - {increment2}: {e}")
+#                     time.sleep(increment)
+#             conn.commit()
+#         except Exception as e:
+#             print(f"runMSA exception other than connection error in saving map {map_name} \n {e}", flush = True)
+#
+#     conn.commit()
+#     conn.close()
 
 def makeBasemap(conn, cursor, dict_rule_tree, dict_nest_rule,spacing, save_directory, number_of_entries):
     """ This deals with the order of rules in the dict_rule_tree for the making of a basemap, so that they can be dealt
@@ -605,7 +877,7 @@ def assignVegCom(dict_nest_rule, conn, cursor, map_name, rule, number_of_entries
     used to change veg_com.
     :type rule: str or int
     """
-    vegcom_start_time = time.time()
+    # vegcom_start_time = time.time()
     print(f"assignVegCom {map_name}, rule {rule}", flush = True)
     veg_com = dict_nest_rule[rule][2]
     rule_type = dict_nest_rule[rule][3]
@@ -614,6 +886,8 @@ def assignVegCom(dict_nest_rule, conn, cursor, map_name, rule, number_of_entries
     # save_time = time.time()
     if chance == 100 or chance == 100.0:
         string_chance = ''
+    elif chance == 0 or chance == 0.0:
+        return # fully skip rules that have been used as placeholders
     else:
         cursor.execute(f'UPDATE "{map_name}" SET "chance_to_happen" = 0')
         conn.commit()
@@ -688,7 +962,11 @@ def assignVegCom(dict_nest_rule, conn, cursor, map_name, rule, number_of_entries
             except sqlite3.IntegrityError:
                 pass # entry not unique, skip
         cursor.execute('COMMIT')
-        cursor.execute('DROP TABLE IF EXISTS "temp1";')
+        for increment in range(100):
+            try:
+                cursor.execute('DROP TABLE IF EXISTS "temp1";')
+            except sqlite3.OperationalError as e:
+                print(f"assignVegCom {map_name} dropping temp1 retry - {increment}: {e}")
         conn.commit()
         # update map based on temp2
         start_string = f'UPDATE "{map_name}" AS t1 SET "veg_com" = "{veg_com}" WHERE '
@@ -778,9 +1056,23 @@ def assignVegCom(dict_nest_rule, conn, cursor, map_name, rule, number_of_entries
     conn.commit()
 
     # If the enroach rule was run, the temp tables needs to be dropped
-    cursor.execute('DROP TABLE IF EXISTS "temp1";')
-    cursor.execute('DROP TABLE IF EXISTS "temp2";')
-    cursor.execute('DROP TABLE IF EXISTS geom_r_tree')
+    for increment in range(100):
+        try:
+            cursor.execute('DROP TABLE IF EXISTS "temp1";')
+        except sqlite3.OperationalError as e:
+            print(f"assignVegCom {map_name} dropping temp1 retry - {increment}: {e}")
+    for increment in range(100):
+        try:
+            cursor.execute('DROP TABLE IF EXISTS "temp2";')
+        except sqlite3.OperationalError as e:
+            print(f"assignVegCom {map_name} dropping temp2 retry - {increment}: {e}")
+    for increment in range(100):
+        try:
+            cursor.execute('DROP TABLE IF EXISTS geom_r_tree')
+        except sqlite3.OperationalError as e:
+            print(f"assignVegCom {map_name} dropping geom_r_tree retry - {increment}: {e}")
+
+
     conn.commit()
     #print(f"assignVegCom {map_name}, {rule} took {time.time()-vegcom_start_time}")
 
@@ -802,7 +1094,7 @@ def simulatePollen(map_name,iteration, conn, cursor, windrose, fit_stats, nested
      :param cursor: SQLite cursor attached to the connection
      type cursor: SQLite cursor"""
 
-    start_time = time.time()
+    #start_time = time.time()
     print(f"simulatePollen {map_name}", flush = True)
     # Calculate the pollen loadings
     for row in range(n_of_sites):
@@ -969,7 +1261,7 @@ def simulatePollen(map_name,iteration, conn, cursor, windrose, fit_stats, nested
 
 def calculateFit(map_name,n_of_sites, n_of_taxa, conn, cursor, fit_stats):
     """When running a full MSA reconstruction, calculates the fit in comparison to the actual pollen."""
-    print(f'calculateFit {map_name} started', flush = True)
+    print(f'calculateFit {map_name}', flush = True)
     start_time = time.time()
     conn.create_function("SQRT", 1, SqlSqrt)
     cumul_fit = 0
@@ -1006,7 +1298,7 @@ def calculateFit(map_name,n_of_sites, n_of_taxa, conn, cursor, fit_stats):
             # Determine whether likelihood threshold for site was met
             if like_thres_met == 'Yes' and fit > float(fit_stats[0]):
                 like_thres_met = 'No'
-            print(f"calculateFit for {map_name}, {site_name}: {fit}", flush=True)
+            #print(f"calculateFit for {map_name}, {site_name}: {fit}", flush=True)
     # Calculate cumulative fit
     cursor.execute(f'UPDATE maps SET "likelihood_cumul" = {cumul_fit} WHERE map_id = "{map_name}"')
 

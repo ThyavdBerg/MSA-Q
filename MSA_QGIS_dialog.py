@@ -1891,9 +1891,9 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                         duplicate_list_rule = [rule_id_duplicate, 'duplicate', [], [], []]
                         # add prev_ruleTreeWidgets index
                         if type(self.dict_ruleTreeWidgets[duplicate]) == list:
-                            duplicate_list_rule.append(self.dict_ruleTreeWidgets[duplicate][2].copy())
+                            duplicate_list_rule[2]=(self.dict_ruleTreeWidgets[duplicate][2].copy())
                         else:
-                            duplicate_list_rule.append(self.dict_ruleTreeWidgets[duplicate].prev_ruleTreeWidgets.copy())
+                            duplicate_list_rule[2]=(self.dict_ruleTreeWidgets[duplicate].prev_ruleTreeWidgets.copy())
                         duplicate_list_rule[2].append(duplicate)
                         # add to next_ruleTreeWidgets of prev
                         self.dict_ruleTreeWidgets[duplicate][3].append(rule_id_duplicate)
@@ -1926,7 +1926,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                         # self.dict_ruleTreeWidgets[rule_id_duplicate].duplicate_ruleTreeWidgets.append(rule_id)
 
 
-        # Add ruleTreeWidget to dict and add prev to list
+        # Add ruleTreeWidget to dict
         self.dict_ruleTreeWidgets[ruleTreeWidget.order_id] = ruleTreeWidget
         # Allow widget to remove selection from other widgets when selected
         ruleTreeWidget.clicked.connect(
@@ -2004,7 +2004,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             # exclude duplicate and series rule blocks
             if str(self.saved_ruleTreeWidget) in str(key)[0:rule_length] \
             and type(self.dict_ruleTreeWidgets[key]) != list:
-                if self.dict_ruleTreeWidgets[key].connection_type != 'series':
+                if self.dict_ruleTreeWidgets[key].connection_type != 'series' :
                     list_of_ruleblocks_to_copy.append(key)
         list_of_ruleblocks_to_copy = sorted(
             list_of_ruleblocks_to_copy)  # sort from low to high to ensure all rule block are encountered in the correct order, or else a rule might be created of which the previous rule has not been created yet
@@ -2018,7 +2018,6 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                dict_of_ruleblocks_to_copy[copied_rule] = int(str(first_id_branch) + id_end)
         #de-select the rule (as it will be automatically re-selected through the dict)
         self.dict_ruleTreeWidgets[selected_rule].clicked.emit()
-
         #create the new rule blocks
         for rule_block_id in dict_of_ruleblocks_to_copy:
             #check if already selected and if not set selected rule to val
@@ -2338,7 +2337,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                     lambda *args, ruleTreeWidget_id=ruleTreeWidget.order_id, ruleTreeWidget=ruleTreeWidget:
                     self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
 
-                # Take duplicicates of previous in series and apply same number of duplicates to the new series rule
+                # Take duplicates of previous in series and apply same number of duplicates to the new series rule
                 rtw_to_duplicate = self.dict_ruleTreeWidgets[prev_rule_series].duplicate_ruleTreeWidgets
                 if len(rtw_to_duplicate) != 0:
                     rule_duplicates_list = [rule_id]
@@ -2353,10 +2352,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                             self.dict_ruleTreeWidgets[rtw].next_ruleTreeWidgets.append(rule_id_duplicate)
 
                         # add previous rtw
-                        if type(self.dict_ruleTreeWidgets[rtw]) == list:
-                            ruleTree_duplicate[2] = self.dict_ruleTreeWidgets[rtw][2].copy()
-                        else:
-                            ruleTree_duplicate[2] = self.dict_ruleTreeWidgets[rtw].prev_ruleTreeWidgets.copy()
+                        ruleTree_duplicate[2] = self.dict_ruleTreeWidgets[rtw][2].copy()
                         ruleTree_duplicate[2].append(rtw)
                         # add to duplicate of visible rule block
                         self.dict_ruleTreeWidgets[rule_id].duplicate_ruleTreeWidgets.append(rule_id_duplicate)
@@ -2372,113 +2368,69 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                                     self.dict_ruleTreeWidgets[duprule1][4].append(
                                         duprule2)
 
-                # Find all rules after the newly added rule and its duplicates and give them duplicates.
-                # first apply for the new rule itself
-                # for all keys in the dictionary check if the final series rule is in it
-                # if that is the case, add a new duplicate that ends in the same numbers AFTER the final series rule, or if it is the dup of the final series rule, just add a 0
-                # then add to dictionary, prev rules, next rules and duplicate rules
-                list_ids_to_check = []
+                # Find all visible rtw after the newly added rule (including the last in series)
+                list_ids_after_new_series = []
                 for key in self.dict_ruleTreeWidgets:
                     if first_after_series in str(key)[:length_first_after_series]:
-                        list_ids_to_check.append(key)
-                for id in list_ids_to_check:
-                    rule_id_duplicate = int(str(rule_id) + str(id)[length_first_in_series:])
-                    ruleTree_duplicate = [rule_id_duplicate, 'duplicate', [],[],[]]
-                    #add to previous widgets
-                    prev_rule_id = int(str(rule_id_duplicate)[:len(str(rule_id_duplicate))-1])
-                    if type(self.dict_ruleTreeWidgets[prev_rule_id]) == list:
-                        ruleTree_duplicate[2] = self.dict_ruleTreeWidgets[
-                            prev_rule_id][2].copy()
+                        list_ids_after_new_series.append(key)
+                # Add a duplicate for the newly added rtw
+                for rtw_after_series in list_ids_after_new_series:
+                    # Determine the id of the duplicate which is the id of the new rule appended with everything after the id of first after series
+                    rule_id_duplicate = int(str(rule_id)+ str(rtw_after_series)[length_first_after_series-1:])
+                    # Create the "empty" duplicate rtw
+                    rtw_duplicate = [rule_id_duplicate, 'duplicate', [], [], []]
+                    # Add to next of previous
+                    # simple remove one syllable from the rule_id_duplicate to find the previous
+                    prev_id_duplicate = int(str(rule_id_duplicate)[:len(str(rule_id_duplicate))-1])
+                    if type(self.dict_ruleTreeWidgets[prev_id_duplicate]) == list:
+                        self.dict_ruleTreeWidgets[prev_id_duplicate][3].append(rule_id_duplicate)
                     else:
-                        ruleTree_duplicate[2] = self.dict_ruleTreeWidgets[
-                        prev_rule_id].prev_ruleTreeWidgets.copy()
-                    ruleTree_duplicate[2].append(prev_rule_id)
-                    # add to next widgets
-                    if type(self.dict_ruleTreeWidgets[prev_rule_id]) == list:
-                        self.dict_ruleTreeWidgets[prev_rule_id][3].append(rule_id_duplicate)
-                    else:
-                        self.dict_ruleTreeWidgets[prev_rule_id].next_ruleTreeWidgets.append(rule_id_duplicate)
-                    # add to duplicates
-                    if type(self.dict_ruleTreeWidgets[id]) == list:
-                        for duplicate in self.dict_ruleTreeWidgets[id][4]:
-                            if type(self.dict_ruleTreeWidgets[duplicate]) == list:
-                                self.dict_ruleTreeWidgets[duplicate][4].append(rule_id_duplicate)
-                                ruleTree_duplicate[4].append(duplicate)
-                            else:
-                                self.dict_ruleTreeWidgets[duplicate].duplicate_ruleTreeWidgets.append(rule_id_duplicate)
-                                ruleTree_duplicate[4].append(duplicate)
-                    else:
-                        for duplicate in self.dict_ruleTreeWidgets[id].duplicate_ruleTreeWidgets:
-                            if type(self.dict_ruleTreeWidgets[duplicate]) == list:
-                                self.dict_ruleTreeWidgets[duplicate][4].append(rule_id_duplicate)
-                                ruleTree_duplicate[4].append(duplicate)
-                            else:
-                                self.dict_ruleTreeWidgets[duplicate].duplicate_ruleTreeWidgets.append(rule_id_duplicate)
-                                ruleTree_duplicate[4].append(duplicate)
-                    if type(self.dict_ruleTreeWidgets[id]) == list:
-                        self.dict_ruleTreeWidgets[id][4].append(rule_id_duplicate)
-                    else:
-                        self.dict_ruleTreeWidgets[id].duplicate_ruleTreeWidgets.append(rule_id_duplicate)
-                    ruleTree_duplicate[4].append(id)
+                        self.dict_ruleTreeWidgets[prev_id_duplicate].next_ruleTreeWidgets.append(rule_id_duplicate)
 
-                    # add to dictionary
-                    self.dict_ruleTreeWidgets[rule_id_duplicate] = ruleTree_duplicate
+                    # Create list previous rtw
+                    if type(self.dict_ruleTreeWidgets[prev_id_duplicate]) == list:
+                        rtw_duplicate[2] = self.dict_ruleTreeWidgets[prev_id_duplicate][2].copy()
+                    else:
+                        rtw_duplicate[2] = self.dict_ruleTreeWidgets[prev_id_duplicate].prev_ruleTreeWidgets.copy()
+                    rtw_duplicate[2].append(prev_id_duplicate)
+                    # Add to duplicates and add duplicates to itself
+                    for duplicate_id in self.dict_ruleTreeWidgets[rtw_after_series].duplicate_ruleTreeWidgets:
+                        self.dict_ruleTreeWidgets[duplicate_id][4].append(rule_id_duplicate)
+                        rtw_duplicate[4].append(duplicate_id)
+                    self.dict_ruleTreeWidgets[rtw_after_series].duplicate_ruleTreeWidgets.append(rule_id_duplicate)
+                    rtw_duplicate[4].append(rtw_after_series)
+                    # Add to dictionary
+                    self.dict_ruleTreeWidgets[rule_id_duplicate] = rtw_duplicate
 
-                for duplicate in self.dict_ruleTreeWidgets[rule_id].duplicate_ruleTreeWidgets:
-                    list_ids_to_check= []
-                    for key in self.dict_ruleTreeWidgets:
-                        if first_after_series in str(key)[:length_first_after_series]:
-                            list_ids_to_check.append(key)
-                    for id in list_ids_to_check:
-                        rule_id_duplicate = int(str(duplicate) + str(id)[length_first_in_series:])
-                        ruleTree_duplicate = [rule_id_duplicate, 'duplicate', [],[], []]
-
-                        #add to prev widgets
-                        prev_rule_id = int(str(rule_id_duplicate)[:len(str(rule_id_duplicate)) - 1])
-                        if type(self.dict_ruleTreeWidgets[prev_rule_id]) == list:
-                            ruleTree_duplicate[2] = self.dict_ruleTreeWidgets[prev_rule_id][2].copy()
+                # Add duplicate for each of the newly added rtws duplicates
+                for duplicate_new in ruleTreeWidget.duplicate_ruleTreeWidgets:
+                    for rtw_after_series in list_ids_after_new_series:
+                        # Determine the id of the duplicate which is the id of the new rule appended with everything after the id of first after series
+                        rule_id_duplicate = int(str(duplicate_new) + str(rtw_after_series)[length_first_after_series-1:])
+                        # Create the "empty" duplicate rtw
+                        rtw_duplicate = [rule_id_duplicate, 'duplicate', [], [], []]
+                        # Add to next of previous
+                        # simple remove one syllable from the rule_id_duplicate to find the previous
+                        prev_id_duplicate = int(str(rule_id_duplicate)[:len(str(rule_id_duplicate)) - 1])
+                        if type(self.dict_ruleTreeWidgets[prev_id_duplicate]) == list:
+                            self.dict_ruleTreeWidgets[prev_id_duplicate][3].append(rule_id_duplicate)
                         else:
-                            ruleTree_duplicate[2] = self.dict_ruleTreeWidgets[prev_rule_id].prev_ruleTreeWidgets.copy()
-                        ruleTree_duplicate[2].append(prev_rule_id)
-                        #add to next widgets
-                        if type(self.dict_ruleTreeWidgets[prev_rule_id]) == list:
-                            self.dict_ruleTreeWidgets[prev_rule_id][3].append(rule_id_duplicate)
+                            self.dict_ruleTreeWidgets[prev_id_duplicate].next_ruleTreeWidgets.append(rule_id_duplicate)
 
+                        # Create list previous rtw
+                        if type(self.dict_ruleTreeWidgets[prev_id_duplicate]) == list:
+                            rtw_duplicate[2] = self.dict_ruleTreeWidgets[prev_id_duplicate][2].copy()
                         else:
-                            self.dict_ruleTreeWidgets[prev_rule_id].next_ruleTreeWidgets.append(rule_id_duplicate)
-
-                        #add to duplicates
-                        if type(self.dict_ruleTreeWidgets[id]) == list:
-                            for duplicate in self.dict_ruleTreeWidgets[id].duplicate_ruleTreeWidgets:
-                                if type(self.dict_ruleTreeWidgets[duplicate]) == list:
-                                    self.dict_ruleTreeWidgets[duplicate][4].append(rule_id_duplicate)
-                                else:
-                                    self.dict_ruleTreeWidgets[duplicate].duplicate_ruleTreeWidgets.append(
-                                        rule_id_duplicate)
-                                ruleTree_duplicate[4].append(duplicate)
-                            ruleTree_duplicate[4].append(id)
-                            self.dict_ruleTreeWidgets[id][4].append(rule_id_duplicate)
-                        else:
-                            for duplicate in self.dict_ruleTreeWidgets[id].duplicate_ruleTreeWidgets:
-                                if type(self.dict_ruleTreeWidgets[duplicate]) == list:
-                                    self.dict_ruleTreeWidgets[duplicate][4].append(rule_id_duplicate)
-                                else:
-                                    self.dict_ruleTreeWidgets[duplicate].duplicate_ruleTreeWidgets.append(rule_id_duplicate)
-                                ruleTree_duplicate[4].append(duplicate)
-                            ruleTree_duplicate[4].append(id)
-                            self.dict_ruleTreeWidgets[id].duplicate_ruleTreeWidgets.append(rule_id_duplicate)
-
-                        #add to dictionary
-                        self.dict_ruleTreeWidgets[rule_id_duplicate] = ruleTree_duplicate
-
-        # Test whether created rules and relations are okay
-        # for entries in self.dict_ruleTreeWidgets:
-        #     if self.dict_ruleTreeWidgets[entries].duplicate_ruleTreeWidgets:
-        #         for next in self.dict_ruleTreeWidgets[entries].duplicate_ruleTreeWidgets:
-        #             print(str(entries), ' duplicate', str(next))
-        #     for next in self.dict_ruleTreeWidgets[entries].next_ruleTreeWidgets:
-        #         print(str(entries), ' next rtw ', str(next))
-
+                            rtw_duplicate[2] = self.dict_ruleTreeWidgets[prev_id_duplicate].prev_ruleTreeWidgets.copy()
+                        rtw_duplicate[2].append(prev_id_duplicate)
+                        # Add to duplicates and add duplicates to itself
+                        for duplicate_id in self.dict_ruleTreeWidgets[rtw_after_series].duplicate_ruleTreeWidgets:
+                            self.dict_ruleTreeWidgets[duplicate_id][4].append(rule_id_duplicate)
+                            rtw_duplicate[4].append(duplicate_id)
+                        self.dict_ruleTreeWidgets[rtw_after_series].duplicate_ruleTreeWidgets.append(rule_id_duplicate)
+                        rtw_duplicate[4].append(rtw_after_series)
+                        # Add to dictionary
+                        self.dict_ruleTreeWidgets[rule_id_duplicate] = rtw_duplicate
         self.frame_ruleTree.update()
         try:
             return int(series_start_id)

@@ -245,7 +245,8 @@ class MsaQgis:
                 nested_list.append(self.dlg.dict_ruleTreeWidgets[key].comboBox_name.currentText())
                 nested_list.append(self.dlg.dict_ruleTreeWidgets[key].isBaseGroup)
                 dict_nest_rule_tree[key] = nested_list
-
+        QgsMessageLog.logMessage(f"{self.dlg.dict_ruleTreeWidgets}", 'MSA_QGIS',
+                                 Qgis.Info)
         with open (file_name, 'wb') as pkl_file:
             pickledump(dict_nest_rule_tree, pkl_file)
 
