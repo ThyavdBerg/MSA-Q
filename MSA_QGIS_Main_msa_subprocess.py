@@ -965,6 +965,7 @@ def assignVegCom(dict_nest_rule, conn, cursor, map_name, rule, number_of_entries
         for increment in range(100):
             try:
                 cursor.execute('DROP TABLE IF EXISTS "temp1";')
+                break
             except sqlite3.OperationalError as e:
                 print(f"assignVegCom {map_name} dropping temp1 retry - {increment}: {e}")
         conn.commit()
@@ -1059,16 +1060,19 @@ def assignVegCom(dict_nest_rule, conn, cursor, map_name, rule, number_of_entries
     for increment in range(100):
         try:
             cursor.execute('DROP TABLE IF EXISTS "temp1";')
+            break
         except sqlite3.OperationalError as e:
             print(f"assignVegCom {map_name} dropping temp1 retry - {increment}: {e}")
     for increment in range(100):
         try:
             cursor.execute('DROP TABLE IF EXISTS "temp2";')
+            break
         except sqlite3.OperationalError as e:
             print(f"assignVegCom {map_name} dropping temp2 retry - {increment}: {e}")
     for increment in range(100):
         try:
             cursor.execute('DROP TABLE IF EXISTS geom_r_tree')
+            break
         except sqlite3.OperationalError as e:
             print(f"assignVegCom {map_name} dropping geom_r_tree retry - {increment}: {e}")
 
