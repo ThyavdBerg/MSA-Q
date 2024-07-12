@@ -206,6 +206,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.doubleSpinBox_cumulFit.valueChanged.connect(self.checkChecklist)
         self.tableWidget_sites.itemChanged.connect(self.checkChecklist)
         self.spinBox_iter.valueChanged.connect(self.checkChecklist)
+        self.pushButton_checkChecklist.clicked.connect(self.checkChecklist)
 
 ### DIRECTLY DIALOG RELATED FUNCTIONS
     def openRunDialog(self):
@@ -363,7 +364,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         :params from UI files:
         """
         # Extent set?
-        if self.mExtentGroupBox.currentExtent() != QgsRectangle(0.0, 0.0):
+        if self.mExtentGroupBox.currentExtent().isNull() == False:
             self.checkBox_extent.setChecked(True)
         elif self.radioButton_createMap.isChecked() == False and self.mQgsFileWidget_startingPoint.filePath() != '':
             self.checkBox_extent.setChecked(True)

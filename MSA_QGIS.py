@@ -245,8 +245,6 @@ class MsaQgis:
                 nested_list.append(self.dlg.dict_ruleTreeWidgets[key].comboBox_name.currentText())
                 nested_list.append(self.dlg.dict_ruleTreeWidgets[key].isBaseGroup)
                 dict_nest_rule_tree[key] = nested_list
-        QgsMessageLog.logMessage(f"{self.dlg.dict_ruleTreeWidgets}", 'MSA_QGIS',
-                                 Qgis.Info)
         with open (file_name, 'wb') as pkl_file:
             pickledump(dict_nest_rule_tree, pkl_file)
 
@@ -1416,7 +1414,8 @@ class MsaQgis:
                     QgsMessageLog.logMessage("Exception raised, native point sampling could not run, abort run",
                                              'MSA_QGIS',
                                              Qgis.Warning)
-                    QgsMessageLog.logMessage(formatted_exception, 'MSA_QGIS', Qgis.Critical)
+                    QgsMessageLog.logMessage(str(formatted_exception), 'MSA_QGIS', Qgis.Critical)
+                    return
                     #message = 'Point sampling failed'
                     #self.dlg.runAbortedPopup(message, e) #not yet functional
             if self.dlg.run_type < 1:
@@ -1512,9 +1511,16 @@ class MsaQgis:
                 run_type = "3"
                 number_of_iters = str(self.dlg.spinBox_iter.value())
             else:
-                QgsMessageLog.logMessage("Error, run_type incorrect", 'MSA_QGIS', Qgis.Info)
+                QgsMessageLog.logMessage("Error, run_type incorrect", 'MSA_QGIS', Qgis.Critical)
                 return
-
+            if self.dlg.radioButton_makeCsvYes.isChecked():
+                make_csv_maps = "1"
+            elif self.dlg.radioButton_makeCsvNo.isChecked():
+                make_csv_maps = "0"
+            else:
+                QgsMessageLog.logMessage("Error: make csv is missing a value, check if main dialog radiobuttons have been checked correctly", 'MSA_QGIS', Qgis.Critical)
+                return
+            print(make_csv_maps)
             QgsMessageLog.logMessage("starting subprocess", 'MSA_QGIS', Qgis.Info)
             subprocess_time=time()
             basepath = path.dirname(path.abspath(__file__))
@@ -1538,7 +1544,7 @@ class MsaQgis:
                           f"{self.dlg.doubleSpinBox_cumulFit.value()}\n{self.dlg.comboBox_fit.currentText()}\n"
                           f"{self.dlg.radioButton_keepFitted.isChecked()}\n{self.dlg.radioButton_keepTwo.isChecked()}\n"
                           f"{number_of_entries}\n{self.dlg.radioButton_nestedMap.isChecked()}\n"
-                          f"{n_of_sites}\n{n_of_taxa}\n{n_of_vegcom}\n{self.dlg.spinBox_randomSeed.value()}")
+                          f"{n_of_sites}\n{n_of_taxa}\n{n_of_vegcom}\n{self.dlg.spinBox_randomSeed.value()}\n{make_csv_maps}")
                 running_msa.stdin.flush()
                 running_msa.stdin.close()
                 for line in running_msa.stdout:
