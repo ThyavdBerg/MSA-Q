@@ -110,13 +110,13 @@ def checkInput():
         elif count == 16:
             n_of_vegcom = int(line[:-1])
             count +=1
+        elif count == 17:
+            random_seed = int(line[:-1])
+            count +=1
         else:
-            random_seed = int(line)
+             make_csv_maps = line
 
-
-
-
-    return save_directory, from_basemap, run_type, number_of_iters, spacing, windrose, [likelihood_threshold, cumulative_likelihood_threshold, fit_formula, keep_fitted, keep_two], number_of_entries, nested, n_of_sites, n_of_taxa, n_of_vegcom, random_seed
+    return save_directory, from_basemap, run_type, number_of_iters, spacing, windrose, [likelihood_threshold, cumulative_likelihood_threshold, fit_formula, keep_fitted, keep_two], number_of_entries, nested, n_of_sites, n_of_taxa, n_of_vegcom, random_seed, make_csv_maps
 
 def loadFiles(save_directory):
     """Loads the files required for running the MSA.
@@ -199,7 +199,7 @@ def prepareMSA(dict_rule_tree):
     scenario_dict= dict(sorted(scenario_dict.items()))
     return scenario_dict
 
-def setupMSA(dict_rule_tree, dict_nest_rule, spacing, save_directory, file_name,windrose, fit_stats,number_of_entries, nested,n_of_sites, n_of_taxa, n_of_vegcom, run_type,random_seed):
+def setupMSA(dict_rule_tree, dict_nest_rule, spacing, save_directory, file_name,windrose, fit_stats,number_of_entries, nested,n_of_sites, n_of_taxa, n_of_vegcom, run_type,random_seed,make_csv_maps):
     """ Sets up the multiprocessing environment for the various iterations of the MSA.
 
     :param spacing: resolution of the vector point grid
@@ -234,7 +234,7 @@ def setupMSA(dict_rule_tree, dict_nest_rule, spacing, save_directory, file_name,
                               iteration, spacing, scenario_dict, save_directory,
                               dict_nest_rule,
                               dict_rule_tree, file_name, windrose, fit_stats,number_of_entries, nested,n_of_sites,
-                              n_of_taxa, n_of_vegcom, run_type, random_seed))
+                              n_of_taxa, n_of_vegcom, run_type, random_seed, make_csv_maps))
         process_list.append(process)
 
     for process in process_list:
@@ -259,7 +259,7 @@ def setupMSA(dict_rule_tree, dict_nest_rule, spacing, save_directory, file_name,
         csv_writer.writerows(cursor)
     output_conn.close()
 
-def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict_rule_tree, file,windrose, fit_stats,number_of_entries, nested,n_of_sites, n_of_taxa, n_of_vegcom, run_type,random_seed):
+def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict_rule_tree, file,windrose, fit_stats,number_of_entries, nested,n_of_sites, n_of_taxa, n_of_vegcom, run_type,random_seed, make_csv_maps):
     """ This is where rules are initiated in order of the rule tree. It is a single iteration of the MSA. Can be
         multiprocessed.
 
@@ -336,9 +336,9 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
         cursor.execute(f'CREATE UNIQUE INDEX "{map_name}_idx" ON "{map_name}"(msa_id);')
         # assign vegetation
         for item in scenario_dict[scenario][2]: #run_list
-            assignVegCom(dict_nest_rule, conn, cursor, map_name, dict_rule_tree[item][3], number_of_entries)
+            assignVegCom(dict_nest_rule, conn, cursor, map_name, dict_rule_tree[item][3], number_of_entries, save_directory)
         # then for the final rule itself
-        assignVegCom(dict_nest_rule, conn, cursor, map_name, dict_rule_tree[scenario][3], number_of_entries)
+        assignVegCom(dict_nest_rule, conn, cursor, map_name, dict_rule_tree[scenario][3], number_of_entries, save_directory)
         # if final rule, calculate fit, save to file, and drop table
         if scenario_dict[scenario][1]:
             if nested == "True":
@@ -357,19 +357,26 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
                 cursor.execute(f'SELECT likelihood_met FROM maps WHERE map_id = "{map_name}"')
                 save_map = cursor.fetchone()[0]
             if save_map == "Yes":
+                print("saving map")
                 for increment in range(retries):
                     if increment == (retries - 1):
                         print(f"runMSA {iteration} Final try saving map {map_name}", flush= True)
                     try:
                         cursor.execute(f'CREATE TABLE file_db.[{map_name}] AS SELECT * FROM [{map_name}]')
-                        #TODO create way to turn saving to .csv on or off
-
-                        # cursor.execute(f'SELECT * FROM "{map_name}"')
-                        # with open(path.join(save_directory, str(map_name) + '.csv'), 'w', newline='') as csv_file:
-                        #     csv_writer = csv.writer(csv_file)
-                        #     csv_writer.writerow([i[0] for i in cursor.description])
-                        #     csv_writer.writerows(cursor)
                         conn.commit()
+                        try:
+                            print("csv code reached")
+                            if make_csv_maps == "1":
+                                print("saving map...")
+                                cursor.execute(f'SELECT * FROM "{map_name}"')
+                                with open(path.join(save_directory, str(map_name) + '.csv'), 'w',
+                                          newline='') as csv_file:
+                                    csv_writer = csv.writer(csv_file)
+                                    csv_writer.writerow([i[0] for i in cursor.description])
+                                    csv_writer.writerows(cursor)
+                                print("map should be saved")
+                        except Exception as e:
+                            print(f'{map_name} was not succesfully saved to csv')
                         break
                     except sqlite3.OperationalError as e:
                         print(f"runMSA {iteration} retry saving map {map_name} - {increment}: {e}")
@@ -377,6 +384,7 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
                     except Exception as e:
                         print(f"runMSA {iteration} saving map {map_name} failed: {e}")
                         break
+
             # regardless of whether it was saved or not, drop map table to free up memory
             try:
                 cursor.execute(f'DROP TABLE IF EXISTS "{map_name}"')
@@ -856,12 +864,12 @@ def makeBasemap(conn, cursor, dict_rule_tree, dict_nest_rule,spacing, save_direc
     list_base_group_ids = [key for key in dict_rule_tree if dict_rule_tree[key][4]] #4 is isBaseGroup bool
     list_base_group_ids.sort()
     for item in list_base_group_ids:
-        assignVegCom(dict_nest_rule, conn, cursor, "basemap", dict_rule_tree[item][3], number_of_entries) #3 is rule name
+        assignVegCom(dict_nest_rule, conn, cursor, "basemap", dict_rule_tree[item][3], number_of_entries,save_directory) #3 is rule name
     #save a file with the basemap
     cursor.execute(f'VACUUM INTO "{path.join(save_directory, "output_basemap.sqlite")}";')
     conn.commit()
 
-def assignVegCom(dict_nest_rule, conn, cursor, map_name, rule, number_of_entries):
+def assignVegCom(dict_nest_rule, conn, cursor, map_name, rule, number_of_entries, save_directory):
     """ Edits veg_com in the SQLite database version of the map based on a single given rule.
 
     :param conn: sqlite3 memory connection
@@ -946,22 +954,44 @@ def assignVegCom(dict_nest_rule, conn, cursor, map_name, rule, number_of_entries
                                 for msa_id, geom_x, geom_y, veg_com in conn.execute(f'SELECT msa_id, geom_x, geom_y, veg_com FROM '
                                                                            f'"{map_name}"')))
         # create table with all instances of veg_com
-        cursor.execute(f'CREATE TEMPORARY TABLE temp1 AS SELECT geom_x, geom_y FROM "{map_name}" WHERE "{map_name}"."veg_com" = "{veg_com}"')
+        cursor.execute(f'CREATE TEMPORARY TABLE temp1 AS SELECT msa_id, geom_x, geom_y FROM "{map_name}" WHERE "{map_name}"."veg_com" = "{veg_com}"')
         cursor.execute('SELECT * FROM temp1')
         temp1 = cursor.fetchall()
+
         cursor.execute('CREATE TEMPORARY TABLE temp2(msa_id INT PRIMARY KEY)')
         conn.commit()
         cursor.execute('BEGIN TRANSACTION')
-        for entries in temp1:
+
+        for entry in temp1:
             try:
-                insert_statement = f'INSERT INTO temp2 SELECT "msa_id" FROM "geom_r_tree" WHERE ' \
-                                   f'((geom_r_tree.minx<={entries[0]} AND geom_r_tree.maxx>={entries[0]}) AND ' \
-                                   f'(geom_r_tree.miny<={entries[1]} AND geom_r_tree.maxy>={entries[1]})) '
+                # insert_statement = f'INSERT INTO temp2 SELECT "msa_id" FROM "geom_r_tree" WHERE ' \
+                #                    f'((geom_r_tree.minx<={entry[1]} AND geom_r_tree.maxx>={entry[1]}) AND ' \
+                #                    f'(geom_r_tree.miny<={entry[2]} AND geom_r_tree.maxy>={entry[2]})) '
+                insert_statement = f'INSERT OR IGNORE INTO temp2 SELECT "msa_id" FROM "geom_r_tree" WHERE ' \
+                                   f'(({entry[1]} BETWEEN geom_r_tree.minx AND geom_r_tree.maxx) AND '\
+                                   f'({entry[2]} BETWEEN geom_r_tree.miny AND geom_r_tree.maxy))'
 
                 cursor.execute(insert_statement)
-            except sqlite3.IntegrityError:
+            except sqlite3.IntegrityError as e:
+                print(f"entry not unique, {entry}, {e}")
                 pass # entry not unique, skip
         cursor.execute('COMMIT')
+
+        cursor.execute(f'SELECT * FROM "temp2"')
+        with open(path.join(save_directory, 'temp2.csv'), 'w', newline='') as csv_file:
+            csv_writer = csv.writer(csv_file)
+            csv_writer.writerow([i[0] for i in cursor.description])
+            csv_writer.writerows(cursor)
+        cursor.execute(f'SELECT * FROM "temp1"')
+        with open(path.join(save_directory, 'temp1.csv'), 'w', newline='') as csv_file:
+            csv_writer = csv.writer(csv_file)
+            csv_writer.writerow([i[0] for i in cursor.description])
+            csv_writer.writerows(cursor)
+            cursor.execute(f'SELECT * FROM "geom_r_tree"')
+        with open(path.join(save_directory, 'geom_r_tree.csv'), 'w', newline='') as csv_file:
+            csv_writer = csv.writer(csv_file)
+            csv_writer.writerow([i[0] for i in cursor.description])
+            csv_writer.writerows(cursor)
         for increment in range(100):
             try:
                 cursor.execute('DROP TABLE IF EXISTS "temp1";')
@@ -1054,6 +1084,8 @@ def assignVegCom(dict_nest_rule, conn, cursor, map_name, rule, number_of_entries
         string_condition_rule = string_condition_rule[:-4]
     #print(f'condition string {map_name} took {time.time()-save_time} to run', flush=True)
     cursor.execute(string_condition_rule)
+    print(string_condition_rule)
+
     conn.commit()
 
     # If the enroach rule was run, the temp tables needs to be dropped
@@ -1318,7 +1350,7 @@ def calculateFit(map_name,n_of_sites, n_of_taxa, conn, cursor, fit_stats):
 if __name__ == "__main__":
     ##Main code
     # check if save input is correct. If not will automatically error and quit
-    save_directory, from_basemap, run_type, number_of_iters, spacing, windrose, fit_stats,number_of_entries, nested, n_of_sites, n_of_taxa, n_of_vegcom, random_seed = checkInput()
+    save_directory, from_basemap, run_type, number_of_iters, spacing, windrose, fit_stats,number_of_entries, nested, n_of_sites, n_of_taxa, n_of_vegcom, random_seed, make_csv_maps = checkInput()
     # Open pickled files
     dict_nest_rule, dict_rule_tree = loadFiles(save_directory)
     # Create the basemap if necessary
@@ -1332,7 +1364,7 @@ if __name__ == "__main__":
             if run_type == "1":
                 sys.exit("Error in subprocess, run_type = 2 (make only basemap), but no entries in rule tree were designated as base group")
             else: #Carry on to do a full MSA, but start from point_sampled_map
-                setupMSA(dict_rule_tree,dict_nest_rule, spacing,save_directory, "temp_file_sql_input.sqlite", windrose, fit_stats,number_of_entries, nested, n_of_sites, n_of_taxa, n_of_vegcom, run_type, random_seed)
+                setupMSA(dict_rule_tree,dict_nest_rule, spacing,save_directory, "temp_file_sql_input.sqlite", windrose, fit_stats,number_of_entries, nested, n_of_sites, n_of_taxa, n_of_vegcom, run_type, random_seed,make_csv_maps)
         else: #some entries were designated as basegroup
              if run_type == "1" or run_type == "2" or run_type == "3":
                  # Create the basemap
@@ -1347,14 +1379,14 @@ if __name__ == "__main__":
                      #basemap is saved as part of makeBasemap, move on to end subprocess
                      pass
                  elif run_type == "2" or run_type == "3": #continue with full MSA
-                     setupMSA(dict_rule_tree,dict_nest_rule, spacing,save_directory, "output_basemap.sqlite", windrose, fit_stats, number_of_entries, nested,n_of_sites, n_of_taxa, n_of_vegcom,run_type,random_seed)
+                     setupMSA(dict_rule_tree,dict_nest_rule, spacing,save_directory, "output_basemap.sqlite", windrose, fit_stats, number_of_entries, nested,n_of_sites, n_of_taxa, n_of_vegcom,run_type,random_seed,make_csv_maps)
              else: # Some error occurred in setting up the run, this code should not be reached
                  sys.exit(f"Error in subprocess, run_type is incorrect, \n run_type = {run_type}")
     else: #A basemap exists
         if run_type == "1":
             sys.exit(f"Error in subprocess, run_type is make basemap, but a basemap already exists. Quitting run")
         elif run_type == "2" or run_type == "3":
-            setupMSA(dict_rule_tree,dict_nest_rule, spacing,save_directory, "temp_file_sql_input.sqlite", windrose, fit_stats, number_of_entries, nested,n_of_sites, n_of_taxa, n_of_vegcom, run_type,random_seed)
+            setupMSA(dict_rule_tree,dict_nest_rule, spacing,save_directory, "temp_file_sql_input.sqlite", windrose, fit_stats, number_of_entries, nested,n_of_sites, n_of_taxa, n_of_vegcom, run_type,random_seed,make_csv_maps)
         else:
             sys.exit(f"Error in subprocess, run_type is incorrect for full run, \n run_type = {run_type}")
 
