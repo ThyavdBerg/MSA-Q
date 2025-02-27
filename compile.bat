@@ -1,7 +1,9 @@
-@echo off
-call "C:\OSGeo4W64\bin\o4w_env.bat"
-call "C:\OSGeo4W64\bin\qt5_env.bat"
-call "C:\OSGeo4W64\bin\py3_env.bat"
+
+SET OSGEO4W_ROOT=D:\OSGeo4W
+set PYTHONPATH=%OSGEO4W_ROOT%\apps\qgis-ltr\python;%PYTHONPATH%
+path %PATH%;%OSGEO4W_ROOT%\bin\
+
+call "%OSGEO4W_ROOT%"\bin\o4w_env.bat
 
 @echo on
 pyrcc5 -o resources.py resources.qrc

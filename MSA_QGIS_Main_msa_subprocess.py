@@ -283,7 +283,7 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
     # initialize random seed
     random.seed(random_seed)
     # set nr of retries
-    retries = 100
+    retries = 250
     # Open temp map in memory
     try:
         conn = copySqlitetoMem(save_directory,file)
@@ -356,8 +356,8 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
             if fit_stats[3] == "True":  # keep only fitted
                 cursor.execute(f'SELECT likelihood_met FROM maps WHERE map_id = "{map_name}"')
                 save_map = cursor.fetchone()[0]
+
             if save_map == "Yes":
-                print("saving map")
                 for increment in range(retries):
                     if increment == (retries - 1):
                         print(f"runMSA {iteration} Final try saving map {map_name}", flush= True)
@@ -365,24 +365,26 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
                         cursor.execute(f'CREATE TABLE file_db.[{map_name}] AS SELECT * FROM [{map_name}]')
                         conn.commit()
                         try:
-                            print("csv code reached")
                             if make_csv_maps == "1":
-                                print("saving map...")
                                 cursor.execute(f'SELECT * FROM "{map_name}"')
                                 with open(path.join(save_directory, str(map_name) + '.csv'), 'w',
                                           newline='') as csv_file:
                                     csv_writer = csv.writer(csv_file)
                                     csv_writer.writerow([i[0] for i in cursor.description])
                                     csv_writer.writerows(cursor)
-                                print("map should be saved")
+                                print(f"csv map for {map_name} saved")
                         except Exception as e:
                             print(f'{map_name} was not succesfully saved to csv')
                         break
                     except sqlite3.OperationalError as e:
                         print(f"runMSA {iteration} retry saving map {map_name} - {increment}: {e}")
+                        if increment == (retries - 1):
+                            print(f"map {map_name} was not saved due to database timeout")
                         time.sleep(increment)
                     except Exception as e:
                         print(f"runMSA {iteration} saving map {map_name} failed: {e}")
+                        if increment == (retries - 1):
+                            print(f"map {map_name} was not saved due to other error")
                         break
 
             # regardless of whether it was saved or not, drop map table to free up memory
@@ -408,9 +410,13 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
                                 break
                             except sqlite3.OperationalError as e:
                                 print(f"runMSA {iteration} retry saving pollen loading {map_name} - {increment}")
+                                if increment == (retries - 1):
+                                    print(f"PL {site[0]}{map_name} was not saved due to database timeout")
                                 time.sleep(increment)
                             except Exception as e:
                                 print(f"runMSA {iteration} WARNING pollen loading {site[0]}{map_name} not saved")
+                                if increment == (retries - 1):
+                                    print(f"PL {site[0]}{map_name} was not saved due to other error")
             # regardless of whether they were saved or not, drop the pollen loading tables
             cursor.execute(f'SELECT site_name FROM "sampling_sites"')
             sampling_sites = cursor.fetchall()
@@ -464,9 +470,13 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
                     break
                 except sqlite3.OperationalError as e:
                     print(f"runMSA {iteration} retry saving simulated pollen {map_name} - {increment} \n{e}")
+                    if increment == (retries - 1):
+                        print(f"SP {map_name} was not saved due to database timeout")
                     time.sleep(increment)
                 except Exception as e:
                     print(f"runMSA {iteration} CRITICAL saving simulated pollen {map_name} failed. Data incomplete. Report issue: {e}")
+                    if increment == (retries - 1):
+                        print(f"SP {map_name} was not saved due to other error")
                     break
             try:
                 cursor.execute(f'DROP TABLE IF EXISTS simpol_{map_name}')
@@ -484,9 +494,13 @@ def runMSA(iteration, spacing, scenario_dict,save_directory,dict_nest_rule, dict
             break
         except sqlite3.OperationalError as e:
             print(f"runMSA {iteration} retry saving fit and landscape percentages - {increment} \n{e}")
+            if increment == (retries - 1):
+                print(f"saving fit and landscape percentages not saved due to database timeout")
             time.sleep(increment)
         except Exception as e:
-            print(f"runMSA {iteration} CRITICAL saving fit and landscape percentages failed")
+            print(f"runMSA {iteration} CRITICAL saving fit and landscape percentages failed {e}")
+            if increment == (retries - 1):
+                print(f"saving fit and landscape percentages not saved due to other error")
             break
 
     conn.commit()
@@ -977,21 +991,6 @@ def assignVegCom(dict_nest_rule, conn, cursor, map_name, rule, number_of_entries
                 pass # entry not unique, skip
         cursor.execute('COMMIT')
 
-        cursor.execute(f'SELECT * FROM "temp2"')
-        with open(path.join(save_directory, 'temp2.csv'), 'w', newline='') as csv_file:
-            csv_writer = csv.writer(csv_file)
-            csv_writer.writerow([i[0] for i in cursor.description])
-            csv_writer.writerows(cursor)
-        cursor.execute(f'SELECT * FROM "temp1"')
-        with open(path.join(save_directory, 'temp1.csv'), 'w', newline='') as csv_file:
-            csv_writer = csv.writer(csv_file)
-            csv_writer.writerow([i[0] for i in cursor.description])
-            csv_writer.writerows(cursor)
-            cursor.execute(f'SELECT * FROM "geom_r_tree"')
-        with open(path.join(save_directory, 'geom_r_tree.csv'), 'w', newline='') as csv_file:
-            csv_writer = csv.writer(csv_file)
-            csv_writer.writerow([i[0] for i in cursor.description])
-            csv_writer.writerows(cursor)
         for increment in range(100):
             try:
                 cursor.execute('DROP TABLE IF EXISTS "temp1";')
@@ -1084,8 +1083,6 @@ def assignVegCom(dict_nest_rule, conn, cursor, map_name, rule, number_of_entries
         string_condition_rule = string_condition_rule[:-4]
     #print(f'condition string {map_name} took {time.time()-save_time} to run', flush=True)
     cursor.execute(string_condition_rule)
-    print(string_condition_rule)
-
     conn.commit()
 
     # If the enroach rule was run, the temp tables needs to be dropped
@@ -1207,7 +1204,6 @@ def simulatePollen(map_name,iteration, conn, cursor, windrose, fit_stats, nested
                 update_table_str += find_windrose_str
             else:
                 update_table_str += ')'
-
             cursor.execute(update_table_str)
         cursor.execute('COMMIT')
         conn.commit()
@@ -1267,7 +1263,6 @@ def simulatePollen(map_name,iteration, conn, cursor, windrose, fit_stats, nested
             else:
                 insert_pollen_percent_str += f'(SELECT ((SELECT SUM({taxon}_PL) FROM {site_name}{map_name})/' \
                                              f'{total_pollen_load}) * 100), '
-
         cursor.execute(insert_pollen_percent_str)
         conn.commit()
     # Insert map in to maps table
