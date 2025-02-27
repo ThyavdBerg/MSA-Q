@@ -45,7 +45,7 @@ from qgis._core import QgsRectangle
 from qgis.core import QgsApplication, QgsMessageLog, Qgis,  QgsVectorLayer, QgsField, QgsGeometry, QgsPointXY, QgsFeature,QgsVectorLayerJoinInfo, QgsProject, QgsSpatialIndex
 from qgis.utils import iface
 from PyQt5.QtWidgets import QTableWidgetItem
-from subprocess import Popen, PIPE
+from subprocess import Popen, PIPE, STDOUT
 import traceback
 
 # Initialize Qt resources from file resources.py. IDE will tell you it's not importing anything, IDE is wrong.
@@ -226,27 +226,25 @@ class MsaQgis:
         :param file_name: Contains the URL for where the simplefied rule tree dict needs to be saved to.
         :type file_name: str
         """
-        #print(self.dlg.dict_ruleTreeWidgets)
         dict_nest_rule_tree = {}
-        print(self.dlg.dict_ruleTreeWidgets)
         for key in self.dlg.dict_ruleTreeWidgets:
-            nested_list = []
-            nested_list.append(self.dlg.dict_ruleTreeWidgets[key].next_ruleTreeWidgets)
-            nested_list.append(self.dlg.dict_ruleTreeWidgets[key].prev_ruleTreeWidgets)
-            nested_list.append(self.dlg.dict_ruleTreeWidgets[key].duplicate_ruleTreeWidgets)
-            if self.dlg.dict_ruleTreeWidgets[key].duplicate_ruleTreeWidgets == [] or \
-                    key < min(self.dlg.dict_ruleTreeWidgets[key].duplicate_ruleTreeWidgets):
-                nested_list.append(self.dlg.dict_ruleTreeWidgets[key].comboBox_name.currentText())
-            else:
-                # if there are duplicate ruletreewidgets, rule name needs to be taken from the non-duplicate rule which
-                # has the correct rule given in the UI by the user
-
-                visible_duplicate = min(self.dlg.dict_ruleTreeWidgets[key].duplicate_ruleTreeWidgets)
+            if type(self.dlg.dict_ruleTreeWidgets[key]) == list:
+                nested_list = []
+                nested_list.append(self.dlg.dict_ruleTreeWidgets[key][3]) # note order is different
+                nested_list.append(self.dlg.dict_ruleTreeWidgets[key][2])
+                nested_list.append(self.dlg.dict_ruleTreeWidgets[key][4])
+                visible_duplicate = min(self.dlg.dict_ruleTreeWidgets[key][4])
                 nested_list.append(self.dlg.dict_ruleTreeWidgets[visible_duplicate].comboBox_name.currentText())
-
-            nested_list.append(self.dlg.dict_ruleTreeWidgets[key].isBaseGroup)
-            dict_nest_rule_tree[key] = nested_list
-
+                nested_list.append(False)
+                dict_nest_rule_tree[key] = nested_list
+            else:
+                nested_list = []
+                nested_list.append(self.dlg.dict_ruleTreeWidgets[key].next_ruleTreeWidgets)
+                nested_list.append(self.dlg.dict_ruleTreeWidgets[key].prev_ruleTreeWidgets)
+                nested_list.append(self.dlg.dict_ruleTreeWidgets[key].duplicate_ruleTreeWidgets)
+                nested_list.append(self.dlg.dict_ruleTreeWidgets[key].comboBox_name.currentText())
+                nested_list.append(self.dlg.dict_ruleTreeWidgets[key].isBaseGroup)
+                dict_nest_rule_tree[key] = nested_list
         with open (file_name, 'wb') as pkl_file:
             pickledump(dict_nest_rule_tree, pkl_file)
 
@@ -631,7 +629,7 @@ class MsaQgis:
                 cursor.execute(update_DWPA_string)
 
         cursor.execute('COMMIT')
-        cursor.execute('CREATE UNIQUE INDEX PollenLookup_dist_idx ON PollenLookup(distance);')
+        cursor.execute('CREATE INDEX PollenLookup_dist_idx ON PollenLookup(distance);')
         conn.commit()
 
         # Template add distance weighting function
@@ -723,8 +721,7 @@ class MsaQgis:
                     data_provider.addFeature(feat)
                     del feat
                 y -= self.spacing
-                vector_point_base.updateExtents()
-                vector_point_base.updateFields()
+
 
         #Insert higher resolution nested features
         if self.dlg.radioButton_nestedMap.isChecked():
@@ -1417,7 +1414,8 @@ class MsaQgis:
                     QgsMessageLog.logMessage("Exception raised, native point sampling could not run, abort run",
                                              'MSA_QGIS',
                                              Qgis.Warning)
-                    QgsMessageLog.logMessage(formatted_exception, 'MSA_QGIS', Qgis.Critical)
+                    QgsMessageLog.logMessage(str(formatted_exception), 'MSA_QGIS', Qgis.Critical)
+                    return
                     #message = 'Point sampling failed'
                     #self.dlg.runAbortedPopup(message, e) #not yet functional
             if self.dlg.run_type < 1:
@@ -1513,28 +1511,49 @@ class MsaQgis:
                 run_type = "3"
                 number_of_iters = str(self.dlg.spinBox_iter.value())
             else:
-                QgsMessageLog.logMessage("Error, run_type incorrect", 'MSA_QGIS', Qgis.Info)
+                QgsMessageLog.logMessage("Error, run_type incorrect", 'MSA_QGIS', Qgis.Critical)
                 return
-
+            if self.dlg.radioButton_makeCsvYes.isChecked():
+                make_csv_maps = "1"
+            elif self.dlg.radioButton_makeCsvNo.isChecked():
+                make_csv_maps = "0"
+            else:
+                QgsMessageLog.logMessage("Error: make csv is missing a value, check if main dialog radiobuttons have been checked correctly", 'MSA_QGIS', Qgis.Critical)
+                return
+            print(make_csv_maps)
             QgsMessageLog.logMessage("starting subprocess", 'MSA_QGIS', Qgis.Info)
             subprocess_time=time()
             basepath = path.dirname(path.abspath(__file__))
             file_to_run = path.join(basepath, "MSA_QGIS_Main_msa_subprocess.py")
-            running_msa = Popen(["python3", file_to_run], stdout= PIPE, stdin=PIPE, stderr=PIPE, text= True)
-            subprocess_input_save_dir = running_msa.communicate(
-                input=  f"{save_directory}\n{from_basemap}\n{run_type}\n{number_of_iters}\n{self.spacing}\n"
-                        f"{self.dlg.checkBox_enableWindrose.isChecked()}\n{self.dlg.doubleSpinBox_fit.value()}\n"
-                        f"{self.dlg.doubleSpinBox_cumulFit.value()}\n{self.dlg.comboBox_fit.currentText()}\n"
-                        f"{self.dlg.radioButton_keepFitted.isChecked()}\n{self.dlg.radioButton_keepTwo.isChecked()}\n"
-                        f"{number_of_entries}\n{self.dlg.radioButton_nestedMap.isChecked()}\n"
-                        f"{n_of_sites}\n{n_of_taxa}\n{n_of_vegcom}")[0]
+            # running_msa = Popen(["python3", file_to_run], stdout= PIPE, stdin=PIPE, stderr=PIPE, text= True)
+            #
+            # subprocess_input_save_dir = running_msa.communicate(
+            #     input=  f"{save_directory}\n{from_basemap}\n{run_type}\n{number_of_iters}\n{self.spacing}\n"
+            #             f"{self.dlg.checkBox_enableWindrose.isChecked()}\n{self.dlg.doubleSpinBox_fit.value()}\n"
+            #             f"{self.dlg.doubleSpinBox_cumulFit.value()}\n{self.dlg.comboBox_fit.currentText()}\n"
+            #             f"{self.dlg.radioButton_keepFitted.isChecked()}\n{self.dlg.radioButton_keepTwo.isChecked()}\n"
+            #             f"{number_of_entries}\n{self.dlg.radioButton_nestedMap.isChecked()}\n"
+            #             f"{n_of_sites}\n{n_of_taxa}\n{n_of_vegcom}")[0]
+            #
+            # subprocess_output, subprocess_error = running_msa.communicate()
+            # QgsMessageLog.logMessage(f'output = {subprocess_output} \n error = {subprocess_error}', 'MSA_QGIS', Qgis.Info)
 
-            subprocess_output, subprocess_error = running_msa.communicate()
-            QgsMessageLog.logMessage(f'output = {subprocess_output} \n error = {subprocess_error}', 'MSA_QGIS', Qgis.Info)
+            with Popen(["python3","-u", file_to_run], stdout= PIPE, stdin=PIPE, stderr=STDOUT, text= True, bufsize =1) as running_msa:
+                running_msa.stdin.write(f"{save_directory}\n{from_basemap}\n{run_type}\n{number_of_iters}\n{self.spacing}\n"
+                          f"{self.dlg.checkBox_enableWindrose.isChecked()}\n{self.dlg.doubleSpinBox_fit.value()}\n"
+                          f"{self.dlg.doubleSpinBox_cumulFit.value()}\n{self.dlg.comboBox_fit.currentText()}\n"
+                          f"{self.dlg.radioButton_keepFitted.isChecked()}\n{self.dlg.radioButton_keepTwo.isChecked()}\n"
+                          f"{number_of_entries}\n{self.dlg.radioButton_nestedMap.isChecked()}\n"
+                          f"{n_of_sites}\n{n_of_taxa}\n{n_of_vegcom}\n{self.dlg.spinBox_randomSeed.value()}\n{make_csv_maps}")
+                running_msa.stdin.flush()
+                running_msa.stdin.close()
+                for line in running_msa.stdout:
+                    QgsMessageLog.logMessage(f'{line}', 'MSA_QGIS',
+                                             Qgis.Info)
+
             QgsMessageLog.logMessage(f"subprocess time = {time()-subprocess_time}", 'MSA_QGIS', Qgis.Info)
             QgsMessageLog.logMessage(f"processing time = {time()-startTime}", 'MSA_QGIS', Qgis.Info)
-
-### Cleanup
+            ### Cleanup
             #remove temp files
             try:
                 remove(path.join(save_directory,'temp_file_sql_input.sqlite'))

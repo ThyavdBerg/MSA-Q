@@ -78,7 +78,6 @@ FORM_CLASS_RUN, _ = uic.loadUiType(os.path.join(
 
 ### Main dialog window
 
-
 class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
     def __init__(self, parent=None):
         """Constructor for the main dialog that shows once the MSA-QGIS plugin is opened."""
@@ -95,6 +94,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.check_state = -1
         self.run_type = -1
         self.save_directory = None
+        self.saved_ruleTreeWidget = None
 
         # Class lists & dictionaries
         self.list_cb_rule_veg_com = []
@@ -152,6 +152,8 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.pushButton_removePollenFile.clicked.connect(self.removePollenCountsFilePath)
         self.pushButton_addChangeLog.clicked.connect(self.addToChangeLog)
         self.pushButton_removeChangeLog.clicked.connect(self.removeFromChangeLog)
+        self.pushButton_copyBranch.clicked.connect(self.copyRuleBranch)
+        self.pushButton_pasteBranch.clicked.connect(self.pasteRuleBranch)
         self.radioButton_createMap.clicked.connect(self.changeStartingPoint)
         self.radioButton_loadPointMap.clicked.connect(self.changeStartingPoint)
         self.radioButton_loadBaseMap.clicked.connect(self.changeStartingPoint)
@@ -204,6 +206,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.doubleSpinBox_cumulFit.valueChanged.connect(self.checkChecklist)
         self.tableWidget_sites.itemChanged.connect(self.checkChecklist)
         self.spinBox_iter.valueChanged.connect(self.checkChecklist)
+        self.pushButton_checkChecklist.clicked.connect(self.checkChecklist)
 
 ### DIRECTLY DIALOG RELATED FUNCTIONS
     def openRunDialog(self):
@@ -361,7 +364,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         :params from UI files:
         """
         # Extent set?
-        if self.mExtentGroupBox.currentExtent() != QgsRectangle(0.0, 0.0):
+        if self.mExtentGroupBox.currentExtent().isNull() == False:
             self.checkBox_extent.setChecked(True)
         elif self.radioButton_createMap.isChecked() == False and self.mQgsFileWidget_startingPoint.filePath() != '':
             self.checkBox_extent.setChecked(True)
@@ -695,6 +698,9 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             for key in self.nest_dict_rules:
                 self.listWidget_rules.addItem(self.nest_dict_rules[key][1])
                 self.rule_number += 1
+        # sort the rule dict after loading (for compatibility with older versions)
+        # TODO this was only an issue in old, unpublished versions, so this can be removed if no older projects are being used anymore
+        self.nest_dict_rules = dict(sorted(self.nest_dict_rules.items()))
 
     def saveHandbagFile(self):
         """ Saves all of the input data that is backwards compatible with HUMPOL/LandPolFlow into a single text file (.hum)"""
@@ -704,20 +710,45 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
     def saveRuleTree(self,  file_name_rule_tree):
         """ Pickles/serializes the dictionary containing all entries into the rule tree.
         Since QtWidgets cannot be pickled or saved, a dictionary is created that contains all the input required to
-        rebuild it. Every entry contains information on a single ruleTreeWidget. The key is the ruleTreeWidget's order_id. """
+        rebuild it. Every entry contains information on a single ruleTreeWidget. The key is the ruleTreeWidget's order_id.
+        idices:
+        [0] current rule (str for visible, None for duplicate)
+        [1] connection type ('series', 'series start', 'normal' or 'duplicate')
+        [2] isBaseGroup (bool)
+        [3] prev ruleTreeWidgets ids (list of int)
+        [4] next ruleTreeWidgets ids (list of int)
+        [5] duplicate ruleTreeWidgets ids (list of int)
+"""
         picklable_dict_ruleTreeWidgets = {}
         for key in self.dict_ruleTreeWidgets:
             list_ruleTreeWidgets_variables = []
-            #append selected rule, next rule tree widgets, prev rule tree widgets, duplicate rule tree widgets, connection type, isbasegroup
-            list_ruleTreeWidgets_variables.append(self.dict_ruleTreeWidgets[key].comboBox_name.currentText())
-            list_ruleTreeWidgets_variables.append(self.dict_ruleTreeWidgets[key].connection_type)
-            list_ruleTreeWidgets_variables.append(self.dict_ruleTreeWidgets[key].isBaseGroup)
-            list_ruleTreeWidgets_variables.append(self.dict_ruleTreeWidgets[key].prev_ruleTreeWidgets)
-            list_ruleTreeWidgets_variables.append(self.dict_ruleTreeWidgets[key].next_ruleTreeWidgets)
-            list_ruleTreeWidgets_variables.append(self.dict_ruleTreeWidgets[key].duplicate_ruleTreeWidgets)
-            picklable_dict_ruleTreeWidgets[key] = list_ruleTreeWidgets_variables
+            if type(self.dict_ruleTreeWidgets[key]) == list:
+                list_duplicate = [None]
+                list_duplicate.append(self.dict_ruleTreeWidgets[key][1])
+                list_duplicate.append(False)
+                list_duplicate.append(self.dict_ruleTreeWidgets[key][2])
+                list_duplicate.append(self.dict_ruleTreeWidgets[key][3])
+                list_duplicate.append(self.dict_ruleTreeWidgets[key][4])
+                picklable_dict_ruleTreeWidgets[key] = list_duplicate
+            else:
+                #append selected rule, next rule tree widgets, prev rule tree widgets, duplicate rule tree widgets, connection type, isbasegroup
+                list_ruleTreeWidgets_variables.append(self.dict_ruleTreeWidgets[key].comboBox_name.currentText())
+                list_ruleTreeWidgets_variables.append(self.dict_ruleTreeWidgets[key].connection_type)
+                list_ruleTreeWidgets_variables.append(self.dict_ruleTreeWidgets[key].isBaseGroup)
+                list_ruleTreeWidgets_variables.append(self.dict_ruleTreeWidgets[key].prev_ruleTreeWidgets)
+                list_ruleTreeWidgets_variables.append(self.dict_ruleTreeWidgets[key].next_ruleTreeWidgets)
+                list_ruleTreeWidgets_variables.append(self.dict_ruleTreeWidgets[key].duplicate_ruleTreeWidgets)
+                picklable_dict_ruleTreeWidgets[key] = list_ruleTreeWidgets_variables
+        #order the dict so that it can be safely reconstructed upon loading
+        list_of_keys = []
+        for key in picklable_dict_ruleTreeWidgets:
+            list_of_keys.append(key)
+        picklable_dict_ruleTreeWidgets_ordered = {}
+        for item in list_of_keys:
+            picklable_dict_ruleTreeWidgets_ordered[item] = picklable_dict_ruleTreeWidgets[item]
+
         with open (file_name_rule_tree, 'wb') as pkl_file:
-            pickle.dump(picklable_dict_ruleTreeWidgets, pkl_file)
+            pickle.dump(picklable_dict_ruleTreeWidgets_ordered, pkl_file)
 
     def loadRuleTree(self, file_name_rule_tree):
         """ Imports the pickled dictionary of the rule tree. """
@@ -757,246 +788,376 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 ruleTreeWidget_base.clicked.connect(
                     lambda *args, ruleTreeWidget_id=ruleTreeWidget_base.order_id, ruleTreeWidget=ruleTreeWidget_base:
                     self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
-            if key >1:
-                #check if rule is a duplicate
-                if pickleable_dict_ruleTreeWidgets[key][5]:
-                    if min(pickleable_dict_ruleTreeWidgets[key][5]) > key:#is the main duplicate, add to UI
-                        #check connection type
-                        if pickleable_dict_ruleTreeWidgets[key][1] == 'normal':
-                            previous_id = max(pickleable_dict_ruleTreeWidgets[key][3])
-                            next_layout = QHBoxLayout()
-                            own_layout = QVBoxLayout()
-                            ruleTreeWidget_normal = RuleTreeWidget(self.nest_dict_rules, key, next_layout, own_layout,
-                                                                   pickleable_dict_ruleTreeWidgets[key][1],
-                                                                   main_dialog_x=x_position_for_spoilerplate,
-                                                                   main_dialog_y=y_position_for_spoilerplate)
-                            ruleTreeWidget_normal.prev_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][
-                                3]  # TODO no idea why I couldn't just give these in the constructor, it's being difficult. For now, this works
-                            ruleTreeWidget_normal.next_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][4]
-                            ruleTreeWidget_normal.duplicate_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][5]
-                            # place widget
-                            # check if this widget follows directly from a widget in series # Todo this would never happen and should be under the version that deals with duplicates
-                            if self.dict_ruleTreeWidgets[previous_id].connection_type == 'series':
-                                self.dict_ruleTreeWidgets[previous_id].next_layout.addWidget(ruleTreeWidget_normal)
-                                self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(
-                                    ruleTreeWidget_normal.next_layout)
-                                ruleTreeWidget_normal.own_layout = []
-                                pass
-                            else:
-                                self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(own_layout)
-                                own_layout.addWidget(ruleTreeWidget_normal)
-                                own_layout.addLayout(next_layout)
-                                own_layout.addStretch()
-                            # add to dictionary
-                            self.dict_ruleTreeWidgets[key] = ruleTreeWidget_normal
-                            # set basegroup and selected rule
-                            if pickleable_dict_ruleTreeWidgets[key][2]:
-                                ruleTreeWidget_normal.isSelected = True
-                                ruleTreeWidget_normal.toggleBaseGroup()
-                                ruleTreeWidget_normal.isSelected = False
-                            self.dict_ruleTreeWidgets[key].comboBox_name.setCurrentText(
-                                pickleable_dict_ruleTreeWidgets[key][0])
-                            ruleTreeWidget_normal.clicked.connect(
-                                lambda *args, ruleTreeWidget_id=ruleTreeWidget_normal.order_id,
-                                       ruleTreeWidget=ruleTreeWidget_normal:
-                                self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
-                        elif pickleable_dict_ruleTreeWidgets[key][1] == 'series start':
-                            if min(pickleable_dict_ruleTreeWidgets[key][5]) > key:  # is the main duplicate, add to UI
-                                next_layout = QVBoxLayout()
-                                own_layout = QVBoxLayout()
-                                ruleTreeWidget_start = RuleTreeWidget(self.nest_dict_rules, key, next_layout,
-                                                                      own_layout,
-                                                                      pickleable_dict_ruleTreeWidgets[key][1],
-                                                                      main_dialog_x=x_position_for_spoilerplate,
-                                                                      main_dialog_y=y_position_for_spoilerplate)
-                                ruleTreeWidget_start.prev_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][3]  # TODO no idea why I couldn't just give these in the constructor, it's being difficult. For now, this works
-                                ruleTreeWidget_start.next_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][4]
-                                ruleTreeWidget_start.duplicate_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][5]
-                                # place widget
-                                previous_id = max(ruleTreeWidget_start.prev_ruleTreeWidgets)
-                                self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(
-                                    ruleTreeWidget_start.own_layout)
-                                ruleTreeWidget_start.own_layout.addWidget(ruleTreeWidget_start)
-                                ruleTreeWidget_start.own_layout.addLayout(ruleTreeWidget_start.next_layout)
+            else:
+                #check connection type
+                if pickleable_dict_ruleTreeWidgets[key][1] == 'duplicate':
 
-                                # add to dictionary
-                                self.dict_ruleTreeWidgets[key] = ruleTreeWidget_start
-                                # set basegroup and selected rule
-                                self.dict_ruleTreeWidgets[key].isBaseGroup = pickleable_dict_ruleTreeWidgets[key][2]
-                                self.dict_ruleTreeWidgets[key].comboBox_name.setCurrentText(
-                                    pickleable_dict_ruleTreeWidgets[key][0])
-                                # connect to selection
-                                ruleTreeWidget_start.clicked.connect(
-                                    lambda *args, ruleTreeWidget_id=ruleTreeWidget_start.order_id,
-                                           ruleTreeWidget=ruleTreeWidget_start:
-                                    self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
+                    #don't make widget, just make list
+                    self.dict_ruleTreeWidgets[key] = []
+                    self.dict_ruleTreeWidgets[key].append(key)
+                    self.dict_ruleTreeWidgets[key].append(pickleable_dict_ruleTreeWidgets[key][1])
+                    self.dict_ruleTreeWidgets[key].append(pickleable_dict_ruleTreeWidgets[key][3])
+                    self.dict_ruleTreeWidgets[key].append(pickleable_dict_ruleTreeWidgets[key][4])
+                    self.dict_ruleTreeWidgets[key].append(pickleable_dict_ruleTreeWidgets[key][5])
+                elif pickleable_dict_ruleTreeWidgets[key][1] == 'normal':
 
-                        elif pickleable_dict_ruleTreeWidgets[key][1] == 'series':
-                            if min(pickleable_dict_ruleTreeWidgets[key][5]) > key:  # is the main duplicate, add to UI
-                                # layouts
-                                next_layout = QVBoxLayout()
-                                own_layout = QHBoxLayout()
-                                # create widget
-                                ruleTreeWidget_series = RuleTreeWidget(self.nest_dict_rules, key, next_layout,
-                                                                       own_layout,
-                                                                       pickleable_dict_ruleTreeWidgets[key][1],
-                                                                       main_dialog_x=x_position_for_spoilerplate,
-                                                                       main_dialog_y=y_position_for_spoilerplate)
-                                ruleTreeWidget_series.prev_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][3]  # TODO no idea why I couldn't just give these in the constructor, it's being difficult. For now, this works
-                                ruleTreeWidget_series.next_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][4]
-                                ruleTreeWidget_series.duplicate_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][5]
-                                # place widget
-                                # find which layout it should be added to, either its own in case the previous widget was series top, or to the series layout if previous is series
-                                list_prev_widgets = []
-                                if str(key)[-1] == '0':
-                                    key_without_last_0 = str(key)[:len(str(key)) - 1]
-                                else:
-                                    key_without_last_0 = False
-                                for id in reversed(ruleTreeWidget_series.prev_ruleTreeWidgets):
-                                    if str(id)[-1] == '0' or str(id) == key_without_last_0 or id == 1:
-                                        list_prev_widgets.append(id)
-                                previous_id = max(list_prev_widgets)
-                                if self.dict_ruleTreeWidgets[previous_id].connection_type == 'series start':
-                                    self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(own_layout)
-                                    self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(
-                                        ruleTreeWidget_series.next_layout)
-                                    ruleTreeWidget_series.own_layout.addWidget(ruleTreeWidget_series)
-                                    ruleTreeWidget_series.own_layout.addStretch()
-                                elif self.dict_ruleTreeWidgets[previous_id].connection_type == 'series':
-                                    ruleTreeWidget_series.own_layout = self.dict_ruleTreeWidgets[previous_id].own_layout
-                                    ruleTreeWidget_series.next_layout = self.dict_ruleTreeWidgets[previous_id].next_layout
-                                    self.dict_ruleTreeWidgets[previous_id].own_layout.addWidget(ruleTreeWidget_series)
-                                    self.dict_ruleTreeWidgets[previous_id].own_layout.addStretch()
-
-
-                                # add to dictionary
-                                self.dict_ruleTreeWidgets[key] = ruleTreeWidget_series
-
-                                # set basegroup and selected rule
-                                self.dict_ruleTreeWidgets[key].isBaseGroup = pickleable_dict_ruleTreeWidgets[key][2]
-                                self.dict_ruleTreeWidgets[key].comboBox_name.setCurrentText(
-                                    pickleable_dict_ruleTreeWidgets[key][0])
-                                # connect to selection
-                                ruleTreeWidget_series.clicked.connect(
-                                    lambda *args, ruleTreeWidget_id=ruleTreeWidget_series.order_id,
-                                           ruleTreeWidget=ruleTreeWidget_series:
-                                    self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
-
-                    else: # is not the main duplicate. Create but do not add to UI
-
-                        ruleTreeWidget_duplicate = RuleTreeWidget(self.nest_dict_rules,key,None,None,
-                                                                  pickleable_dict_ruleTreeWidgets[key][1])
-                        ruleTreeWidget_duplicate.prev_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][3]  # TODO no idea why I couldn't just give these in the constructor, it's being difficult. For now, this works
-                        ruleTreeWidget_duplicate.next_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][4]
-                        ruleTreeWidget_duplicate.duplicate_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][5]
-                        #add to dictionary
-                        self.dict_ruleTreeWidgets[key] = ruleTreeWidget_duplicate
-                        continue
-                else: #is not a duplicate, add to UI
-                    if pickleable_dict_ruleTreeWidgets[key][1] == 'normal':
-                        previous_id = max(pickleable_dict_ruleTreeWidgets[key][3])
-                        next_layout = QHBoxLayout()
-                        own_layout = QVBoxLayout()
-                        ruleTreeWidget_normal = RuleTreeWidget(self.nest_dict_rules, key, next_layout, own_layout,
-                                                               pickleable_dict_ruleTreeWidgets[key][1],
-                                                               main_dialog_x=x_position_for_spoilerplate,
-                                                               main_dialog_y=y_position_for_spoilerplate)
-                        ruleTreeWidget_normal.prev_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][3]  # TODO no idea why I couldn't just give these in the constructor, it's being difficult. For now, this works
-                        ruleTreeWidget_normal.next_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][4]
-                        ruleTreeWidget_normal.duplicate_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][5]
-                        # place widget
+                    previous_id = max(pickleable_dict_ruleTreeWidgets[key][3])
+                    next_layout = QHBoxLayout()
+                    own_layout = QVBoxLayout()
+                    ruleTreeWidget_normal = RuleTreeWidget(self.nest_dict_rules, key, next_layout, own_layout,
+                                                           pickleable_dict_ruleTreeWidgets[key][1],
+                                                           main_dialog_x=x_position_for_spoilerplate,
+                                                           main_dialog_y=y_position_for_spoilerplate)
+                    ruleTreeWidget_normal.prev_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][
+                        3]  # TODO no idea why I couldn't just give these in the constructor, it's being difficult. For now, this works
+                    ruleTreeWidget_normal.next_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][4]
+                    ruleTreeWidget_normal.duplicate_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][5]
+                    if self.dict_ruleTreeWidgets[previous_id].connection_type == 'series':
+                        self.dict_ruleTreeWidgets[previous_id].next_layout.addWidget(ruleTreeWidget_normal)
+                        self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(
+                            ruleTreeWidget_normal.next_layout)
+                        ruleTreeWidget_normal.own_layout = []
+                    else:
                         self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(own_layout)
                         own_layout.addWidget(ruleTreeWidget_normal)
                         own_layout.addLayout(next_layout)
                         own_layout.addStretch()
-                        # add to dictionary
-                        self.dict_ruleTreeWidgets[key] = ruleTreeWidget_normal
-                        # set basegroup and selected rule
-                        if pickleable_dict_ruleTreeWidgets[key][2]:
-                            ruleTreeWidget_normal.isSelected = True
-                            ruleTreeWidget_normal.toggleBaseGroup()
-                            ruleTreeWidget_normal.isSelected = False
-                        self.dict_ruleTreeWidgets[key].comboBox_name.setCurrentText(
-                            pickleable_dict_ruleTreeWidgets[key][0])
-                        ruleTreeWidget_normal.clicked.connect(
-                            lambda *args, ruleTreeWidget_id=ruleTreeWidget_normal.order_id,
-                                   ruleTreeWidget=ruleTreeWidget_normal:
-                            self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
+                    # add to dictionary
+                    self.dict_ruleTreeWidgets[key] = ruleTreeWidget_normal
+                    # set basegroup and selected rule
+                    if pickleable_dict_ruleTreeWidgets[key][2]:
+                        ruleTreeWidget_normal.isSelected = True
+                        ruleTreeWidget_normal.toggleBaseGroup()
+                        ruleTreeWidget_normal.isSelected = False
+                    self.dict_ruleTreeWidgets[key].comboBox_name.setCurrentText(
+                        pickleable_dict_ruleTreeWidgets[key][0])
+                    ruleTreeWidget_normal.clicked.connect(
+                        lambda *args, ruleTreeWidget_id=ruleTreeWidget_normal.order_id,
+                               ruleTreeWidget=ruleTreeWidget_normal:
+                        self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
+                elif pickleable_dict_ruleTreeWidgets[key][1] == 'series start':
 
-                    elif pickleable_dict_ruleTreeWidgets[key][1] == 'series start':
-                        next_layout = QVBoxLayout()
-                        own_layout = QVBoxLayout()
-                        ruleTreeWidget_start = RuleTreeWidget(self.nest_dict_rules, key, next_layout, own_layout,
-                                                               pickleable_dict_ruleTreeWidgets[key][1],
-                                                               main_dialog_x=x_position_for_spoilerplate,
-                                                               main_dialog_y=y_position_for_spoilerplate)
-                        ruleTreeWidget_start.prev_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][3]  # TODO no idea why I couldn't just give these in the constructor, it's being difficult. For now, this works
-                        ruleTreeWidget_start.next_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][4]
-                        ruleTreeWidget_start.duplicate_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][5]
-                        # place widget
-                        previous_id = max(ruleTreeWidget_start.prev_ruleTreeWidgets)
-                        self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(ruleTreeWidget_start.own_layout)
-                        ruleTreeWidget_start.own_layout.addWidget(ruleTreeWidget_start)
-                        ruleTreeWidget_start.own_layout.addLayout(ruleTreeWidget_start.next_layout)
+                    next_layout = QVBoxLayout()
+                    own_layout = QVBoxLayout()
+                    ruleTreeWidget_start = RuleTreeWidget(self.nest_dict_rules, key, next_layout,
+                                                          own_layout,
+                                                          pickleable_dict_ruleTreeWidgets[key][1],
+                                                          main_dialog_x=x_position_for_spoilerplate,
+                                                          main_dialog_y=y_position_for_spoilerplate)
+                    ruleTreeWidget_start.prev_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][
+                        3]  # TODO no idea why I couldn't just give these in the constructor, it's being difficult. For now, this works
+                    ruleTreeWidget_start.next_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][4]
+                    ruleTreeWidget_start.duplicate_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][5]
+                    # place widget
+                    previous_id = max(ruleTreeWidget_start.prev_ruleTreeWidgets)
+                    self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(
+                        ruleTreeWidget_start.own_layout)
+                    ruleTreeWidget_start.own_layout.addWidget(ruleTreeWidget_start)
+                    ruleTreeWidget_start.own_layout.addLayout(ruleTreeWidget_start.next_layout)
 
-                        # add to dictionary
-                        self.dict_ruleTreeWidgets[key] = ruleTreeWidget_start
-                        # set basegroup and selected rule
-                        self.dict_ruleTreeWidgets[key].isBaseGroup = pickleable_dict_ruleTreeWidgets[key][2]
-                        self.dict_ruleTreeWidgets[key].comboBox_name.setCurrentText(
-                            pickleable_dict_ruleTreeWidgets[key][0])
-                        #connect to selection
-                        ruleTreeWidget_start.clicked.connect(
-                            lambda *args, ruleTreeWidget_id=ruleTreeWidget_start.order_id,
-                                   ruleTreeWidget=ruleTreeWidget_start:
-                            self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
+                    # add to dictionary
+                    self.dict_ruleTreeWidgets[key] = ruleTreeWidget_start
+                    # set basegroup and selected rule
+                    self.dict_ruleTreeWidgets[key].isBaseGroup = pickleable_dict_ruleTreeWidgets[key][2]
+                    self.dict_ruleTreeWidgets[key].comboBox_name.setCurrentText(
+                        pickleable_dict_ruleTreeWidgets[key][0])
+                    # connect to selection
+                    ruleTreeWidget_start.clicked.connect(
+                        lambda *args, ruleTreeWidget_id=ruleTreeWidget_start.order_id,
+                               ruleTreeWidget=ruleTreeWidget_start:
+                        self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
+                elif pickleable_dict_ruleTreeWidgets[key][1] == 'series':
 
-                    elif pickleable_dict_ruleTreeWidgets[key][1] == 'series':
-                        #layouts
-                        next_layout = QVBoxLayout()
-                        own_layout = QHBoxLayout()
-                        #create widget
-                        ruleTreeWidget_series = RuleTreeWidget(self.nest_dict_rules, key, next_layout, own_layout,
-                                                               pickleable_dict_ruleTreeWidgets[key][1],
-                                                               main_dialog_x=x_position_for_spoilerplate,
-                                                               main_dialog_y=y_position_for_spoilerplate)
-                        ruleTreeWidget_series.prev_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][3]  # TODO no idea why I couldn't just give these in the constructor, it's being difficult. For now, this works
-                        ruleTreeWidget_series.next_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][4]
-                        ruleTreeWidget_series.duplicate_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][5]
-                        #place widget
-                        #find which layout it should be added to, either its own in case the previous widget was series top, or to the series layout if previous is series
-                        list_prev_widgets = []
-                        if str(key)[-1] == '0':
-                            key_without_last_0 = str(key)[:len(str(key))-1]
-                        else:
-                            key_without_last_0 = False
-                        for id in reversed(ruleTreeWidget_series.prev_ruleTreeWidgets):
-                            if str(id)[-1] == '0' or str(id) == key_without_last_0 or id == 1:
-                                list_prev_widgets.append(id)
-                        previous_id = max(list_prev_widgets)
-                        if self.dict_ruleTreeWidgets[previous_id].connection_type == 'series start':
-                            self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(own_layout)
-                            self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(ruleTreeWidget_series.next_layout)
-                            ruleTreeWidget_series.own_layout.addWidget(ruleTreeWidget_series)
-                            ruleTreeWidget_series.own_layout.addStretch()
-                        elif self.dict_ruleTreeWidgets[previous_id].connection_type == 'series':
-                            ruleTreeWidget_series.own_layout = self.dict_ruleTreeWidgets[previous_id].own_layout
-                            ruleTreeWidget_series.next_layout = self.dict_ruleTreeWidgets[previous_id].next_layout
-                            self.dict_ruleTreeWidgets[previous_id].own_layout.addWidget(ruleTreeWidget_series)
-                            self.dict_ruleTreeWidgets[previous_id].own_layout.addStretch()
 
-                        #add to dictionary
-                        self.dict_ruleTreeWidgets[key] = ruleTreeWidget_series
+                    # layouts
+                    next_layout = QVBoxLayout()
+                    own_layout = QHBoxLayout()
+                    # create widget
+                    ruleTreeWidget_series = RuleTreeWidget(self.nest_dict_rules, key, next_layout,
+                                                           own_layout,
+                                                           pickleable_dict_ruleTreeWidgets[key][1],
+                                                           main_dialog_x=x_position_for_spoilerplate,
+                                                           main_dialog_y=y_position_for_spoilerplate)
+                    ruleTreeWidget_series.prev_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][
+                        3]  # TODO no idea why I couldn't just give these in the constructor, it's being difficult. For now, this works
+                    ruleTreeWidget_series.next_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][4]
+                    ruleTreeWidget_series.duplicate_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][5]
+                    # place widget
+                    # find which layout it should be added to, either its own in case the previous widget was series top, or to the series layout if previous is series
+                    list_prev_widgets = []
+                    if str(key)[-1] == '0':
+                        key_without_last_0 = str(key)[:len(str(key)) - 1]
+                    else:
+                        key_without_last_0 = False
+                    for id in reversed(ruleTreeWidget_series.prev_ruleTreeWidgets):
+                        if str(id)[-1] == '0' or str(id) == key_without_last_0 or id == 1:
+                            list_prev_widgets.append(id)
+                    previous_id = max(list_prev_widgets)
+                    if self.dict_ruleTreeWidgets[previous_id].connection_type == 'series start':
+                        self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(own_layout)
+                        self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(
+                            ruleTreeWidget_series.next_layout)
+                        ruleTreeWidget_series.own_layout.addWidget(ruleTreeWidget_series)
+                        ruleTreeWidget_series.own_layout.addStretch()
+                    elif self.dict_ruleTreeWidgets[previous_id].connection_type == 'series':
+                        ruleTreeWidget_series.own_layout = self.dict_ruleTreeWidgets[previous_id].own_layout
+                        ruleTreeWidget_series.next_layout = self.dict_ruleTreeWidgets[previous_id].next_layout
+                        self.dict_ruleTreeWidgets[previous_id].own_layout.addWidget(ruleTreeWidget_series)
+                        self.dict_ruleTreeWidgets[previous_id].own_layout.addStretch()
 
-                        #set basegroup and selected rule
-                        self.dict_ruleTreeWidgets[key].isBaseGroup = pickleable_dict_ruleTreeWidgets[key][2]
-                        self.dict_ruleTreeWidgets[key].comboBox_name.setCurrentText(
-                            pickleable_dict_ruleTreeWidgets[key][0])
-                        #connect to selection
-                        ruleTreeWidget_series.clicked.connect(
-                            lambda *args, ruleTreeWidget_id=ruleTreeWidget_series.order_id,
-                                   ruleTreeWidget=ruleTreeWidget_series:
-                            self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
+                    # add to dictionary
+                    self.dict_ruleTreeWidgets[key] = ruleTreeWidget_series
+
+                    # set basegroup and selected rule
+                    self.dict_ruleTreeWidgets[key].isBaseGroup = pickleable_dict_ruleTreeWidgets[key][2]
+                    self.dict_ruleTreeWidgets[key].comboBox_name.setCurrentText(
+                        pickleable_dict_ruleTreeWidgets[key][0])
+                    # connect to selection
+                    ruleTreeWidget_series.clicked.connect(
+                        lambda *args, ruleTreeWidget_id=ruleTreeWidget_series.order_id,
+                               ruleTreeWidget=ruleTreeWidget_series:
+                        self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
+
+            # if key >1: OLD
+            #     #check if rule is a duplicate
+            #     if pickleable_dict_ruleTreeWidgets[key][5]:
+            #         if min(pickleable_dict_ruleTreeWidgets[key][5]) > key:#is the main duplicate, add to UI
+            #             #check connection type
+            #             if pickleable_dict_ruleTreeWidgets[key][1] == 'normal':
+            #                 previous_id = max(pickleable_dict_ruleTreeWidgets[key][3])
+            #                 next_layout = QHBoxLayout()
+            #                 own_layout = QVBoxLayout()
+            #                 ruleTreeWidget_normal = RuleTreeWidget(self.nest_dict_rules, key, next_layout, own_layout,
+            #                                                        pickleable_dict_ruleTreeWidgets[key][1],
+            #                                                        main_dialog_x=x_position_for_spoilerplate,
+            #                                                        main_dialog_y=y_position_for_spoilerplate)
+            #                 ruleTreeWidget_normal.prev_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][
+            #                     3]  # TODO no idea why I couldn't just give these in the constructor, it's being difficult. For now, this works
+            #                 ruleTreeWidget_normal.next_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][4]
+            #                 ruleTreeWidget_normal.duplicate_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][5]
+            #                 # place widget
+            #                 # check if this widget follows directly from a widget in series # Todo this would never happen and should be under the version that deals with duplicates
+            #                 if self.dict_ruleTreeWidgets[previous_id].connection_type == 'series':
+            #                     self.dict_ruleTreeWidgets[previous_id].next_layout.addWidget(ruleTreeWidget_normal)
+            #                     self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(
+            #                         ruleTreeWidget_normal.next_layout)
+            #                     ruleTreeWidget_normal.own_layout = []
+            #                     pass
+            #                 else:
+            #                     self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(own_layout)
+            #                     own_layout.addWidget(ruleTreeWidget_normal)
+            #                     own_layout.addLayout(next_layout)
+            #                     own_layout.addStretch()
+            #                 # add to dictionary
+            #                 self.dict_ruleTreeWidgets[key] = ruleTreeWidget_normal
+            #                 # set basegroup and selected rule
+            #                 if pickleable_dict_ruleTreeWidgets[key][2]:
+            #                     ruleTreeWidget_normal.isSelected = True
+            #                     ruleTreeWidget_normal.toggleBaseGroup()
+            #                     ruleTreeWidget_normal.isSelected = False
+            #                 self.dict_ruleTreeWidgets[key].comboBox_name.setCurrentText(
+            #                     pickleable_dict_ruleTreeWidgets[key][0])
+            #                 ruleTreeWidget_normal.clicked.connect(
+            #                     lambda *args, ruleTreeWidget_id=ruleTreeWidget_normal.order_id,
+            #                            ruleTreeWidget=ruleTreeWidget_normal:
+            #                     self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
+            #             elif pickleable_dict_ruleTreeWidgets[key][1] == 'series start':
+            #                 if min(pickleable_dict_ruleTreeWidgets[key][5]) > key:  # is the main duplicate, add to UI
+            #                     next_layout = QVBoxLayout()
+            #                     own_layout = QVBoxLayout()
+            #                     ruleTreeWidget_start = RuleTreeWidget(self.nest_dict_rules, key, next_layout,
+            #                                                           own_layout,
+            #                                                           pickleable_dict_ruleTreeWidgets[key][1],
+            #                                                           main_dialog_x=x_position_for_spoilerplate,
+            #                                                           main_dialog_y=y_position_for_spoilerplate)
+            #                     ruleTreeWidget_start.prev_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][3]  # TODO no idea why I couldn't just give these in the constructor, it's being difficult. For now, this works
+            #                     ruleTreeWidget_start.next_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][4]
+            #                     ruleTreeWidget_start.duplicate_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][5]
+            #                     # place widget
+            #                     previous_id = max(ruleTreeWidget_start.prev_ruleTreeWidgets)
+            #                     self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(
+            #                         ruleTreeWidget_start.own_layout)
+            #                     ruleTreeWidget_start.own_layout.addWidget(ruleTreeWidget_start)
+            #                     ruleTreeWidget_start.own_layout.addLayout(ruleTreeWidget_start.next_layout)
+            #
+            #                     # add to dictionary
+            #                     self.dict_ruleTreeWidgets[key] = ruleTreeWidget_start
+            #                     # set basegroup and selected rule
+            #                     self.dict_ruleTreeWidgets[key].isBaseGroup = pickleable_dict_ruleTreeWidgets[key][2]
+            #                     self.dict_ruleTreeWidgets[key].comboBox_name.setCurrentText(
+            #                         pickleable_dict_ruleTreeWidgets[key][0])
+            #                     # connect to selection
+            #                     ruleTreeWidget_start.clicked.connect(
+            #                         lambda *args, ruleTreeWidget_id=ruleTreeWidget_start.order_id,
+            #                                ruleTreeWidget=ruleTreeWidget_start:
+            #                         self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
+            #
+            #             elif pickleable_dict_ruleTreeWidgets[key][1] == 'series':
+            #                 if min(pickleable_dict_ruleTreeWidgets[key][5]) > key:  # is the main duplicate, add to UI
+            #                     # layouts
+            #                     next_layout = QVBoxLayout()
+            #                     own_layout = QHBoxLayout()
+            #                     # create widget
+            #                     ruleTreeWidget_series = RuleTreeWidget(self.nest_dict_rules, key, next_layout,
+            #                                                            own_layout,
+            #                                                            pickleable_dict_ruleTreeWidgets[key][1],
+            #                                                            main_dialog_x=x_position_for_spoilerplate,
+            #                                                            main_dialog_y=y_position_for_spoilerplate)
+            #                     ruleTreeWidget_series.prev_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][3]  # TODO no idea why I couldn't just give these in the constructor, it's being difficult. For now, this works
+            #                     ruleTreeWidget_series.next_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][4]
+            #                     ruleTreeWidget_series.duplicate_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][5]
+            #                     # place widget
+            #                     # find which layout it should be added to, either its own in case the previous widget was series top, or to the series layout if previous is series
+            #                     list_prev_widgets = []
+            #                     if str(key)[-1] == '0':
+            #                         key_without_last_0 = str(key)[:len(str(key)) - 1]
+            #                     else:
+            #                         key_without_last_0 = False
+            #                     for id in reversed(ruleTreeWidget_series.prev_ruleTreeWidgets):
+            #                         if str(id)[-1] == '0' or str(id) == key_without_last_0 or id == 1:
+            #                             list_prev_widgets.append(id)
+            #                     previous_id = max(list_prev_widgets)
+            #                     if self.dict_ruleTreeWidgets[previous_id].connection_type == 'series start':
+            #                         self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(own_layout)
+            #                         self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(
+            #                             ruleTreeWidget_series.next_layout)
+            #                         ruleTreeWidget_series.own_layout.addWidget(ruleTreeWidget_series)
+            #                         ruleTreeWidget_series.own_layout.addStretch()
+            #                     elif self.dict_ruleTreeWidgets[previous_id].connection_type == 'series':
+            #                         ruleTreeWidget_series.own_layout = self.dict_ruleTreeWidgets[previous_id].own_layout
+            #                         ruleTreeWidget_series.next_layout = self.dict_ruleTreeWidgets[previous_id].next_layout
+            #                         self.dict_ruleTreeWidgets[previous_id].own_layout.addWidget(ruleTreeWidget_series)
+            #                         self.dict_ruleTreeWidgets[previous_id].own_layout.addStretch()
+            #
+            #
+            #                     # add to dictionary
+            #                     self.dict_ruleTreeWidgets[key] = ruleTreeWidget_series
+            #
+            #                     # set basegroup and selected rule
+            #                     self.dict_ruleTreeWidgets[key].isBaseGroup = pickleable_dict_ruleTreeWidgets[key][2]
+            #                     self.dict_ruleTreeWidgets[key].comboBox_name.setCurrentText(
+            #                         pickleable_dict_ruleTreeWidgets[key][0])
+            #                     # connect to selection
+            #                     ruleTreeWidget_series.clicked.connect(
+            #                         lambda *args, ruleTreeWidget_id=ruleTreeWidget_series.order_id,
+            #                                ruleTreeWidget=ruleTreeWidget_series:
+            #                         self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
+            #
+            #         else: # is not the main duplicate. Create but do not add to UI
+            #
+            #             ruleTreeWidget_duplicate = RuleTreeWidget(self.nest_dict_rules,key,None,None,
+            #                                                       pickleable_dict_ruleTreeWidgets[key][1])
+            #             ruleTreeWidget_duplicate.prev_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][3]  # TODO no idea why I couldn't just give these in the constructor, it's being difficult. For now, this works
+            #             ruleTreeWidget_duplicate.next_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][4]
+            #             ruleTreeWidget_duplicate.duplicate_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][5]
+            #             #add to dictionary
+            #             self.dict_ruleTreeWidgets[key] = ruleTreeWidget_duplicate
+            #             continue
+            #     else: #is not a duplicate, add to UI
+            #         if pickleable_dict_ruleTreeWidgets[key][1] == 'normal':
+            #             previous_id = max(pickleable_dict_ruleTreeWidgets[key][3])
+            #             next_layout = QHBoxLayout()
+            #             own_layout = QVBoxLayout()
+            #             ruleTreeWidget_normal = RuleTreeWidget(self.nest_dict_rules, key, next_layout, own_layout,
+            #                                                    pickleable_dict_ruleTreeWidgets[key][1],
+            #                                                    main_dialog_x=x_position_for_spoilerplate,
+            #                                                    main_dialog_y=y_position_for_spoilerplate)
+            #             ruleTreeWidget_normal.prev_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][3]  # TODO no idea why I couldn't just give these in the constructor, it's being difficult. For now, this works
+            #             ruleTreeWidget_normal.next_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][4]
+            #             ruleTreeWidget_normal.duplicate_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][5]
+            #             # place widget
+            #             self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(own_layout)
+            #             own_layout.addWidget(ruleTreeWidget_normal)
+            #             own_layout.addLayout(next_layout)
+            #             own_layout.addStretch()
+            #             # add to dictionary
+            #             self.dict_ruleTreeWidgets[key] = ruleTreeWidget_normal
+            #             # set basegroup and selected rule
+            #             if pickleable_dict_ruleTreeWidgets[key][2]:
+            #                 ruleTreeWidget_normal.isSelected = True
+            #                 ruleTreeWidget_normal.toggleBaseGroup()
+            #                 ruleTreeWidget_normal.isSelected = False
+            #             self.dict_ruleTreeWidgets[key].comboBox_name.setCurrentText(
+            #                 pickleable_dict_ruleTreeWidgets[key][0])
+            #             ruleTreeWidget_normal.clicked.connect(
+            #                 lambda *args, ruleTreeWidget_id=ruleTreeWidget_normal.order_id,
+            #                        ruleTreeWidget=ruleTreeWidget_normal:
+            #                 self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
+            #
+            #         elif pickleable_dict_ruleTreeWidgets[key][1] == 'series start':
+            #             next_layout = QVBoxLayout()
+            #             own_layout = QVBoxLayout()
+            #             ruleTreeWidget_start = RuleTreeWidget(self.nest_dict_rules, key, next_layout, own_layout,
+            #                                                    pickleable_dict_ruleTreeWidgets[key][1],
+            #                                                    main_dialog_x=x_position_for_spoilerplate,
+            #                                                    main_dialog_y=y_position_for_spoilerplate)
+            #             ruleTreeWidget_start.prev_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][3]  # TODO no idea why I couldn't just give these in the constructor, it's being difficult. For now, this works
+            #             ruleTreeWidget_start.next_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][4]
+            #             ruleTreeWidget_start.duplicate_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][5]
+            #             # place widget
+            #             previous_id = max(ruleTreeWidget_start.prev_ruleTreeWidgets)
+            #             self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(ruleTreeWidget_start.own_layout)
+            #             ruleTreeWidget_start.own_layout.addWidget(ruleTreeWidget_start)
+            #             ruleTreeWidget_start.own_layout.addLayout(ruleTreeWidget_start.next_layout)
+            #
+            #             # add to dictionary
+            #             self.dict_ruleTreeWidgets[key] = ruleTreeWidget_start
+            #             # set basegroup and selected rule
+            #             self.dict_ruleTreeWidgets[key].isBaseGroup = pickleable_dict_ruleTreeWidgets[key][2]
+            #             self.dict_ruleTreeWidgets[key].comboBox_name.setCurrentText(
+            #                 pickleable_dict_ruleTreeWidgets[key][0])
+            #             #connect to selection
+            #             ruleTreeWidget_start.clicked.connect(
+            #                 lambda *args, ruleTreeWidget_id=ruleTreeWidget_start.order_id,
+            #                        ruleTreeWidget=ruleTreeWidget_start:
+            #                 self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
+            #
+            #         elif pickleable_dict_ruleTreeWidgets[key][1] == 'series':
+            #             #layouts
+            #             next_layout = QVBoxLayout()
+            #             own_layout = QHBoxLayout()
+            #             #create widget
+            #             ruleTreeWidget_series = RuleTreeWidget(self.nest_dict_rules, key, next_layout, own_layout,
+            #                                                    pickleable_dict_ruleTreeWidgets[key][1],
+            #                                                    main_dialog_x=x_position_for_spoilerplate,
+            #                                                    main_dialog_y=y_position_for_spoilerplate)
+            #             ruleTreeWidget_series.prev_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][3]  # TODO no idea why I couldn't just give these in the constructor, it's being difficult. For now, this works
+            #             ruleTreeWidget_series.next_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][4]
+            #             ruleTreeWidget_series.duplicate_ruleTreeWidgets = pickleable_dict_ruleTreeWidgets[key][5]
+            #             #place widget
+            #             #find which layout it should be added to, either its own in case the previous widget was series top, or to the series layout if previous is series
+            #             list_prev_widgets = []
+            #             if str(key)[-1] == '0':
+            #                 key_without_last_0 = str(key)[:len(str(key))-1]
+            #             else:
+            #                 key_without_last_0 = False
+            #             for id in reversed(ruleTreeWidget_series.prev_ruleTreeWidgets):
+            #                 if str(id)[-1] == '0' or str(id) == key_without_last_0 or id == 1:
+            #                     list_prev_widgets.append(id)
+            #             previous_id = max(list_prev_widgets)
+            #             if self.dict_ruleTreeWidgets[previous_id].connection_type == 'series start':
+            #                 self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(own_layout)
+            #                 self.dict_ruleTreeWidgets[previous_id].next_layout.addLayout(ruleTreeWidget_series.next_layout)
+            #                 ruleTreeWidget_series.own_layout.addWidget(ruleTreeWidget_series)
+            #                 ruleTreeWidget_series.own_layout.addStretch()
+            #             elif self.dict_ruleTreeWidgets[previous_id].connection_type == 'series':
+            #                 ruleTreeWidget_series.own_layout = self.dict_ruleTreeWidgets[previous_id].own_layout
+            #                 ruleTreeWidget_series.next_layout = self.dict_ruleTreeWidgets[previous_id].next_layout
+            #                 self.dict_ruleTreeWidgets[previous_id].own_layout.addWidget(ruleTreeWidget_series)
+            #                 self.dict_ruleTreeWidgets[previous_id].own_layout.addStretch()
+            #
+            #             #add to dictionary
+            #             self.dict_ruleTreeWidgets[key] = ruleTreeWidget_series
+            #
+            #             #set basegroup and selected rule
+            #             self.dict_ruleTreeWidgets[key].isBaseGroup = pickleable_dict_ruleTreeWidgets[key][2]
+            #             self.dict_ruleTreeWidgets[key].comboBox_name.setCurrentText(
+            #                 pickleable_dict_ruleTreeWidgets[key][0])
+            #             #connect to selection
+            #             ruleTreeWidget_series.clicked.connect(
+            #                 lambda *args, ruleTreeWidget_id=ruleTreeWidget_series.order_id,
+            #                        ruleTreeWidget=ruleTreeWidget_series:
+            #                 self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
         # print(self.dict_ruleTreeWidgets)
         # for key in self.dict_ruleTreeWidgets:
         #     print('self ',key ,'prev ', self.dict_ruleTreeWidgets[key].prev_ruleTreeWidgets, ', next ',
@@ -1004,7 +1165,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         #           self.dict_ruleTreeWidgets[key].duplicate_ruleTreeWidgets)
 
     def saveInput(self, file_name_input, directory_name):
-        """ Saves all of the input data, including input that is NOT backwards compatible with HUMPOL/LandPolFlow into a single text file (.msa)"""
+        """ Saves all of the input data, including input that is NOT backwards compatible with HUMPOL/LandPolFlow into a single text file"""
         ### write a .csv file with all the data
         with open(file_name_input, 'w', newline= '') as csv_file:
             iface.messageBar().pushMessage('Writing file', level=3)
@@ -1136,11 +1297,6 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             writer.writerow(['Rule list', 'not used in loading file, open pickled file instead'])
             for key in self.nest_dict_rules:
                 writer.writerow([key, self.nest_dict_rules[key][1]])
-            #order ids rule tree widget
-            writer.writerow(['RuleTreeWidget order id list', 'not used in loading file, open pickled file instead'])
-            for key in self.dict_ruleTreeWidgets:
-                writer.writerow([key,self.dict_ruleTreeWidgets[key].connection_type,
-                                 self.dict_ruleTreeWidgets[key].comboBox_name.currentText()])
             #changelog
             writer.writerow(['Changelog'])
             writer.writerow(['Changelog start'])
@@ -1168,13 +1324,25 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             for row in reader:
 
                 if row[0] == 'x_min':
-                    x_min = float(row[1])
+                    if row[1] == 'No extent set':
+                        pass
+                    else:
+                        x_min = float(row[1])
                 elif row[0] == 'x_max':
-                    x_max = float(row[1])
+                    if row[1] == 'No extent set':
+                        pass
+                    else:
+                        x_max = float(row[1])
                 elif row[0] == 'y_min':
-                    y_min = float(row[1])
+                    if row[1] == 'No extent set':
+                        pass
+                    else:
+                        y_min = float(row[1])
                 elif row[0] == 'y_max':
-                    y_max = float(row[1])
+                    if row[1] == 'No extent set':
+                        pass
+                    else:
+                        y_max = float(row[1])
                 elif row[0] == 'CRS':
                     crs_string = row[1]
                     crs= QgsCoordinateReferenceSystem(crs_string)
@@ -1302,17 +1470,19 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                         self.radioButton_keepFitted.setChecked(False)
                         self.radioButton_keepTwo.setChecked(True)
                         self.radioButton_keepAll.setChecked(False)
-                    elif row[1] == 'Keep fit':
+                    elif row[1] == 'Keep fitted':
                         self.radioButton_keepFitted.setChecked(True)
                         self.radioButton_keepTwo.setChecked(False)
                         self.radioButton_keepAll.setChecked(False)
                 else:
                     pass
-
-            rectangle = QgsRectangle(x_min,y_min,x_max,y_max)
+        try:
+            rectangle = QgsRectangle(x_min, y_min, x_max, y_max)
             self.mExtentGroupBox.setOutputExtentFromUser(rectangle, crs)
+        except Exception as e:
+            iface.messageBar().pushMessage(
+                'Error loading extent, either there was no extent, or the extent is corrupted. Check the intputstate.csv file', level=1)
 
-        pass
 
     def saveFiles(self):
         self.popup_save_file = MsaQgisSaveLoadDialog('save')
@@ -1327,7 +1497,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             file_name_rule_dict = file_directory + '/ruledict.pkl'
             file_name_rule_tree = file_directory + '/ruletree.pkl'
             file_name_hum_file = file_directory + '/backwardsHUMPOL.hum'
-            file_name_image_rule_tree = file_directory + '/ruletreeimage.jpg'
+            file_name_image_rule_tree = file_directory + '/ruletreeimage.tiff'
             directory_name = file_dialog.directory().dirName()
             if self.popup_save_file.checkBox_input.isChecked():
                 self.saveInput(file_name_input, directory_name)
@@ -1551,7 +1721,6 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             if has_values == 0 and tableWidget_vegCom.horizontalHeaderItem(column).text() != "Name":
                 columns_to_remove.append(column)
         for column in reversed(columns_to_remove):
-            print(f'remove column {tableWidget_vegCom.horizontalHeaderItem(column).text()}')
             tableWidget_vegCom.removeColumn(column)
 
                     
@@ -1590,6 +1759,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         if self.add_rule_popup.exec_():
             # Add the rule to the dictionary and rule description to the rule listWidget
             self.nest_dict_rules['Rule ' + str(rule_number)] = self.add_rule_popup.list_for_rules_dict
+            self.nest_dict_rules = dict(sorted(self.nest_dict_rules.items()))
             self.listWidget_rules.addItem(self.nest_dict_rules['Rule ' + str(rule_number)][1])
 
     def deleteRule(self):
@@ -1622,14 +1792,16 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
 
         :class params: self.nest_dict_rules, self.dict_ruleTreeWidgets
 
-        :returns: The ID of the selected rule, or: -2, no rules found, -1, no rule selected selected, 0 rules in dictionary but not in widgets.
+        :returns: The ID of the selected rule block, or: -2, no rule block found, -1, no rule block selected,
+        0 rule block in dictionary but not in widgets.
         :rtype: int"""
         selected_rule = -1
         if self.nest_dict_rules: #check if there are any rules in the rule dictionary
             if self.dict_ruleTreeWidgets: # check if there are any RuleTreeWidgets already placed
                 for key in self.dict_ruleTreeWidgets: #determine which of the rules in the rule tree is selected
-                    if self.dict_ruleTreeWidgets[key].isSelected:
-                        selected_rule = key
+                    if type(self.dict_ruleTreeWidgets[key]) != list:
+                        if self.dict_ruleTreeWidgets[key].isSelected:
+                            selected_rule = key
             else: selected_rule = 0
         else:
             selected_rule = -2
@@ -1664,7 +1836,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             self.ruleTreeLayout.insertWidget(0, ruleTreeWidget) # insert itself
             self.ruleTreeLayout.insertLayout(1, ruleTreeWidget.next_layout) # insert holder for next widgets
             self.ruleTreeLayout.insertStretch(2, 1) # insert stretch to push to top
-        else:  # selected_rule contains the ID of a selected ruleTreeWidget
+        else:
             if self.dict_ruleTreeWidgets[selected_rule].connection_type != 'normal':
                 iface.messageBar().pushMessage("Error", "Cannot add a rule to a rule in series. "
                                                         "Use already connected rule instead or replace rule in series with a normal branch",
@@ -1680,6 +1852,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                     rule_id = max(self.dict_ruleTreeWidgets[selected_rule].next_ruleTreeWidgets) + 1
                 else:
                     rule_id = int(str(self.dict_ruleTreeWidgets[selected_rule].order_id) + '0')
+
                 ruleTreeWidget = RuleTreeWidget(self.nest_dict_rules, rule_id, next_layout, own_layout,
                                                 main_dialog_x=x_position_for_spoilerplate,
                                                 main_dialog_y=y_position_for_spoilerplate)
@@ -1701,32 +1874,197 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
 
                 # Check if selected rule has duplicates and if yes create duplicates for new rule
                 if self.dict_ruleTreeWidgets[selected_rule].duplicate_ruleTreeWidgets:
+                    duplicate_id_list = []
                     for duplicate in self.dict_ruleTreeWidgets[selected_rule].duplicate_ruleTreeWidgets:
                         #determine rule id
-                        if self.dict_ruleTreeWidgets[duplicate].next_ruleTreeWidgets:
-                            rule_id_duplicate = max(self.dict_ruleTreeWidgets[duplicate].next_ruleTreeWidgets) + 1
+                        if type(self.dict_ruleTreeWidgets[duplicate]) == list:
+                            if self.dict_ruleTreeWidgets[duplicate][3]:
+                                rule_id_duplicate = max(self.dict_ruleTreeWidgets[duplicate][3]) + 1
+                            else:
+                                rule_id_duplicate = int(str(duplicate) + '0')
+                            pass
                         else:
-                            rule_id_duplicate = int(str(self.dict_ruleTreeWidgets[duplicate].order_id) + '0')
-                        # Create widget
-                        ruleTreeWidget_duplicate = RuleTreeWidget(self.nest_dict_rules, rule_id_duplicate, None, None)
-                        # Add to dictionary
-                        self.dict_ruleTreeWidgets[rule_id_duplicate] = ruleTreeWidget_duplicate
-                        # Determine previous
-                        self.dict_ruleTreeWidgets[rule_id_duplicate].prev_ruleTreeWidgets = self.dict_ruleTreeWidgets[duplicate].prev_ruleTreeWidgets.copy()
-                        self.dict_ruleTreeWidgets[rule_id_duplicate].prev_ruleTreeWidgets.append(duplicate)
-                        # Add to next
-                        self.dict_ruleTreeWidgets[duplicate].next_ruleTreeWidgets.append(rule_id_duplicate)
-                        # Add to duplicates
+                            if self.dict_ruleTreeWidgets[duplicate].next_ruleTreeWidgets:
+                                rule_id_duplicate = max(self.dict_ruleTreeWidgets[duplicate].next_ruleTreeWidgets) + 1
+                            else:
+                                rule_id_duplicate = int(str(self.dict_ruleTreeWidgets[duplicate].order_id) + '0')
+                        #create list index
+                        duplicate_list_rule = [rule_id_duplicate, 'duplicate', [], [], []]
+                        # add prev_ruleTreeWidgets index
+                        if type(self.dict_ruleTreeWidgets[duplicate]) == list:
+                            duplicate_list_rule[2]=(self.dict_ruleTreeWidgets[duplicate][2].copy())
+                        else:
+                            duplicate_list_rule[2]=(self.dict_ruleTreeWidgets[duplicate].prev_ruleTreeWidgets.copy())
+                        duplicate_list_rule[2].append(duplicate)
+                        # add to next_ruleTreeWidgets of prev
+                        self.dict_ruleTreeWidgets[duplicate][3].append(rule_id_duplicate)
+                        # add duplicate rule Tree Widgets to non-duplicate RTW
                         ruleTreeWidget.duplicate_ruleTreeWidgets.append(rule_id_duplicate)
-                        self.dict_ruleTreeWidgets[rule_id_duplicate].duplicate_ruleTreeWidgets.append(rule_id)
-        # Add ruleTreeWidget to dict and add prev to list
+                        #add duplicate id to list of duplicates to add to each other's index later
+                        duplicate_id_list.append(rule_id_duplicate)
+                        # add to dictionary
+                        self.dict_ruleTreeWidgets[rule_id_duplicate] = duplicate_list_rule
+                    #further add to duplicate lists
+                    for duplicate in duplicate_id_list:
+                        # add non-duplicate rule to duplicate index
+                        self.dict_ruleTreeWidgets[duplicate][4].append(rule_id)
+                        # add duplicates to each other's indices
+                        for duplicate_id in duplicate_id_list:
+                            if duplicate != duplicate_id:
+                                self.dict_ruleTreeWidgets[duplicate][4].append(duplicate_id)
+
+                        # # Create widget OLD
+                        # ruleTreeWidget_duplicate = RuleTreeWidget(self.nest_dict_rules, rule_id_duplicate, None, None)
+                        # # Add to dictionary
+                        # self.dict_ruleTreeWidgets[rule_id_duplicate] = ruleTreeWidget_duplicate
+                        # # Determine previous
+                        # self.dict_ruleTreeWidgets[rule_id_duplicate].prev_ruleTreeWidgets = self.dict_ruleTreeWidgets[duplicate].prev_ruleTreeWidgets.copy()
+                        # self.dict_ruleTreeWidgets[rule_id_duplicate].prev_ruleTreeWidgets.append(duplicate)
+                        # # Add to next
+                        # self.dict_ruleTreeWidgets[duplicate].next_ruleTreeWidgets.append(rule_id_duplicate)
+                        # # Add to duplicates
+                        # ruleTreeWidget.duplicate_ruleTreeWidgets.append(rule_id_duplicate)
+                        # self.dict_ruleTreeWidgets[rule_id_duplicate].duplicate_ruleTreeWidgets.append(rule_id)
+
+
+        # Add ruleTreeWidget to dict
         self.dict_ruleTreeWidgets[ruleTreeWidget.order_id] = ruleTreeWidget
         # Allow widget to remove selection from other widgets when selected
         ruleTreeWidget.clicked.connect(
             lambda *args, ruleTreeWidget_id=ruleTreeWidget.order_id, ruleTreeWidget=ruleTreeWidget:
             self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
+
         # Update the frame
         self.frame_ruleTree.update()
+        return rule_id
+
+    def copyRuleBranch(self):
+        """
+        Saves the name of the selected rule tree widget so that it and its follow up rules can be copied later.
+
+        :class params: self.saved_ruleTreeWidget
+        :params from UI:
+        :class functions: self.checkIfSelectedRule()
+        :param [...]:
+        :type [...]
+        """
+        #get selected ruleTreeWidget
+        self.saved_ruleTreeWidget = self.checkIfSelectedRule()
+        if self.saved_ruleTreeWidget == -2 or self.saved_ruleTreeWidget == None:
+            iface.messageBar().pushMessage("Error", "Select a rule block to copy from that rule block downwards",
+                                           level=1)
+            self.saved_ruleTreeWidget = None
+
+    def pasteRuleBranch(self):
+        """
+        Copies all of the ruleTreeWidgets and connections down from the selected ruleTreeWidget, to be connected to
+        another selected ruleTreeWidget using pasteRuleBranch.
+
+        :class params:
+        :params from UI:
+        :class functions:
+        :param [...]:
+        :type [...]
+        """
+        # Check if a saved rule block exists
+        if not self.saved_ruleTreeWidget in self.dict_ruleTreeWidgets:
+            iface.messageBar().pushMessage("Error", "No copied rule block detected, please copy before pasting",
+                                           level=1)
+            return
+        # get and check the selected rule
+        selected_rule = self.checkIfSelectedRule()
+        if selected_rule == -2:  # Check if there are rules in the rule list
+            iface.messageBar().pushMessage("Error", "There are no rules to add", level = 1)
+            return
+        elif selected_rule == -1:  # Check if a ruleTreeWidget was selected
+            iface.messageBar().pushMessage("Error", "Select a rule block to add the copied branch to",
+                                           level=1)
+            return
+        elif selected_rule == 0:  # Check if this is the first ruleTreeWidget to be added
+            iface.messageBar().pushMessage("Error", "Select a rule block to add the copied branch to",
+                                           level=1)
+            return
+        elif self.dict_ruleTreeWidgets[selected_rule].connection_type == 'series' or \
+                self.dict_ruleTreeWidgets[selected_rule].connection_type == 'series start':
+            iface.messageBar().pushMessage("Error",
+                                           "Cannot paste within a series, please select a rule block before or after the series",
+                                           level=1)
+            return
+        # Determine the id of the next widget to be placed
+        if self.dict_ruleTreeWidgets[
+            selected_rule].next_ruleTreeWidgets:  # NOTE max number of branches possible is 10
+            first_id_branch = max(self.dict_ruleTreeWidgets[selected_rule].next_ruleTreeWidgets) + 1 #TODO add warning for too many branches
+        else:
+            first_id_branch = int(str(self.dict_ruleTreeWidgets[selected_rule].order_id) + '0')
+        # create the dictionary of rule blocks to copy
+        dict_of_ruleblocks_to_copy = {}  # id to create:rule block to select for creating that rule
+        # make list first to sort
+        list_of_ruleblocks_to_copy = []
+        rule_length = len(str(self.saved_ruleTreeWidget))
+        for key in self.dict_ruleTreeWidgets:
+            # exclude duplicate and series rule blocks
+            if str(self.saved_ruleTreeWidget) in str(key)[0:rule_length] \
+            and type(self.dict_ruleTreeWidgets[key]) != list:
+                if self.dict_ruleTreeWidgets[key].connection_type != 'series' :
+                    list_of_ruleblocks_to_copy.append(key)
+        list_of_ruleblocks_to_copy = sorted(
+            list_of_ruleblocks_to_copy)  # sort from low to high to ensure all rule block are encountered in the correct order, or else a rule might be created of which the previous rule has not been created yet
+        for copied_rule in list_of_ruleblocks_to_copy:
+            if copied_rule == self.saved_ruleTreeWidget:
+               dict_of_ruleblocks_to_copy[copied_rule] = selected_rule
+            else:
+               id_end = str(copied_rule)[rule_length:]
+               id_length = len(id_end) -1
+               id_end = id_end[:id_length]
+               dict_of_ruleblocks_to_copy[copied_rule] = int(str(first_id_branch) + id_end)
+        #de-select the rule (as it will be automatically re-selected through the dict)
+        self.dict_ruleTreeWidgets[selected_rule].clicked.emit()
+        #create the new rule blocks
+        for rule_block_id in dict_of_ruleblocks_to_copy:
+            #check if already selected and if not set selected rule to val
+            if dict_of_ruleblocks_to_copy[rule_block_id] != self.checkIfSelectedRule():
+                self.dict_ruleTreeWidgets[dict_of_ruleblocks_to_copy[rule_block_id]].clicked.emit()
+            if self.dict_ruleTreeWidgets[rule_block_id].connection_type == 'normal':
+                most_recent_previous = max(self.dict_ruleTreeWidgets[rule_block_id].prev_ruleTreeWidgets)
+                # if the most recent previous is 'series' then the rule block would already have been created as part of addRuleToTreeSeries, so skip
+                if self.dict_ruleTreeWidgets[most_recent_previous].connection_type != 'series':
+                    new_rule_block_id = self.addRuleToTree()
+                    #give the new rule block dropdown the correct value
+                    copied_rule = self.dict_ruleTreeWidgets[rule_block_id].comboBox_name.currentText()
+                    self.dict_ruleTreeWidgets[new_rule_block_id].comboBox_name.setCurrentText(copied_rule)
+            elif self.dict_ruleTreeWidgets[rule_block_id].connection_type == 'series start':
+                # figure out the ID of the next normal rule, which should be this rule plus '00'
+                next_normal_rule = int(str(rule_block_id) + '00')
+                # check how many previous rules that rule has that contain the current rule and whether their type is 'series', this is the number of rules in series
+                # n duplicates of final series rule/ n duplicates of rule_block_id (series start) = n rules in series
+                n_duplicates_final_in_series = len(self.dict_ruleTreeWidgets[int(str(rule_block_id) + '00')].duplicate_ruleTreeWidgets)+1
+                n_duplicates_series_start = len(self.dict_ruleTreeWidgets[rule_block_id].duplicate_ruleTreeWidgets) +1
+                n_rules_in_series = int(n_duplicates_final_in_series/n_duplicates_series_start)
+
+                series_start_id = self.addRuleToTreeSeries() #add first set of rules
+                # set correct rule selection for first set of rules
+                copied_rule = self.dict_ruleTreeWidgets[rule_block_id].comboBox_name.currentText()
+                self.dict_ruleTreeWidgets[series_start_id].comboBox_name.setCurrentText(copied_rule)
+                copied_rule = self.dict_ruleTreeWidgets[int(str(rule_block_id)+'0')].comboBox_name.currentText()
+                self.dict_ruleTreeWidgets[int(str(series_start_id)+'0')].comboBox_name.setCurrentText(copied_rule)
+                copied_rule = self.dict_ruleTreeWidgets[int(str(rule_block_id)+'00')].comboBox_name.currentText()
+                self.dict_ruleTreeWidgets[int(str(series_start_id)+'00')].comboBox_name.setCurrentText(copied_rule)
+                copied_rule = self.dict_ruleTreeWidgets[ int(str(rule_block_id) + '01')].comboBox_name.currentText()
+                self.dict_ruleTreeWidgets[int(str(series_start_id) + '01')].comboBox_name.setCurrentText(copied_rule)
+
+                #set selection to series start
+                selected_rule = self.checkIfSelectedRule()
+                self.dict_ruleTreeWidgets[selected_rule].clicked.emit()
+                self.dict_ruleTreeWidgets[series_start_id].clicked.emit()
+                #add further series
+                for series_block in range(2,n_rules_in_series):# start at 2 since the first rule is already implemented as part of the standard series
+                    self.addRuleToTreeSeries()
+                    ones_to_add = '0' + series_block * '1'
+                    copied_rule = self.dict_ruleTreeWidgets[int(str(rule_block_id) + ones_to_add)].comboBox_name.currentText()
+                    self.dict_ruleTreeWidgets[int(str(series_start_id) + ones_to_add)].comboBox_name.setCurrentText(copied_rule)
+                #de-select series start
+                self.dict_ruleTreeWidgets[series_start_id].clicked.emit()
+
 
 ### BUTTON FUNCTIONS POLLEN TAB
 ### BUTTON FUNCTIONS METADATA TAB
@@ -1738,6 +2076,9 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         ruleTreeWidget is one in series, adds a ruleTreeWidget to the existing series. Where applicable, 'duplicate'
         type ruleTreeWidgets are also created.
         Cannot be placed as the first RuleTreeWidget.
+
+        :return: None or id of the start of the series
+        :rtype: None or str
 
         """
         # Create the RuleTreeWidgets in series and set as previous 1 and previous 2
@@ -1771,18 +2112,21 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                                                level=1)
                 return
             elif self.dict_ruleTreeWidgets[selected_rule].connection_type == 'normal':
+
                 # Create new set of rules in series.
                 # Determine rule_ids
                 if self.dict_ruleTreeWidgets[
                     selected_rule].next_ruleTreeWidgets:
-                    rule_id_top = max(self.dict_ruleTreeWidgets[selected_rule].next_ruleTreeWidgets) + 1
+                    rule_id_series_top = max(self.dict_ruleTreeWidgets[selected_rule].next_ruleTreeWidgets) + 1
                 else:
-                    rule_id_top = int(str(self.dict_ruleTreeWidgets[selected_rule].order_id) + '0')
-                rule_id_series = int(str(rule_id_top)+'0')
+                    rule_id_series_top = int(str(self.dict_ruleTreeWidgets[selected_rule].order_id) + '0')
+                series_start_id = rule_id_series_top
+                rule_id_series = int(str(rule_id_series_top)+'0')
                 rule_id_bottom = int(str(rule_id_series)+'0')
                 rule_id_series_two = rule_id_bottom+1
+
                 # Create widgets
-                ruleTreeWidget_top = RuleTreeWidget(self.nest_dict_rules, rule_id_top, next_layout_top,own_layout_top, 'series start',
+                ruleTreeWidget_top = RuleTreeWidget(self.nest_dict_rules, rule_id_series_top, next_layout_top,own_layout_top, 'series start',
                                                 main_dialog_x=x_position_for_spoilerplate,
                                                 main_dialog_y=y_position_for_spoilerplate)
                 ruleTreeWidget_series = RuleTreeWidget(self.nest_dict_rules, rule_id_series, next_layout_series,own_layout_series, 'series',
@@ -1794,6 +2138,8 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 ruleTreeWidget_bottom = RuleTreeWidget(self.nest_dict_rules, rule_id_bottom, next_layout_bottom,own_layout_bottom, 'normal',
                                                 main_dialog_x=x_position_for_spoilerplate,
                                                 main_dialog_y=y_position_for_spoilerplate)
+
+
                 # Place widgets
                 self.dict_ruleTreeWidgets[selected_rule].next_layout.addLayout(ruleTreeWidget_top.own_layout)
                 ruleTreeWidget_top.own_layout.addWidget(ruleTreeWidget_top)
@@ -1808,7 +2154,8 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
 
                 # Create the duplicate, which is NOT added to the UI
                 rule_id_duplicate = int(str(rule_id_series_two) + str(0))
-                ruleTreeWidget_duplicate = RuleTreeWidget(self.nest_dict_rules, rule_id_duplicate, None, None, 'duplicate')
+                ruleTree_duplicate = [rule_id_duplicate, 'duplicate', [], [], [ruleTreeWidget_bottom.order_id]]
+                # odruleTreeWidget_duplicate = RuleTreeWidget(self.nest_dict_rules, rule_id_duplicate, None, None, 'duplicate')
 
                 # Add all relevant id's to relevant dictionaries and lists.
                 # Add to rule dictionary
@@ -1816,18 +2163,18 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 self.dict_ruleTreeWidgets[ruleTreeWidget_series.order_id] = ruleTreeWidget_series
                 self.dict_ruleTreeWidgets[ruleTreeWidget_bottom.order_id] = ruleTreeWidget_bottom
                 self.dict_ruleTreeWidgets[ruleTreeWidget_series_two.order_id] = ruleTreeWidget_series_two
-                self.dict_ruleTreeWidgets[ruleTreeWidget_duplicate.order_id] = ruleTreeWidget_duplicate
+                self.dict_ruleTreeWidgets[rule_id_duplicate] = ruleTree_duplicate
 
                 # Add to duplicates
-                ruleTreeWidget_duplicate.duplicate_ruleTreeWidgets.append(ruleTreeWidget_bottom.order_id)
-                ruleTreeWidget_bottom.duplicate_ruleTreeWidgets.append(ruleTreeWidget_duplicate.order_id)
+
+                ruleTreeWidget_bottom.duplicate_ruleTreeWidgets.append(rule_id_duplicate)
 
                 # Add to next widgets
                 self.dict_ruleTreeWidgets[selected_rule].next_ruleTreeWidgets.append(ruleTreeWidget_top.order_id)
                 ruleTreeWidget_top.next_ruleTreeWidgets.append(ruleTreeWidget_series.order_id)
                 ruleTreeWidget_series.next_ruleTreeWidgets.append(ruleTreeWidget_bottom.order_id)
                 ruleTreeWidget_series.next_ruleTreeWidgets.append(ruleTreeWidget_series_two.order_id)
-                ruleTreeWidget_series_two.next_ruleTreeWidgets.append(ruleTreeWidget_duplicate.order_id)
+                ruleTreeWidget_series_two.next_ruleTreeWidgets.append(rule_id_duplicate)
 
                 # Add to previous widgets
                 ruleTreeWidget_top.prev_ruleTreeWidgets = self.dict_ruleTreeWidgets[selected_rule].prev_ruleTreeWidgets.copy()
@@ -1835,11 +2182,11 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 ruleTreeWidget_series.prev_ruleTreeWidgets = ruleTreeWidget_top.prev_ruleTreeWidgets.copy()
                 ruleTreeWidget_series.prev_ruleTreeWidgets.append(ruleTreeWidget_top.order_id)
                 ruleTreeWidget_bottom.prev_ruleTreeWidgets = ruleTreeWidget_series.prev_ruleTreeWidgets.copy()
-                ruleTreeWidget_series_two.prev_ruleTreeWidgets = ruleTreeWidget_series.prev_ruleTreeWidgets.copy()
                 ruleTreeWidget_bottom.prev_ruleTreeWidgets.append(ruleTreeWidget_series.order_id)
+                ruleTreeWidget_series_two.prev_ruleTreeWidgets = ruleTreeWidget_series.prev_ruleTreeWidgets.copy()
                 ruleTreeWidget_series_two.prev_ruleTreeWidgets.append(ruleTreeWidget_series.order_id)
-                ruleTreeWidget_duplicate.prev_ruleTreeWidgets = ruleTreeWidget_series_two.prev_ruleTreeWidgets.copy()
-                ruleTreeWidget_duplicate.prev_ruleTreeWidgets.append(ruleTreeWidget_series_two.order_id)
+                ruleTree_duplicate[2] = ruleTreeWidget_series_two.prev_ruleTreeWidgets.copy()
+                ruleTree_duplicate[2].append(ruleTreeWidget_series_two.order_id)
 
                 # connect all the widgets to the selection
                 ruleTreeWidget_top.clicked.connect(
@@ -1857,67 +2204,77 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
 
                 # If selected_rule has duplicates, create duplicates for all
                 if self.dict_ruleTreeWidgets[selected_rule].duplicate_ruleTreeWidgets:
-                    for duplicate in self.dict_ruleTreeWidgets[selected_rule].duplicate_ruleTreeWidgets:
+                    for duplicate_id in self.dict_ruleTreeWidgets[selected_rule].duplicate_ruleTreeWidgets:
                         # Determine rule id
-                        if self.dict_ruleTreeWidgets[duplicate].next_ruleTreeWidgets:
-                            rule_id_top_duplicate = max(self.dict_ruleTreeWidgets[duplicate].next_ruleTreeWidgets) + 1
+                        if type(self.dict_ruleTreeWidgets[duplicate_id]) == list:
+
+                            if self.dict_ruleTreeWidgets[duplicate_id][3]:
+                                rule_id_top_duplicate = max(self.dict_ruleTreeWidgets[duplicate_id][3]) + 1
+                            else:
+                                rule_id_top_duplicate = int(str(duplicate_id)+'0')
                         else:
-                            rule_id_top_duplicate = int(str(self.dict_ruleTreeWidgets[duplicate].order_id) + '0')
+                            if self.dict_ruleTreeWidgets[duplicate_id].next_ruleTreeWidgets:
+                                rule_id_top_duplicate = max(self.dict_ruleTreeWidgets[duplicate_id].next_ruleTreeWidgets) + 1
+                            else:
+                                rule_id_top_duplicate = int(str(duplicate_id)+'0')
                         rule_id_series_duplicate = int(str(rule_id_top_duplicate) + '0')
                         rule_id_bottom_duplicate = int(str(rule_id_series_duplicate) + '0')
                         rule_id_series_two_duplicate = rule_id_bottom_duplicate + 1
                         rule_id_bottom_duplicate_two = int(str(rule_id_series_two_duplicate)+ '0')
-                        # Create widget
-                        ruleTreeWidget_top_duplicate = RuleTreeWidget(self.nest_dict_rules, rule_id_top_duplicate, None, None, 'duplicate')
-                        ruleTreeWidget_series_duplicate = RuleTreeWidget(self.nest_dict_rules, rule_id_series_duplicate, None, None, 'duplicate')
-                        ruleTreeWidget_series_two_duplicate = RuleTreeWidget(self.nest_dict_rules, rule_id_series_two_duplicate, None, None, 'duplicate')
-                        ruleTreeWidget_bottom_duplicate = RuleTreeWidget(self.nest_dict_rules, rule_id_bottom_duplicate, None, None, 'duplicate')
-                        ruleTreeWidget_bottom_duplicate_two = RuleTreeWidget(self.nest_dict_rules, rule_id_bottom_duplicate_two, None, None, 'duplicate')
-                        # Add to dictionary
-                        self.dict_ruleTreeWidgets[ruleTreeWidget_top_duplicate.order_id] = ruleTreeWidget_top_duplicate
-                        self.dict_ruleTreeWidgets[ruleTreeWidget_series_duplicate.order_id] = ruleTreeWidget_series_duplicate
-                        self.dict_ruleTreeWidgets[ruleTreeWidget_series_two_duplicate.order_id] = ruleTreeWidget_series_two_duplicate
-                        self.dict_ruleTreeWidgets[ruleTreeWidget_bottom_duplicate.order_id] = ruleTreeWidget_bottom_duplicate
-                        self.dict_ruleTreeWidgets[ruleTreeWidget_bottom_duplicate_two.order_id] = ruleTreeWidget_bottom_duplicate_two
+                        #create lists in lieu of widgets
+                        ruleTree_top_duplicate = [rule_id_top_duplicate, 'duplicate', [], [], []]
+                        ruleTree_series_duplicate = [rule_id_series_duplicate, 'duplicate', [], [], []]
+                        ruleTree_series_two_duplicate = [rule_id_series_two_duplicate, 'duplicate', [], [], []]
+                        ruleTree_bottom_duplicate = [rule_id_bottom_duplicate, 'duplicate', [], [], []]
+                        ruleTree_bottom_duplicate_two = [rule_id_bottom_duplicate_two, 'duplicate', [], [], []]
                         # Determine previous
-                        ruleTreeWidget_top_duplicate.prev_ruleTreeWidgets = \
-                            self.dict_ruleTreeWidgets[duplicate].prev_ruleTreeWidgets.copy()
-                        ruleTreeWidget_top_duplicate.prev_ruleTreeWidgets.append(duplicate)
-                        ruleTreeWidget_series_duplicate.prev_ruleTreeWidgets = \
-                            ruleTreeWidget_top_duplicate.prev_ruleTreeWidgets.copy()
-                        ruleTreeWidget_series_duplicate.prev_ruleTreeWidgets.append(rule_id_top_duplicate)
-                        ruleTreeWidget_series_two_duplicate.prev_ruleTreeWidgets = \
-                            ruleTreeWidget_series_duplicate.prev_ruleTreeWidgets.copy()
-                        ruleTreeWidget_series_two_duplicate.prev_ruleTreeWidgets.append(rule_id_series_duplicate)
-                        ruleTreeWidget_bottom_duplicate.prev_ruleTreeWidgets = \
-                            ruleTreeWidget_series.prev_ruleTreeWidgets.copy()
-                        ruleTreeWidget_bottom_duplicate.prev_ruleTreeWidgets.append(rule_id_series_duplicate)
-                        ruleTreeWidget_bottom_duplicate_two.prev_ruleTreeWidgets = \
-                            ruleTreeWidget_series_two.prev_ruleTreeWidgets.copy()
-                        ruleTreeWidget_bottom_duplicate_two.prev_ruleTreeWidgets.append(rule_id_series_two_duplicate)
+                        if type(self.dict_ruleTreeWidgets[duplicate_id]) == list:
+                            ruleTree_top_duplicate[2] = self.dict_ruleTreeWidgets[duplicate_id][2].copy()
+                        else:
+                            ruleTree_top_duplicate[2] = self.dict_ruleTreeWidgets[duplicate_id].prev_ruleTreeWidgets.copy()
+                        ruleTree_top_duplicate[2].append(duplicate_id)
+                        ruleTree_series_duplicate[2] = ruleTree_top_duplicate[2].copy()
+                        ruleTree_series_duplicate[2].append(rule_id_top_duplicate)
+                        ruleTree_series_two_duplicate[2] = ruleTree_series_duplicate[2].copy()
+                        ruleTree_series_two_duplicate[2].append(rule_id_series_duplicate)
+                        ruleTree_bottom_duplicate[2] = ruleTree_series_duplicate[2].copy()
+                        ruleTree_bottom_duplicate[2].append(rule_id_series_duplicate)
+                        ruleTree_bottom_duplicate_two[2] = ruleTree_series_two_duplicate[2].copy()
+                        ruleTree_bottom_duplicate_two[2].append(rule_id_series_two_duplicate)
+
                         # Add to next
-                        self.dict_ruleTreeWidgets[duplicate].next_ruleTreeWidgets.append(rule_id_top_duplicate)
-                        ruleTreeWidget_top_duplicate.next_ruleTreeWidgets.append(rule_id_series_duplicate)
-                        ruleTreeWidget_series_duplicate.next_ruleTreeWidgets.append(rule_id_series_two_duplicate)
-                        ruleTreeWidget_series_duplicate.next_ruleTreeWidgets.append(rule_id_bottom_duplicate)
-                        ruleTreeWidget_series_two_duplicate.next_ruleTreeWidgets.append(rule_id_bottom_duplicate_two)
+                        if type(self.dict_ruleTreeWidgets[duplicate_id]) == list:
+                            self.dict_ruleTreeWidgets[duplicate_id][3].append(rule_id_top_duplicate)
+                        else:
+                            self.dict_ruleTreeWidgets[duplicate_id].next_ruleTreeWidgets.append(rule_id_top_duplicate)
+                        ruleTree_top_duplicate[3].append(rule_id_series_duplicate)
+                        ruleTree_series_duplicate[3].append(rule_id_series_two_duplicate)
+                        ruleTree_series_duplicate[3].append(rule_id_bottom_duplicate)
+                        ruleTree_series_two_duplicate[3].append(rule_id_bottom_duplicate_two)
+
                         # Add to duplicates
                         ruleTreeWidget_top.duplicate_ruleTreeWidgets.append(rule_id_top_duplicate)
-                        ruleTreeWidget_top_duplicate.duplicate_ruleTreeWidgets.append(rule_id_top)
+                        ruleTree_top_duplicate[4].append(rule_id_series_top)
                         ruleTreeWidget_series.duplicate_ruleTreeWidgets.append(rule_id_series_duplicate)
-                        ruleTreeWidget_series_duplicate.duplicate_ruleTreeWidgets.append(rule_id_series)
+                        ruleTree_series_duplicate[4].append(rule_id_series)
                         ruleTreeWidget_series_two.duplicate_ruleTreeWidgets.append(rule_id_series_two_duplicate)
-                        ruleTreeWidget_series_two_duplicate.duplicate_ruleTreeWidgets.append(rule_id_series_two)
+                        ruleTree_series_two_duplicate[4].append(rule_id_series_two)
                         ruleTreeWidget_bottom.duplicate_ruleTreeWidgets.append(rule_id_bottom_duplicate)
-                        ruleTreeWidget_bottom_duplicate.duplicate_ruleTreeWidgets.append(rule_id_bottom)
-                        ruleTreeWidget_duplicate.duplicate_ruleTreeWidgets.append(rule_id_bottom_duplicate)
-                        ruleTreeWidget_bottom_duplicate.duplicate_ruleTreeWidgets.append(rule_id_duplicate)
+                        ruleTree_bottom_duplicate[4].append(rule_id_bottom)
+                        ruleTree_duplicate[4].append(rule_id_bottom_duplicate)
+                        ruleTree_bottom_duplicate[4].append(rule_id_duplicate)
                         ruleTreeWidget_bottom.duplicate_ruleTreeWidgets.append(rule_id_bottom_duplicate_two)
-                        ruleTreeWidget_bottom_duplicate_two.duplicate_ruleTreeWidgets.append(rule_id_bottom)
-                        ruleTreeWidget_duplicate.duplicate_ruleTreeWidgets.append(rule_id_bottom_duplicate_two)
-                        ruleTreeWidget_bottom_duplicate_two.duplicate_ruleTreeWidgets.append(rule_id_duplicate)
+                        ruleTree_bottom_duplicate_two[4].append(rule_id_bottom)
+                        ruleTree_duplicate[4].append(rule_id_bottom_duplicate_two)
+                        # Add to dictionary
+                        self.dict_ruleTreeWidgets[rule_id_top_duplicate] = ruleTree_top_duplicate
+                        self.dict_ruleTreeWidgets[rule_id_series_duplicate] = ruleTree_series_duplicate
+                        self.dict_ruleTreeWidgets[rule_id_series_two_duplicate] = ruleTree_series_two_duplicate
+                        self.dict_ruleTreeWidgets[rule_id_bottom_duplicate] = ruleTree_bottom_duplicate
+                        self.dict_ruleTreeWidgets[rule_id_bottom_duplicate_two] = ruleTree_bottom_duplicate_two
 
             elif self.dict_ruleTreeWidgets[selected_rule].connection_type == 'series start' or self.dict_ruleTreeWidgets[selected_rule].connection_type == 'series':
+
                 # Add a rule in series to an already existing set of rules in series.
                 if self.dict_ruleTreeWidgets[selected_rule].connection_type == 'series':
                     # Find series start and set as selected_rule
@@ -1929,7 +2286,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                             break
 
                     len_to_keep = len(str(selected_rule))-len(partial_id_to_rm)
-                    rule_id_series_top = str(selected_rule)[:len_to_keep]
+                    rule_id_series_top = int(str(selected_rule)[:len_to_keep])
                     selected_rule = int(rule_id_series_top)
                 # Find id of first in and first after series
                 first_in_series = str(selected_rule) + '0'
@@ -1939,18 +2296,15 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 # Find id of last non-duplicate in series
                 # This should always have the first in series and then only ones
                 list_ids_to_check = []
-                contains_only_1 = False
                 length_first_in_series = len(first_in_series)
                 length_first_after_series = len(first_after_series)
                 for key in self.dict_ruleTreeWidgets:
-                    if first_in_series == str(self.dict_ruleTreeWidgets[key].order_id)[:length_first_in_series]:
-                        print('are same')
-                        for digit in str(self.dict_ruleTreeWidgets[key].order_id)[length_first_in_series:]:
-                            if digit != '1':
-                                contains_only_1 = False
-                                break
-                            elif digit == '1':
-                                contains_only_1 = True
+                    if first_in_series == str(key)[:length_first_in_series]:
+                        contains_only_1 = True
+                        for digit in str(key)[length_first_in_series:]:
+                                if digit != '1':
+                                    contains_only_1 = False
+                                    break
                         if contains_only_1 == True:
                             list_ids_to_check.append(key)
                 prev_rule_series = max(list_ids_to_check)
@@ -1969,6 +2323,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 # Place the widget
                 own_layout_series.addWidget(ruleTreeWidget)
                 own_layout_series.addStretch()
+
                 # Add to dictionary
                 self.dict_ruleTreeWidgets[ruleTreeWidget.order_id] = ruleTreeWidget
                 # Add to previous widgets
@@ -1976,116 +2331,113 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 ruleTreeWidget.prev_ruleTreeWidgets.append(prev_rule_series)
                 # Add to next widgets of previous widgets
                 self.dict_ruleTreeWidgets[prev_rule_series].next_ruleTreeWidgets.append(rule_id)
+
+
                 # Connect visible widgets to selection
                 ruleTreeWidget.clicked.connect(
                     lambda *args, ruleTreeWidget_id=ruleTreeWidget.order_id, ruleTreeWidget=ruleTreeWidget:
                     self.changeRuleTreeSelection(ruleTreeWidget_id, ruleTreeWidget))
 
-                # Take duplicicates of previous in series and apply same number of duplicates to the new series rule
+                # Take duplicates of previous in series and apply same number of duplicates to the new series rule
                 rtw_to_duplicate = self.dict_ruleTreeWidgets[prev_rule_series].duplicate_ruleTreeWidgets
-                to_add_to_duplicates = []
-                if len(rtw_to_duplicate) == 0:
-                    pass
-                else:
+                if len(rtw_to_duplicate) != 0:
                     rule_duplicates_list = [rule_id]
                     for rtw in rtw_to_duplicate:
 
                         rule_id_duplicate = int(str(rtw)+"1")
-                        ruleTreeWidget_duplicate = RuleTreeWidget(self.nest_dict_rules, rule_id_duplicate, None, None,
-                                                                  'duplicate')
-                        # Add to dictionary
-                        self.dict_ruleTreeWidgets[ruleTreeWidget_duplicate.order_id] = ruleTreeWidget_duplicate
+                        ruleTree_duplicate = [rule_id_duplicate, 'duplicate', [], [], []]
+                        # add to next widgets
+                        if type(self.dict_ruleTreeWidgets[rtw]) == list:
+                            self.dict_ruleTreeWidgets[rtw][3].append(rule_id_duplicate)
+                        else:
+                            self.dict_ruleTreeWidgets[rtw].next_ruleTreeWidgets.append(rule_id_duplicate)
 
-                        # Add to next widgets (of the previous rtw)
-                        self.dict_ruleTreeWidgets[rtw].next_ruleTreeWidgets.append(rule_id_duplicate)
-
-                        # Add previous rtw to prev_ruleTreeWidgets
-                        self.dict_ruleTreeWidgets[rule_id_duplicate].prev_ruleTreeWidgets = self.dict_ruleTreeWidgets[
-                            rtw].prev_ruleTreeWidgets.copy()
-                        self.dict_ruleTreeWidgets[rule_id_duplicate].prev_ruleTreeWidgets.append(rtw)
-
-                        # Add to duplicates to visible rules' list
+                        # add previous rtw
+                        ruleTree_duplicate[2] = self.dict_ruleTreeWidgets[rtw][2].copy()
+                        ruleTree_duplicate[2].append(rtw)
+                        # add to duplicate of visible rule block
                         self.dict_ruleTreeWidgets[rule_id].duplicate_ruleTreeWidgets.append(rule_id_duplicate)
                         rule_duplicates_list.append(rule_id_duplicate)
-                    # Add to duplicates to each other's lists
+
+                        #add to dictionary
+                        self.dict_ruleTreeWidgets[rule_id_duplicate] = ruleTree_duplicate
+                    # add duplicates to each other's lists
                     for duprule1 in rule_duplicates_list:
-                        if duprule1 == rule_id:
-                            pass
-                        else:
+                        if duprule1 != rule_id:
                             for duprule2 in rule_duplicates_list:
-                                if duprule1 == duprule2:
-                                    pass
-                                else:
-                                    self.dict_ruleTreeWidgets[duprule1].duplicate_ruleTreeWidgets.append(
+                                if duprule1 != duprule2:
+                                    self.dict_ruleTreeWidgets[duprule1][4].append(
                                         duprule2)
 
-                # Find all rules after the newly added rule and its duplicates and give them duplicates.
-                # first apply for the new rule itself
-                # for all keys in the dictionary check if the final series rule is in it
-                # if that is the case, add a new duplicate that ends in the same numbers AFTER the final series rule, or if it is the dup of the final series rule, just add a 0
-                # then add to dictionary, prev rules, next rules and duplicate rules
-                list_ids_to_check = []
+                # Find all visible rtw after the newly added rule (including the last in series)
+                list_ids_after_new_series = []
                 for key in self.dict_ruleTreeWidgets:
                     if first_after_series in str(key)[:length_first_after_series]:
-                        list_ids_to_check.append(key)
-                for id in list_ids_to_check:
-                    rule_id_duplicate = int(str(rule_id) + str(id)[length_first_in_series:])
-                    ruleTreeWidget_duplicate = RuleTreeWidget(self.nest_dict_rules, rule_id_duplicate, None, None,
-                                                              'duplicate')
+                        list_ids_after_new_series.append(key)
+                # Add a duplicate for the newly added rtw
+                for rtw_after_series in list_ids_after_new_series:
+                    # Determine the id of the duplicate which is the id of the new rule appended with everything after the id of first after series
+                    rule_id_duplicate = int(str(rule_id)+ str(rtw_after_series)[length_first_after_series-1:])
+                    # Create the "empty" duplicate rtw
+                    rtw_duplicate = [rule_id_duplicate, 'duplicate', [], [], []]
+                    # Add to next of previous
+                    # simple remove one syllable from the rule_id_duplicate to find the previous
+                    prev_id_duplicate = int(str(rule_id_duplicate)[:len(str(rule_id_duplicate))-1])
+                    if type(self.dict_ruleTreeWidgets[prev_id_duplicate]) == list:
+                        self.dict_ruleTreeWidgets[prev_id_duplicate][3].append(rule_id_duplicate)
+                    else:
+                        self.dict_ruleTreeWidgets[prev_id_duplicate].next_ruleTreeWidgets.append(rule_id_duplicate)
+
+                    # Create list previous rtw
+                    if type(self.dict_ruleTreeWidgets[prev_id_duplicate]) == list:
+                        rtw_duplicate[2] = self.dict_ruleTreeWidgets[prev_id_duplicate][2].copy()
+                    else:
+                        rtw_duplicate[2] = self.dict_ruleTreeWidgets[prev_id_duplicate].prev_ruleTreeWidgets.copy()
+                    rtw_duplicate[2].append(prev_id_duplicate)
+                    # Add to duplicates and add duplicates to itself
+                    for duplicate_id in self.dict_ruleTreeWidgets[rtw_after_series].duplicate_ruleTreeWidgets:
+                        self.dict_ruleTreeWidgets[duplicate_id][4].append(rule_id_duplicate)
+                        rtw_duplicate[4].append(duplicate_id)
+                    self.dict_ruleTreeWidgets[rtw_after_series].duplicate_ruleTreeWidgets.append(rule_id_duplicate)
+                    rtw_duplicate[4].append(rtw_after_series)
                     # Add to dictionary
-                    self.dict_ruleTreeWidgets[ruleTreeWidget_duplicate.order_id] = ruleTreeWidget_duplicate
-                    # Add to previous widgets
-                    prev_rule_id = int(str(rule_id_duplicate)[:len(str(rule_id_duplicate))-1])
-                    self.dict_ruleTreeWidgets[rule_id_duplicate].prev_ruleTreeWidgets = self.dict_ruleTreeWidgets[
-                        prev_rule_id].prev_ruleTreeWidgets.copy()
-                    self.dict_ruleTreeWidgets[rule_id_duplicate].prev_ruleTreeWidgets.append(prev_rule_id)
+                    self.dict_ruleTreeWidgets[rule_id_duplicate] = rtw_duplicate
 
-                    # Add to next widgets
-                    self.dict_ruleTreeWidgets[prev_rule_id].next_ruleTreeWidgets.append(rule_id_duplicate)
-                    # Add to duplicates
-                    for duplicate in self.dict_ruleTreeWidgets[id].duplicate_ruleTreeWidgets:
-                        self.dict_ruleTreeWidgets[duplicate].duplicate_ruleTreeWidgets.append(rule_id_duplicate)
-                        self.dict_ruleTreeWidgets[rule_id_duplicate].duplicate_ruleTreeWidgets.append(self.dict_ruleTreeWidgets[duplicate].order_id)
-                    self.dict_ruleTreeWidgets[rule_id_duplicate].duplicate_ruleTreeWidgets.append(id)
-                    self.dict_ruleTreeWidgets[id].duplicate_ruleTreeWidgets.append(rule_id_duplicate)
+                # Add duplicate for each of the newly added rtws duplicates
+                for duplicate_new in ruleTreeWidget.duplicate_ruleTreeWidgets:
+                    for rtw_after_series in list_ids_after_new_series:
+                        # Determine the id of the duplicate which is the id of the new rule appended with everything after the id of first after series
+                        rule_id_duplicate = int(str(duplicate_new) + str(rtw_after_series)[length_first_after_series-1:])
+                        # Create the "empty" duplicate rtw
+                        rtw_duplicate = [rule_id_duplicate, 'duplicate', [], [], []]
+                        # Add to next of previous
+                        # simple remove one syllable from the rule_id_duplicate to find the previous
+                        prev_id_duplicate = int(str(rule_id_duplicate)[:len(str(rule_id_duplicate)) - 1])
+                        if type(self.dict_ruleTreeWidgets[prev_id_duplicate]) == list:
+                            self.dict_ruleTreeWidgets[prev_id_duplicate][3].append(rule_id_duplicate)
+                        else:
+                            self.dict_ruleTreeWidgets[prev_id_duplicate].next_ruleTreeWidgets.append(rule_id_duplicate)
 
-                for duplicate in self.dict_ruleTreeWidgets[rule_id].duplicate_ruleTreeWidgets:
-                    list_ids_to_check = []
-                    for key in self.dict_ruleTreeWidgets:
-                        if first_after_series in str(key)[:length_first_after_series]:
-                            list_ids_to_check.append(key)
-                    for id in list_ids_to_check:
-                        rule_id_duplicate = int(str(duplicate) + str(id)[length_first_in_series:])
-                        ruleTreeWidget_duplicate = RuleTreeWidget(self.nest_dict_rules, rule_id_duplicate, None, None,
-                                                                  'duplicate')
+                        # Create list previous rtw
+                        if type(self.dict_ruleTreeWidgets[prev_id_duplicate]) == list:
+                            rtw_duplicate[2] = self.dict_ruleTreeWidgets[prev_id_duplicate][2].copy()
+                        else:
+                            rtw_duplicate[2] = self.dict_ruleTreeWidgets[prev_id_duplicate].prev_ruleTreeWidgets.copy()
+                        rtw_duplicate[2].append(prev_id_duplicate)
+                        # Add to duplicates and add duplicates to itself
+                        for duplicate_id in self.dict_ruleTreeWidgets[rtw_after_series].duplicate_ruleTreeWidgets:
+                            self.dict_ruleTreeWidgets[duplicate_id][4].append(rule_id_duplicate)
+                            rtw_duplicate[4].append(duplicate_id)
+                        self.dict_ruleTreeWidgets[rtw_after_series].duplicate_ruleTreeWidgets.append(rule_id_duplicate)
+                        rtw_duplicate[4].append(rtw_after_series)
                         # Add to dictionary
-                        self.dict_ruleTreeWidgets[ruleTreeWidget_duplicate.order_id] = ruleTreeWidget_duplicate
-                        # Add to previous widgets
-                        prev_rule_id = int(str(rule_id_duplicate)[:len(str(rule_id_duplicate)) - 1])
-                        self.dict_ruleTreeWidgets[rule_id_duplicate].prev_ruleTreeWidgets = self.dict_ruleTreeWidgets[
-                            prev_rule_id].prev_ruleTreeWidgets.copy()
-                        self.dict_ruleTreeWidgets[rule_id_duplicate].prev_ruleTreeWidgets.append(prev_rule_id)
-
-                        # Add to next widgets
-                        self.dict_ruleTreeWidgets[prev_rule_id].next_ruleTreeWidgets.append(rule_id_duplicate)
-                        # Add to duplicates
-                        for dup in self.dict_ruleTreeWidgets[id].duplicate_ruleTreeWidgets:
-                            self.dict_ruleTreeWidgets[dup].duplicate_ruleTreeWidgets.append(rule_id_duplicate)
-                            self.dict_ruleTreeWidgets[rule_id_duplicate].duplicate_ruleTreeWidgets.append(
-                                self.dict_ruleTreeWidgets[dup].order_id)
-                        self.dict_ruleTreeWidgets[rule_id_duplicate].duplicate_ruleTreeWidgets.append(id)
-                        self.dict_ruleTreeWidgets[id].duplicate_ruleTreeWidgets.append(rule_id_duplicate)
-
-
-        # Test whether created rules and relations are okay
-        # for entries in self.dict_ruleTreeWidgets:
-        #     if self.dict_ruleTreeWidgets[entries].duplicate_ruleTreeWidgets:
-        #         for next in self.dict_ruleTreeWidgets[entries].duplicate_ruleTreeWidgets:
-        #             print(str(entries), ' duplicate', str(next))
-        #     for next in self.dict_ruleTreeWidgets[entries].next_ruleTreeWidgets:
-        #         print(str(entries), ' next rtw ', str(next))
-
+                        self.dict_ruleTreeWidgets[rule_id_duplicate] = rtw_duplicate
         self.frame_ruleTree.update()
+        try:
+            return int(series_start_id)
+        except UnboundLocalError:
+            pass
+
 
     def changeRuleTreeSelection(self, ruleTreeWidget_id, ruleTreeWidget):
         """ (De-)Select a ruleTreeWidget. If a new ruleTreeWidget is selected, all previously selected ruleTreeWidgets
@@ -2104,14 +2456,15 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                                    "border: 3px outset #5b5b5b;")
         elif ruleTreeWidget.isSelected == False:
             for key in dict_for_remove_selection:
-                if dict_for_remove_selection[key].isSelected == True:
-                    dict_for_remove_selection[key].isSelected = False
-                    if dict_for_remove_selection[key].isBaseGroup == True:
-                        dict_for_remove_selection[key].setStyleSheet("background-color: #c37676;"
-                                                                     "border: 3px outset #5b3737;")
-                    else:
-                        dict_for_remove_selection[key].setStyleSheet("background-color: #c3c3c3;"
-                                                                     "border: 3px outset #5b5b5b;")
+                if type(dict_for_remove_selection[key]) != list: # only check visible rules/ ruleTreeWidgets
+                    if dict_for_remove_selection[key].isSelected == True:
+                        dict_for_remove_selection[key].isSelected = False
+                        if dict_for_remove_selection[key].isBaseGroup == True:
+                            dict_for_remove_selection[key].setStyleSheet("background-color: #c37676;"
+                                                                         "border: 3px outset #5b3737;")
+                        else:
+                            dict_for_remove_selection[key].setStyleSheet("background-color: #c3c3c3;"
+                                                                         "border: 3px outset #5b5b5b;")
             ruleTreeWidget.isSelected = True
             ruleTreeWidget.setStyleSheet("background-color: #7dc376;"
                                          "border: 3px inset #3a5b37;")
@@ -2119,6 +2472,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
     def addAndRemoveFromBaseGroup(self):
         """Adds or removes a ruleTreeWidget from the basegroup"""
         for ruleTreeWidget in self.dict_ruleTreeWidgets:
+            if type(self.dict_ruleTreeWidgets[ruleTreeWidget]) != list: #ignore the non visible rule blocks
                 if self.dict_ruleTreeWidgets[ruleTreeWidget].isSelected == True:
                     if len(self.dict_ruleTreeWidgets[ruleTreeWidget].prev_ruleTreeWidgets) >0:
                         for previous in self.dict_ruleTreeWidgets[ruleTreeWidget].prev_ruleTreeWidgets:
@@ -2134,7 +2488,10 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
 
     def removeRuleFromRuleTree(self):
         """ Removes a ruleTreeWidget and its next_ruleTreeWidgets from the rule tree, and the IDs of those
-        ruleTreeWidgets from any lists and dicts in which they occur"""
+        ruleTreeWidgets from any lists and dicts in which they occur
+
+
+        """
         list_to_delete = []
         selected_rule = self.checkIfSelectedRule()
         if selected_rule < 1:
@@ -2144,7 +2501,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 iface.messageBar().pushMessage("Error", "Cannot remove rule from middle of series, "
                                                         "select rule above series instead", level=1)
 
-            elif selected_rule == 1: # first rule needs seperate process because otherwise the max() statement in the next elif will fail. Ugly but I'm tired and ctrl-v is my friend. WIll remove when implemeting proper removal of series
+            elif selected_rule == 1:
                 self.clearLayout(self.ruleTreeLayout)
                 self.dict_ruleTreeWidgets = {}
 
@@ -2153,41 +2510,45 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                                                         "select rule above series instead", level=1)
 
             else:
+                if self.dict_ruleTreeWidgets[selected_rule].duplicate_ruleTreeWidgets:
+                    for duplicate in self.dict_ruleTreeWidgets[selected_rule].duplicate_ruleTreeWidgets:
+                        length_rule_to_rm = len(str(duplicate))
+                        for key in self.dict_ruleTreeWidgets:
+                            if str(key)[:length_rule_to_rm] == str(duplicate):
+                                list_to_delete.append(key)
+                                if type(self.dict_ruleTreeWidgets[key]) != list:
+                                    if self.dict_ruleTreeWidgets[key].own_layout:
+                                        self.dict_ruleTreeWidgets[key].own_layout.deleteLater()
+                                    if self.dict_ruleTreeWidgets[key].next_layout:
+                                        self.dict_ruleTreeWidgets[key].next_layout.deleteLater()
+                                    self.dict_ruleTreeWidgets[key].deleteLater()
+                length_rule_to_rm = len(str(selected_rule))
                 for key in self.dict_ruleTreeWidgets:
-                    #check if selected rule is a previous rule, if yes delete that rule and its layouts
-                    if selected_rule in self.dict_ruleTreeWidgets[key].prev_ruleTreeWidgets:
-                        if self.dict_ruleTreeWidgets[key].own_layout:
-                            self.dict_ruleTreeWidgets[key].own_layout.deleteLater()
-                        if self.dict_ruleTreeWidgets[key].next_layout:
-                            self.dict_ruleTreeWidgets[key].next_layout.deleteLater()
-                        self.dict_ruleTreeWidgets[key].deleteLater()
+                    if str(key)[:length_rule_to_rm] == str(selected_rule):
                         list_to_delete.append(key)
-                    #check if rule is duplicate of selected rule, if yes delete that rule
-                    elif selected_rule in self.dict_ruleTreeWidgets[key].duplicate_ruleTreeWidgets:
-                        if self.dict_ruleTreeWidgets[key].own_layout:
-                            self.dict_ruleTreeWidgets[key].own_layout.deleteLater()
-                        if self.dict_ruleTreeWidgets[key].next_layout:
-                            self.dict_ruleTreeWidgets[key].next_layout.deleteLater()
-                        self.dict_ruleTreeWidgets[key].deleteLater()
-                        list_to_delete.append(key)
-                #then delete the selected rule and its layouts itself
-                if self.dict_ruleTreeWidgets[selected_rule].own_layout:
-                    self.dict_ruleTreeWidgets[selected_rule].own_layout.deleteLater()
-                if self.dict_ruleTreeWidgets[selected_rule].next_layout:
-                    self.dict_ruleTreeWidgets[selected_rule].next_layout.deleteLater()
-                self.dict_ruleTreeWidgets[selected_rule].deleteLater()
-                list_to_delete.append(selected_rule)
-
+                        if type(self.dict_ruleTreeWidgets[key]) != list:
+                            if self.dict_ruleTreeWidgets[key].own_layout:
+                                self.dict_ruleTreeWidgets[key].own_layout.deleteLater()
+                            if self.dict_ruleTreeWidgets[key].next_layout:
+                                self.dict_ruleTreeWidgets[key].next_layout.deleteLater()
+                            self.dict_ruleTreeWidgets[key].deleteLater()
             #remove entries from dictionary
             for entry in list_to_delete:
                 self.dict_ruleTreeWidgets.pop(entry)
             #remove selected rule from next_ruletreewidgets of its previous rule
             for key in self.dict_ruleTreeWidgets:
                 for item in list_to_delete:
-                    if item in self.dict_ruleTreeWidgets[key].next_ruleTreeWidgets:
-                        self.dict_ruleTreeWidgets[key].next_ruleTreeWidgets.remove(item)
+                    if type(self.dict_ruleTreeWidgets[key]) == list:
+                        if item in self.dict_ruleTreeWidgets[key][3]:
+                            self.dict_ruleTreeWidgets[key][3].remove(item)
+                    else:
+                        if item in self.dict_ruleTreeWidgets[key].next_ruleTreeWidgets:
+                            self.dict_ruleTreeWidgets[key].next_ruleTreeWidgets.remove(item)
+
             #update the UI
             self.frame_ruleTree.update()
+            #set the copied rule to None so that no deleted rule is accidentally as a copied rule
+            self.saved_ruleTreeWidget = None
 
     def clearLayout(self, layout):
         """ Recurively clears a layout of all its widgets and layouts."""
