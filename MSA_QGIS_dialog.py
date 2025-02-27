@@ -1489,7 +1489,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.popup_save_file.show()
         if self.popup_save_file.exec_():
             file_dialog = QFileDialog()
-            file_directory = file_dialog.getExistingDirectory(self, "Choose a directory to load your files from")
+            file_directory = file_dialog.getExistingDirectory(self, "Choose a directory to save your files to")
             if not file_directory:
                 iface.messageBar().pushMessage('Operation cancelled by user', level=1)
                 return

@@ -42,7 +42,7 @@ from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, QVariant,
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
 from qgis._core import QgsRectangle
-from qgis.core import QgsApplication, QgsMessageLog, Qgis,  QgsVectorLayer, QgsField, QgsGeometry, QgsPointXY, QgsFeature,QgsVectorLayerJoinInfo, QgsProject, QgsSpatialIndex
+from qgis.core import QgsApplication, QgsMessageLog, Qgis,  QgsVectorLayer, QgsField, QgsGeometry, QgsPointXY, QgsFeature,QgsVectorLayerJoinInfo, QgsProject, QgsSpatialIndex, QgsVectorFileWriter
 from qgis.utils import iface
 from PyQt5.QtWidgets import QTableWidgetItem
 from subprocess import Popen, PIPE, STDOUT
@@ -196,7 +196,7 @@ class MsaQgis:
         icon_path = ':/plugins/MSA_QGIS/icon.png'
         self.add_action(
             icon_path,
-            text=self.tr(u'Multi Scenario Approach'),
+            text=self.tr(u'MSAQ'),
             callback=self.run,
             parent=self.iface.mainWindow())
 
@@ -315,6 +315,7 @@ class MsaQgis:
                             f'sampling_sites.snapped_x AND "{basemap}".geom_y = sampling_sites.snapped_y)'
         cursor.execute(update_msa_string)
         conn.commit()
+
         QgsMessageLog.logMessage("Creation of site tables finished", 'MSA_QGIS',
                                  Qgis.Info)
 
@@ -334,7 +335,6 @@ class MsaQgis:
                                 Qgis.Info)
         taxa_table = self.dlg.tableWidget_taxa
         vegcom_table = self.dlg.tableWidget_vegCom
-
         # Create taxon table
         create_table_string = 'CREATE TABLE taxa("taxon_code" TEXT VARCHAR(20) NOT NULL, "full_name" TEXT, "fall_speed" REAL, ' \
                              '"RelPP" REAL, PRIMARY KEY(taxon_code))'
@@ -578,7 +578,7 @@ class MsaQgis:
 
     def createTablePollenLookupBasin(self, conn, cursor):
         """Creates a table with the various computed distances to the sites and determines the pollen dispersal and
-        deposition function for each taxon gi(z), based on Parsons/Prentice/Sugita's (mixed) basin model.
+        deposition function for each taxon gi(z), based on Parsons/Prentice mire model.
 
         :class params: self.dlg,
         :sqlite functions: self._SqlDwPrenticesugita
@@ -801,6 +801,9 @@ class MsaQgis:
         QgsMessageLog.logMessage("All points created", 'MSA_QGIS', Qgis.Info)
         QgsMessageLog.logMessage(f'point layer creation finished took {time()-start_time}', 'MSA_QGIS',Qgis.Info)
 
+        # test code load vector_point_base (only uncomment for testing)
+        # QgsProject.instance().addMapLayer(vector_point_base)
+
         return vector_point_base
 
     def pointSampleNative(self, point_layer):
@@ -813,8 +816,12 @@ class MsaQgis:
 
          :param point_layer: vector point layer with equally spaced vector points as made in createPointLayer.
          :type point_layer: QgsVectorLayer"""
+
+        #TODO times out/crashes QGIS occasionally. Find issue.
+        # Issue found: PointSampleNative creates copies where it is on the exact edge of polygons
+
+
         #create destination layers for vector and raster layer in memory
-        #TODO speed up possible with spatial index?
         QgsMessageLog.logMessage("Native points sampling initiated", 'MSA_QGIS', Qgis.Info)
         point_layer.selectAll()
         vector_point_polygon = runqgisprocess("native:saveselectedfeatures", {'INPUT': point_layer, 'OUTPUT': 'memory:'})['OUTPUT']
@@ -993,8 +1000,6 @@ class MsaQgis:
         Connects to Sqlite db "empty_basemap.sqlite" in user given directory.
 
         :class params: self.dlg, self.vector_point_filled_ras"""
-
-        #TODO times out/crashes QGIS occasionally. Find issue.
 
         QgsMessageLog.logMessage("Convert native qgis points to SQLite initiated", 'MSA_QGIS', Qgis.Info)
         conn = sqlite3.connect(':memory:')
@@ -1520,7 +1525,6 @@ class MsaQgis:
             else:
                 QgsMessageLog.logMessage("Error: make csv is missing a value, check if main dialog radiobuttons have been checked correctly", 'MSA_QGIS', Qgis.Critical)
                 return
-            print(make_csv_maps)
             QgsMessageLog.logMessage("starting subprocess", 'MSA_QGIS', Qgis.Info)
             subprocess_time=time()
             basepath = path.dirname(path.abspath(__file__))

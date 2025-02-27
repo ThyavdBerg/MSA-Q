@@ -1,5 +1,5 @@
 <RCC>
-    <qresource prefix="/plugins/MSA_QGIS" >
+    <qresource prefix="/MSA_QGIS" >
         <file>icon.png</file>
     </qresource>
 </RCC>
