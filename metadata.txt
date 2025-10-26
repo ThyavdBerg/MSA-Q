@@ -5,12 +5,12 @@
 [general]
 name=MSA QGIS
 qgisMinimumVersion=3.22
-description=This plugin allows the use of the Multi Scenario Approach in QGIS
-version=0.1.0
+description=This plugin allows the use of the Multiple Scenario Approach in QGIS
+version=0.1.2
 author=Thya van den Berg
 email=w.b.van-den-berg-2020@hull.ac.uk
 
-about=The Multi Scenario Approach is an iterative method of reconstructing vegetation and validating the generated maps my modelling pollen dispersal and comparing the outcome to actual pollen counts.
+about=The Multiple Scenario Approach is an iterative method of reconstructing vegetation and validating the generated maps my modelling pollen dispersal and comparing the outcome to actual pollen counts.
 
 tracker=https://github.com/ThyavdBerg/MSA-QGIS/issues
 repository=https://github.com/ThyavdBerg/MSA-QGIS

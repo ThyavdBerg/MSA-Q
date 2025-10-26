@@ -30,6 +30,7 @@
  ***************************************************************************/
 """
 from csv import reader as csvreader
+import csv
 from pickle import dump as pickledump
 from time import time, strftime, localtime
 import sqlite3
@@ -38,11 +39,11 @@ from os import remove, path
 from math import sqrt
 #from pandas import read_csv #TODO this is currently not functional as pandas does not work in Linus QGIS and so needs to be turned off
 
-from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, QVariant, QLocale
+from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, QMetaType, QVariant
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
 from qgis._core import QgsRectangle
-from qgis.core import QgsApplication, QgsMessageLog, Qgis,  QgsVectorLayer, QgsField, QgsGeometry, QgsPointXY, QgsFeature,QgsVectorLayerJoinInfo, QgsProject, QgsSpatialIndex, QgsVectorFileWriter
+from qgis.core import QgsApplication, QgsMessageLog, Qgis,  QgsVectorLayer, QgsField, QgsGeometry, QgsPointXY, QgsFeature,QgsVectorLayerJoinInfo, QgsProject, QgsSpatialIndex, QgsVectorFileWriter, edit
 from qgis.utils import iface
 from PyQt5.QtWidgets import QTableWidgetItem
 from subprocess import Popen, PIPE, STDOUT
@@ -426,7 +427,20 @@ class MsaQgis:
             update_distance_string = f'UPDATE dist_dir SET distance = (SQRT(((geom_x-{snapped_x}) * (geom_x - {snapped_x}))' \
                                      f'+ ((geom_y - {snapped_y}) * (geom_y - {snapped_y})))) WHERE site_name = "{sample_site}"'
 
-            cursor.execute(update_distance_string)
+            sqlite3.enable_callback_tracebacks(True)
+
+            # Code for purpose of testing, comment out when not testing
+            # cursor.execute(f"SELECT * from dist_dir")
+            # print(cursor.fetchall())
+
+            try:
+                cursor.execute(update_distance_string)
+            except sqlite3.OperationalError as e:
+                QgsMessageLog.logMessage(str(e),
+                                         'MSA_QGIS',
+                                         Qgis.Critical)
+                return
+
             # Determine direction
             update_direction_string = f'UPDATE dist_dir SET direction = (SELECT CARDDIR((geom_x - {snapped_x}), ' \
                                       f'(geom_y - {snapped_y}))) WHERE site_name = "{sample_site}"'
@@ -654,6 +668,7 @@ class MsaQgis:
 
 #** POINT SAMPLING
     def createPointLayer(self):
+        start_time = time()
 
         # create regular spaced points layer
         QgsMessageLog.logMessage("Initiate point creation (regular)", 'MSA_QGIS', Qgis.Info)
@@ -708,10 +723,21 @@ class MsaQgis:
 
             nesting_overlay_dissolved = runqgisprocess("native:dissolve", {'INPUT': nesting_overlay, 'OUTPUT': "memory:"})['OUTPUT']
             # remove "big" version from vector point layer (difference)
-            vector_point_base = runqgisprocess("qgis:difference",
+            # vector_point_base = runqgisprocess("qgis:difference",
+            #                                    {'INPUT': vector_point_base,
+            #                                     'OVERLAY': nesting_overlay_dissolved,
+            #                                     'OUTPUT': "memory:"})['OUTPUT']
+            # difference algorithm bugged for current QGIS version, does not properly remove features. Use extract by expression instead.
+            # A little ugly since it doesn't work without also adding the map to the interface for some reason, but it works. TODO Replace with difference when it is repaired.
+            # See github issue: https://github.com/qgis/QGIS/issues/61205
+            nesting_overlay_dissolved.setName("temp_name") #TODO temporarily necessary to feal with issues with native:difference
+            QgsProject.instance().addMapLayer(nesting_overlay_dissolved) #TODO temporarily necessary to feal with issues with native:difference
+
+            vector_point_base = runqgisprocess("native:extractbyexpression",
                                                {'INPUT': vector_point_base,
-                                                'OVERLAY': nesting_overlay_dissolved,
-                                                'OUTPUT': "memory:"})['OUTPUT']
+                                                'EXPRESSION': f"overlay_disjoint('temp_name')",
+                                                'OUTPUT': "memory:"})['OUTPUT'] #TODO temporarily necessary to feal with issues with native:difference
+
             # Create regularly spaced points with extent of small nesting overlay
             nested_point_base = runqgisprocess("qgis:regularpoints", {'EXTENT': nesting_overlay_dissolved.extent(), 'SPACING': self.dlg.spinBox_resNested.value(), 'INSET' : 0.5*self.dlg.spinBox_resNested.value(), 'CRS': self.crs, 'OUTPUT': "memory:"})['OUTPUT']
             # Clip nested_point_base with points
@@ -723,217 +749,51 @@ class MsaQgis:
                                                 'OVERLAY': nested_point_base,
                                                 'OUTPUT': "memory:"})['OUTPUT']
 
-        # add all of the attributes to the map TODO
+        # add all of the attributes to the map
         # remove automatically created id layer (s)
         indx_of_columns_to_delete = vector_point_base.attributeList()
         vector_point_base.startEditing()
         vector_point_base.dataProvider().deleteAttributes(indx_of_columns_to_delete)
         vector_point_base.commitChanges()
         # initialize new attributes
-        vector_point_base.dataProvider().addAttributes([QgsField('geom_X', QVariant.Double, 'double', 20, 5),
-                                     QgsField('geom_Y', QVariant.Double, 'double', 20, 5),
-                                     QgsField('veg_com', QVariant.String),
-                                     QgsField('chance_to_happen', QVariant.Int),
-                                     QgsField('msa_id', QVariant.Int),
-                                     QgsField('resolution', QVariant.Int)])
+        vector_point_base.dataProvider().addAttributes([QgsField('geom_X', QMetaType.Type.Double, 'double', 20, 5),
+                                     QgsField('geom_Y', QMetaType.Type.Double, 'double', 20, 5),
+                                     QgsField('veg_com', QMetaType.Type.QString),
+                                     QgsField('chance_to_happen', QMetaType.Type.Int),
+                                     QgsField('msa_id', QMetaType.Type.Int),
+                                     QgsField('resolution', QMetaType.Type.Int)])
         vector_point_base.updateFields()
 
-        vector_point_base.startEditing()
-        for feat in vector_point_base.getFeatures():
-            vector_point_base.changeAttributeValue(feat.id(), 1, feat.geometry().asPoint().x())
-            vector_point_base.changeAttributeValue(feat.id(), 2, feat.geometry().asPoint().y())
-            vector_point_base.changeAttributeValue(feat.id(), 3, "Empty")
-            vector_point_base.changeAttributeValue(feat.id(), 4, 0)
-            vector_point_base.changeAttributeValue(feat.id(), 5, feat.id())
-            vector_point_base.changeAttributeValue(feat.id(), 6, self.spacing)
-        vector_point_base.commitChanges()
+        with edit(vector_point_base):
+            for feat in vector_point_base.getFeatures():
+                vector_point_base.changeAttributeValue(feat.id(), 0, feat.geometry().asPoint().x())
+                vector_point_base.changeAttributeValue(feat.id(), 1, feat.geometry().asPoint().y())
+                vector_point_base.changeAttributeValue(feat.id(), 2, "Empty")
+                vector_point_base.changeAttributeValue(feat.id(), 3, 0)
+                vector_point_base.changeAttributeValue(feat.id(), 4, feat.id())
+                vector_point_base.changeAttributeValue(feat.id(), 5, self.spacing)
 
+
+        # change resolution attribute for nested points
         if self.dlg.radioButton_nestedMap.isChecked():
-
             # make selection based on polygon
-            runqgisprocess("qgis: selectbylocation", {'INPUT': nesting_overlay, 'PREDICATE': 0, 'INTERSECT':nesting_overlay_dissolved })
+            runqgisprocess("qgis:selectbylocation", {'INPUT': vector_point_base, 'PREDICATE': 0, 'INTERSECT':nesting_overlay_dissolved })
 
             # iterate over selection to change resolution
-            vector_point_base.startEditing()
-            selection = vector_point_base.selectedFeatures()
-            for feat in selection:
-                vector_point_base.changeAttributeValue(feat.id(), 6,  self.dlg.spinBox_resNested.value())
-            vector_point_base.commitChanges()
+            with edit(vector_point_base):
+                selection = vector_point_base.selectedFeatures()
+                for feat in selection:
+                    vector_point_base.changeAttributeValue(feat.id(), 5, self.dlg.spinBox_resNested.value())
+            vector_point_base.removeSelection()
 
-        QgsProject.instance().addMapLayer(vector_point_base)
-        QgsProject.instance().addMapLayer(nesting_overlay_dissolved)
-
-
-        return vector_point_base
-
-
-
-
-
-
-    def createPointLayer_deprecated(self):
-        """Returns a vector point layer based on the specifications given by the user in the UI
-
-        :class params: self.spacing, self.dlg, self.iface,
-
-        :returns: A vector layer with equally spaced points in a square as determined by the user in the UI
-        :rtype: QgsVectorLayer"""
-        QgsMessageLog.logMessage(f'point layer creation started', 'MSA_QGIS',Qgis.Info)
-        start_time = time()
-
-        # Create new vector point layer
-        vector_point_base = QgsVectorLayer('Point', 'Name', 'memory', crs=self.crs)
-        data_provider = vector_point_base.dataProvider()
-
-        # Set extent of the new layer
-        inset = self.spacing * 0.5  # set inset
-        if self.dlg.extent is None:
-            self.iface.messageBar().pushMessage('Extent not chosen!', level=1) # TODO will be deprecated once checkboxes in place
-            raise Exception('Extent not chosen')
-        else:
-            x_min = self.dlg.extent.xMinimum() + inset
-            x_max = self.dlg.extent.xMaximum()
-            y_min = self.dlg.extent.yMinimum()
-            y_max = self.dlg.extent.yMaximum() - inset
-
-        # Create fields
-            QgsMessageLog.logMessage("Initiate point creation", 'MSA_QGIS', Qgis.Info)
-            # Add fields with x and y geometry and the feature id
-            if self.dlg.radioButton_nestedMap.isChecked():
-                data_provider.addAttributes([QgsField('geom_X', QVariant.Double, 'double', 20, 5),
-                                             QgsField('geom_Y', QVariant.Double, 'double', 20, 5),
-                                             QgsField('veg_com', QVariant.String),
-                                             QgsField('chance_to_happen', QVariant.Int),
-                                             QgsField('msa_id', QVariant.Int),
-                                             QgsField('resolution', QVariant.Int)])
-            else:
-                data_provider.addAttributes([QgsField('geom_X', QVariant.Double, 'double', 20, 5),
-                                             QgsField('geom_Y', QVariant.Double, 'double', 20, 5),
-                                             QgsField('veg_com', QVariant.String),
-                                             QgsField('chance_to_happen', QVariant.Int),
-                                             QgsField('msa_id', QVariant.Int)])
-            vector_point_base.updateFields()
-
-        # create (simple) grid points
-            feat_id_generator = 1  #QGIS 3.16 generated its own IDs, but it seems this is not the case anymore
-            y = y_max
-            while y >= y_min:
-                x = x_min
-                while x <= x_max:
-                    geom = QgsGeometry.fromPointXY(QgsPointXY(x, y))
-                    feat = QgsFeature()
-                    feat.setGeometry(geom)
-                    feat.initAttributes(6)
-                    feat.setAttribute(0, geom.asPoint().x())
-                    feat.setAttribute(1, geom.asPoint().y())
-                    feat.setAttribute(2, 'Empty')
-                    feat.setAttribute(3, 0)
-                    if self.dlg.radioButton_nestedMap.isChecked():
-                        feat.setAttribute(5, self.spacing)
-                        feat.setAttribute(4, None)
-                    else: #setting feat ID iteratively does not work when using nesting.
-                        feat.setAttribute(4, feat_id_generator)
-                        feat_id_generator += 1
-                    del geom
-                    x += self.spacing
-                    data_provider.addFeature(feat)
-                    del feat
-                y -= self.spacing
-
-        # Insert higher resolution nested features
-        # create separate polygon vectorlayer
-        # add polygon per site
-        # dissolve polygons
-        # remove points from lower-res part where overlap with polygon
-        # remove edges over polygon (reverse buffer?)
-        # insert equally spaced points within confines of the smaller polygon layer
-        # start fid from highest occurring fid in lower-res part (shold still be in feat_id_generator
-
-
-
-
-        #Insert higher resolution nested features
-        if self.dlg.radioButton_nestedMap.isChecked(): # TODO Bugged when sites overlap, re-do
-            QgsMessageLog.logMessage(f'Implementing nested maps...', 'MSA_QGIS', Qgis.Info)
-            for row in range(self.dlg.tableWidget_sites.rowCount()):
-                site_x = float(self.dlg.tableWidget_sites.item(row, 1).text())
-                site_y = float(self.dlg.tableWidget_sites.item(row, 2).text())
-                min_x_remove = site_x - (0.5*self.dlg.spinBox_nestedArea.value())-(0.5*self.spacing)
-                min_y_remove = site_y - (0.5*self.dlg.spinBox_nestedArea.value())-(0.5*self.spacing)
-                max_x_remove = site_x + (0.5*self.dlg.spinBox_nestedArea.value())+(0.5*self.spacing)
-                max_y_remove = site_y + (0.5*self.dlg.spinBox_nestedArea.value())+(0.5*self.spacing)
-                vector_point_base.startEditing()
-                vector_point_base.selectByRect(QgsRectangle(min_x_remove, min_y_remove, max_x_remove, max_y_remove))
-                vector_point_base.deleteSelectedFeatures()
-                vector_point_base.commitChanges()
-                #get min and max x and y from the nearest non-deleted points of the outer grid.
-                vector_point_base.selectByRect(QgsRectangle((site_x - (1.5*self.spacing)-(0.5*self.dlg.spinBox_nestedArea.value())),
-                                                            (site_y -(0.5*self.spacing)),
-                                                            (site_x - (0.5*self.spacing)-(0.5*self.dlg.spinBox_nestedArea.value())),
-                                                            (site_y +(0.5*self.spacing))))
-                selected_features = vector_point_base.selectedFeatures()
-                min_x = selected_features[0].attribute(0) + (0.5*self.spacing) + (0.5*self.dlg.spinBox_resNested.value())
-                vector_point_base.removeSelection()
-                vector_point_base.selectByRect(QgsRectangle((site_x + (1.5*self.spacing)+(0.5*self.dlg.spinBox_nestedArea.value())),
-                                                            (site_y -(0.5*self.spacing)),
-                                                            (site_x + (0.5*self.spacing)+(0.5*self.dlg.spinBox_nestedArea.value())),
-                                                            (site_y +(0.5*self.spacing))))
-                selected_features = vector_point_base.selectedFeatures()
-                max_x = selected_features[0].attribute(0) - (0.5*self.spacing) - (0.5*self.dlg.spinBox_resNested.value())
-                vector_point_base.removeSelection()
-                vector_point_base.selectByRect(QgsRectangle((site_x - (0.5*self.spacing)),
-                                                            (site_y - (1.5*self.spacing)-(0.5*self.dlg.spinBox_nestedArea.value())),
-                                                            (site_x + (0.5*self.spacing)),
-                                                            (site_y - (0.5*self.spacing)-(0.5*self.dlg.spinBox_nestedArea.value()))))
-                selected_features = vector_point_base.selectedFeatures()
-                min_y = selected_features[0].attribute(1) + (0.5*self.spacing) + (0.5*self.dlg.spinBox_resNested.value())
-                vector_point_base.removeSelection()
-                vector_point_base.selectByRect(QgsRectangle((site_x - (0.5*self.spacing)),
-                                                            (site_y + (0.5*self.spacing)+(0.5*self.dlg.spinBox_nestedArea.value())),
-                                                            (site_x + (0.5*self.spacing)),
-                                                            (site_y + (1.5*self.spacing)+(0.5*self.dlg.spinBox_nestedArea.value()))))
-                selected_features = vector_point_base.selectedFeatures()
-                max_y = selected_features[0].attribute(1) - (0.5*self.spacing) - (0.5*self.dlg.spinBox_resNested.value())
-                vector_point_base.removeSelection()
-                y = max_y
-                while y >= min_y:
-                    x = min_x
-                    while x <= max_x:
-                        geom = QgsGeometry.fromPointXY(QgsPointXY(x, y))
-                        feat = QgsFeature()
-                        feat.setGeometry(geom)
-                        feat.initAttributes(6)
-                        feat.setAttribute(0, geom.asPoint().x())
-                        feat.setAttribute(1, geom.asPoint().y())
-                        feat.setAttribute(2, 'Empty')
-                        feat.setAttribute(3, 0)
-                        feat.setAttribute(4, None)
-                        feat.setAttribute(5, self.dlg.spinBox_resNested.value())
-                        del geom
-                        x += self.dlg.spinBox_resNested.value()
-                        data_provider.addFeature(feat)
-                        del feat
-                    y -= self.dlg.spinBox_resNested.value()
-                    vector_point_base.updateExtents()
-                    vector_point_base.updateFields()
-            #iterate over all features to add msa_id
-            features = vector_point_base.getFeatures()
-            feat_id_generator = 1
-            vector_point_base.startEditing()
-            for feat in features:
-                feat[4] = feat_id_generator
-                feat_id_generator +=1
-                vector_point_base.updateFeature(feat)
-            vector_point_base.commitChanges()
+        QgsProject.instance().removeMapLayer(nesting_overlay_dissolved) #TODO temporarily necessary to feal with issues with native:difference
 
         runqgisprocess("native:createspatialindex", {'INPUT': vector_point_base})
         QgsMessageLog.logMessage("All points created", 'MSA_QGIS', Qgis.Info)
         QgsMessageLog.logMessage(f'point layer creation finished took {time()-start_time}', 'MSA_QGIS',Qgis.Info)
-
-        # test code load vector_point_base (only uncomment for testing)
-        # QgsProject.instance().addMapLayer(vector_point_base)
-
+        # QgsProject.instance().addMapLayer(vector_point_base) # for purposes of testing, comment out when not testing
         return vector_point_base
+
 
     def pointSampleNative(self, point_layer):
         """ Uses native QGIS processing algorithms (joinattributesbylocation and rastersampling) to point sample
@@ -1140,14 +1000,14 @@ class MsaQgis:
         for field in map_fields:
             if field.name() == 'msa_id':
                 primary_key_string = 'msa_id INT PRIMARY KEY '
-            elif field.type() == QVariant.String or field.type() == QVariant.Char:
+            elif field.type() == QVariant.String or field.type() == QVariant.Char or field.type() == QMetaType.Type.QString or field.type() == QMetaType.Type.QChar:
                 length = str(field.length())
                 current_column_string = f', "{field.name()}" VARCHAR({length}) '
                 columns_string +=current_column_string
-            elif field.type() == QVariant.Int or field.type() == QVariant.LongLong:
+            elif field.type() == QVariant.Int or field.type() == QVariant.LongLong or field.type() == QMetaType.Type.LongLong or field.type() == QMetaType.Type.Int or field.type() == QMetaType.Type.LongLong:
                 current_column_string = f', "{field.name()}" INT '
                 columns_string +=current_column_string
-            elif field.type() == QVariant.Double:
+            elif field.type() == QVariant.Double or field.type() == QMetaType.Type.Double or field.type() == QMetaType.Type.Float:
                 current_column_string = f', "{field.name()}" FLOAT '
                 columns_string +=current_column_string
             else:  # I doubt anyone will be using blobs or anything... and geometry is already stored in a double
@@ -1535,7 +1395,6 @@ class MsaQgis:
             # MAKE point layer
             if self.dlg.radioButton_createMap.isChecked():
                 vector_point_base = self.createPointLayer()
-                return #TODO remove
                 try:
                     self.pointSampleNative(vector_point_base)
                     self.convertVectorToSql(save_directory)
