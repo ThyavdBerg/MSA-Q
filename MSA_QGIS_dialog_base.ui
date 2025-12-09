@@ -67,7 +67,7 @@
         </sizepolicy>
        </property>
        <property name="toolTip">
-        <string>CURRENTLY DISABLED At the moment, only Square Chord Distance is available</string>
+        <string/>
        </property>
        <property name="styleSheet">
         <string notr="true">tab_rules {background-color: rgb(240, 240, 240)};</string>
@@ -454,6 +454,9 @@
               <layout class="QHBoxLayout" name="horizontalLayout_22">
                <item>
                 <widget class="QRadioButton" name="radioButton_createMap">
+                 <property name="toolTip">
+                  <string>Create a point map from scratch</string>
+                 </property>
                  <property name="text">
                   <string>Create map from scratch</string>
                  </property>
@@ -470,6 +473,9 @@
                </item>
                <item>
                 <widget class="QRadioButton" name="radioButton_loadPointMap">
+                 <property name="toolTip">
+                  <string>Load a point map in which the environmental variables are already included</string>
+                 </property>
                  <property name="text">
                   <string>Load point sampled map</string>
                  </property>
@@ -483,6 +489,9 @@
                </item>
                <item>
                 <widget class="QRadioButton" name="radioButton_loadBaseMap">
+                 <property name="toolTip">
+                  <string>Load a point map in which the environmental variables are already included and a base vegetation cover has been placed.</string>
+                 </property>
                  <property name="text">
                   <string>Load basemap</string>
                  </property>
@@ -1487,22 +1496,7 @@
            </item>
            <item>
             <property name="text">
-             <string>HUMPOL mixed basin model</string>
-            </property>
-           </item>
-           <item>
-            <property name="text">
-             <string>1/d</string>
-            </property>
-           </item>
-           <item>
-            <property name="text">
-             <string>1/d2</string>
-            </property>
-           </item>
-           <item>
-            <property name="text">
-             <string>Use lookup table</string>
+             <string>LS unstable model LOESS</string>
             </property>
            </item>
           </widget>
@@ -1985,7 +1979,7 @@
       <property name="geometry">
        <rect>
         <x>0</x>
-        <y>-13</y>
+        <y>0</y>
         <width>693</width>
         <height>228</height>
        </rect>
@@ -2624,9 +2618,9 @@ background-color: rgb(199, 199, 199);</string>
   </connection>
  </connections>
  <buttongroups>
-  <buttongroup name="buttonGroup_mapStyle"/>
   <buttongroup name="buttonGroup_2"/>
-  <buttongroup name="buttonGroup_makeCsv"/>
+  <buttongroup name="buttonGroup_mapStyle"/>
   <buttongroup name="buttonGroup_dataToKeep"/>
+  <buttongroup name="buttonGroup_makeCsv"/>
  </buttongroups>
 </ui>

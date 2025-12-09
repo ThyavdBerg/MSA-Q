@@ -158,13 +158,13 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.radioButton_loadPointMap.clicked.connect(self.changeStartingPoint)
         self.radioButton_loadBaseMap.clicked.connect(self.changeStartingPoint)
         self.checkBox_enableWindrose.stateChanged.connect(self.enableWindrose)
-        #TODO disable model parameters when other than prentice sugita is selected, and enable load lookup if use lookup table is selected.
         self.button_box.accepted.connect(self.openRunDialog)
         self.radioButton_nestedMap.clicked.connect(self.enableNested)
         self.radioButton_simpleMap.clicked.connect(self.enableNested)
         self.spinBox_nestedArea.valueChanged.connect(self.checkNestedArea)
         self.spinBox_resolution.valueChanged.connect(self.checkNestedArea)
         self.spinBox_resNested.valueChanged.connect(self.checkNestedArea)
+        self.comboBox_dispModel.currentTextChanged.connect(self.changePollenParamBoxes)
 
         # Events for Checklist
         self.mQgsFileWidget_startingPoint.fileChanged.connect(self.checkChecklist)
@@ -353,7 +353,6 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             #self.tableWidget_selRaster.hide()
             #change radiobutton text
             self.radioButton_nestedMap.setText('Nested/Variable')
-
 
     def checkChecklist(self):
         """ Determines whether widgets have been filled by the user and checks the appropriate boxes if it has. Also
@@ -611,6 +610,34 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             else:
                 continue
             row_count_sel += 1
+
+    def changePollenParamBoxes(self):
+        """ Changes the pollen parameters boxes based on which model is selected"""
+        if self.comboBox_dispModel.currentText() == "HUMPOL mire model":
+            self.doubleSpin_turbConstant.show()
+            self.label_atmosConst.show()
+            self.label_atmosConst_2.show()
+            self.label_calculatedAtmosConst.show()
+            self.label_difConst_2.show()
+            self.doubleSpin_diffConstant.show()
+            self.label_windSpeed.show()
+            self.doubleSpin_windSpeed.show()
+            self.checkBox_enableWindrose.setEnabled(True)
+        elif self.comboBox_dispModel.currentText() == "LS unstable model LOESS":
+            self.doubleSpin_turbConstant.hide()
+            self.label_atmosConst.hide()
+            self.label_atmosConst_2.hide()
+            self.label_calculatedAtmosConst.hide()
+            self.label_difConst_2.hide()
+            self.doubleSpin_diffConstant.hide()
+            self.label_windSpeed.hide()
+            self.doubleSpin_windSpeed.hide()
+            self.checkBox_enableWindrose.setCheckState(False)
+            self.checkBox_enableWindrose.setEnabled(False)
+
+
+
+
 ### SAVING AND LOADING RELATED FUNCTIONS
     def loadHandbagFile(self):
         """
@@ -1483,7 +1510,6 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             iface.messageBar().pushMessage(
                 'Error loading extent, either there was no extent, or the extent is corrupted. Check the intputstate.csv file', level=1)
 
-
     def saveFiles(self):
         self.popup_save_file = MsaQgisSaveLoadDialog('save')
         self.popup_save_file.show()
@@ -1597,7 +1623,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                     self.spinBox_resNested.setStyleSheet("")
 
 
-    ### BUTTON FUNCTIONS TAXA & VEGETATION TAB
+### BUTTON FUNCTIONS TAXA & VEGETATION TAB
     def addNewTaxon(self):
         """ Adds a new pollen taxon to the list of taxa by opening a pop-up in which the taxon code, full name,
         fall speed and relative pollen productivity can be given. The popup closes when executed or cancelled.
