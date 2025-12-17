@@ -12,11 +12,11 @@ When participating in this open source project, please keep to the following nam
 - No single letters, including in for loops, unless the single letter has clear meaning
 - Change the name of a variable when the data it contains changes significantly
 
-Bad examples: var1, this_shitty_value, bob, asdhfkrkg, XVALUE
+Bad examples: var1, this_shitty_value, bob, asdhfkrkg, XVALUE, i
 
 Good examples: vector_point_base, rows_column1, layer
 
-Exception: when the variable contains a qt widget, use: widgetType_functionFunction
+Exception: when the variable contains a qt widget, follow qt naming conventions: widgetType_functionFunction
 
 Examples: comboBox_species, pushButton_removeTaxa
 

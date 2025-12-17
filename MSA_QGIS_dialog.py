@@ -73,8 +73,11 @@ FORM_CLASS_PERCENT, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'MSA_QGIS_popup_add_pollen_percentages.ui'))
 FORM_CLASS_SUCCES, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'MSA_QGIS_succes_dialog.ui'))
+FORM_CLASS_ERROR, _ = uic.loadUiType(os.path.join(
+    os.path.dirname(__file__), 'MSA_QGIS_error_dialog.ui'))
 FORM_CLASS_RUN, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'MSA_QGIS_run_dialog.ui'))
+
 
 ### Main dialog window
 
@@ -429,9 +432,8 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 self.checkBox_parameters.setChecked(True)
             else:
                 self.checkBox_parameters.setChecked(False)
-        elif self.comboBox_dispModel.currentText() == 'different model': # TODO Fill here when adding new model
-            #...
-            pass
+        elif self.comboBox_dispModel.currentText() == 'LS unstable model LOESS':
+            self.checkBox_parameters.setChecked(True)
         else:
             self.checkBox_parameters.setChecked(False)
         # Windrose set?
@@ -623,6 +625,8 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             self.label_windSpeed.show()
             self.doubleSpin_windSpeed.show()
             self.checkBox_enableWindrose.setEnabled(True)
+            self.mQgsFileWidget_rInstallation.hide()
+            self.label_rInstallation.hide()
         elif self.comboBox_dispModel.currentText() == "LS unstable model LOESS":
             self.doubleSpin_turbConstant.hide()
             self.label_atmosConst.hide()
@@ -634,6 +638,8 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
             self.doubleSpin_windSpeed.hide()
             self.checkBox_enableWindrose.setCheckState(False)
             self.checkBox_enableWindrose.setEnabled(False)
+            self.mQgsFileWidget_rInstallation.show()
+            self.label_rInstallation.show()
 
 
 
@@ -3302,6 +3308,12 @@ class MsaQgisSuccesDialog(QtWidgets.QDialog,FORM_CLASS_SUCCES):
         self.spinBox_loadX.setEnabled(True)
     def disableMapsToLoad(self):
         self.spinBox_loadX.setEnabled(False)
+
+class MsaQgisErrorDialog(QtWidgets.QDialog, FORM_CLASS_ERROR):
+    def __init__(self, parent=None):
+        """Popup Constructor"""
+        super(MsaQgisErrorDialog, self).__init__(parent)
+        self.setupUi(self)
 
 class MsaQgisRunDialog(QtWidgets.QDialog,FORM_CLASS_RUN):
     def __init__(self, check_state, input_state, parent=None):

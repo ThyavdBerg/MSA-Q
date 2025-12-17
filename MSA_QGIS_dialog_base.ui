@@ -1358,83 +1358,499 @@
         <attribute name="title">
          <string>Model Parameters</string>
         </attribute>
-        <layout class="QGridLayout" name="gridLayout_4" rowstretch="0,0,0,0,0,0,0,0,0,0,0,0,0" columnstretch="1,0,0,0">
-         <item row="9" column="3">
-          <widget class="QDoubleSpinBox" name="doubleSpinBox_cumulFit">
-           <property name="maximum">
-            <double>999999999.000000000000000</double>
-           </property>
-           <property name="value">
-            <double>0.000000000000000</double>
-           </property>
-          </widget>
+        <layout class="QVBoxLayout" name="verticalLayout_7">
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout_33">
+           <item>
+            <widget class="QLabel" name="label_modelType">
+             <property name="text">
+              <string>Model for distance weighting</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QComboBox" name="comboBox_dispModel">
+             <item>
+              <property name="text">
+               <string>HUMPOL mire model</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>LS unstable model LOESS</string>
+              </property>
+             </item>
+            </widget>
+           </item>
+          </layout>
          </item>
-         <item row="1" column="1">
-          <widget class="QDoubleSpinBox" name="doubleSpin_turbConstant">
-           <property name="value">
-            <double>0.000000000000000</double>
-           </property>
-          </widget>
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout_23">
+           <item>
+            <widget class="QLabel" name="label_atmosConst">
+             <property name="toolTip">
+              <string>Also known as: n</string>
+             </property>
+             <property name="text">
+              <string>Turbulence constant</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QDoubleSpinBox" name="doubleSpin_turbConstant">
+             <property name="value">
+              <double>0.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLabel" name="label_atmosConst_2">
+             <property name="toolTip">
+              <string>Also known as: γ (lower case gamma)</string>
+             </property>
+             <property name="text">
+              <string>Atmospheric constant</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLabel" name="label_calculatedAtmosConst">
+             <property name="text">
+              <string>[]</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
          </item>
-         <item row="4" column="0" rowspan="2">
-          <widget class="QLabel" name="label">
-           <property name="text">
-            <string>Windrose weighting</string>
-           </property>
-          </widget>
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout_24" stretch="0,0">
+           <item>
+            <widget class="QLabel" name="label_difConst_2">
+             <property name="toolTip">
+              <string>Also known as: Cz</string>
+             </property>
+             <property name="text">
+              <string>Vertical diffusion coefficient</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QDoubleSpinBox" name="doubleSpin_diffConstant">
+             <property name="value">
+              <double>0.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+          </layout>
          </item>
-         <item row="9" column="0">
-          <widget class="QLabel" name="label_fit">
-           <property name="toolTip">
-            <string>Desired fit threshold that every single site should not exceed. Best possible fit is 0 (no differences). Worst possible fit is 200 (no similarities)</string>
-           </property>
-           <property name="text">
-            <string>Desired fit per site</string>
-           </property>
-          </widget>
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout_25">
+           <item>
+            <widget class="QLabel" name="label_windSpeed">
+             <property name="toolTip">
+              <string>Also known as: u</string>
+             </property>
+             <property name="text">
+              <string>Average wind speed (m/s)</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QDoubleSpinBox" name="doubleSpin_windSpeed">
+             <property name="value">
+              <double>0.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+          </layout>
          </item>
-         <item row="1" column="0">
-          <widget class="QLabel" name="label_atmosConst">
-           <property name="toolTip">
-            <string>Also known as: n</string>
-           </property>
-           <property name="text">
-            <string>Turbulence constant</string>
-           </property>
-          </widget>
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout_26">
+           <item>
+            <widget class="QLabel" name="label">
+             <property name="text">
+              <string>Windrose weighting</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <layout class="QHBoxLayout" name="horizontalLayout_3">
+             <item>
+              <layout class="QVBoxLayout" name="verticalLayout_3">
+               <item>
+                <widget class="QLabel" name="label_north">
+                 <property name="text">
+                  <string>North</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="label_northEast">
+                 <property name="text">
+                  <string>NorthEast</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="label_east">
+                 <property name="text">
+                  <string>East</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="label_southEast">
+                 <property name="text">
+                  <string>SouthEast</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="label_south">
+                 <property name="text">
+                  <string>South</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="label_southWest">
+                 <property name="text">
+                  <string>SouthWest</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="label_west">
+                 <property name="text">
+                  <string>West</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="label_northWest">
+                 <property name="text">
+                  <string>NorthWest</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <layout class="QVBoxLayout" name="verticalLayout_4">
+               <item>
+                <widget class="QDoubleSpinBox" name="doubleSpin_north">
+                 <property name="value">
+                  <double>1.000000000000000</double>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QDoubleSpinBox" name="doubleSpin_northEast">
+                 <property name="value">
+                  <double>1.000000000000000</double>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QDoubleSpinBox" name="doubleSpin_east">
+                 <property name="value">
+                  <double>1.000000000000000</double>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QDoubleSpinBox" name="doubleSpin_southEast">
+                 <property name="value">
+                  <double>1.000000000000000</double>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QDoubleSpinBox" name="doubleSpin_south">
+                 <property name="value">
+                  <double>1.000000000000000</double>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QDoubleSpinBox" name="doubleSpin_southWest">
+                 <property name="value">
+                  <double>1.000000000000000</double>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QDoubleSpinBox" name="doubleSpin_west">
+                 <property name="value">
+                  <double>1.000000000000000</double>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QDoubleSpinBox" name="doubleSpin_northWest">
+                 <property name="value">
+                  <double>1.000000000000000</double>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <widget class="QCheckBox" name="checkBox_enableWindrose">
+             <property name="text">
+              <string>Enable</string>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+          </layout>
          </item>
-         <item row="1" column="3">
-          <widget class="QLabel" name="label_calculatedAtmosConst">
-           <property name="text">
-            <string>[]</string>
-           </property>
-          </widget>
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout_34">
+           <item>
+            <widget class="QLabel" name="label_rInstallation">
+             <property name="toolTip">
+              <string>Running the MSA with the LS model currently requires use of R. Make sure you have R installed, and that the rscript executable file is selected here.</string>
+             </property>
+             <property name="text">
+              <string>Rscript installation path</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QgsFileWidget" name="mQgsFileWidget_rInstallation">
+             <property name="storageMode">
+              <enum>QgsFileWidget::GetFile</enum>
+             </property>
+            </widget>
+           </item>
+          </layout>
          </item>
-         <item row="2" column="1" colspan="2">
-          <widget class="QDoubleSpinBox" name="doubleSpin_diffConstant">
-           <property name="value">
-            <double>0.000000000000000</double>
-           </property>
-          </widget>
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout_29">
+           <item>
+            <widget class="QLabel" name="label_importLookup">
+             <property name="enabled">
+              <bool>true</bool>
+             </property>
+             <property name="toolTip">
+              <string>CURRENTLY DISABLED If a lookup table is imported, no lookup table will be generated. </string>
+             </property>
+             <property name="text">
+              <string>Import Lookup Table</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QgsFileWidget" name="mQgsFileWidget">
+             <property name="enabled">
+              <bool>false</bool>
+             </property>
+            </widget>
+           </item>
+          </layout>
          </item>
-         <item row="0" column="0">
-          <widget class="QLabel" name="label_modelType">
-           <property name="text">
-            <string>Model for distance weighting</string>
-           </property>
-          </widget>
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout_30">
+           <item>
+            <widget class="QLabel" name="label_11">
+             <property name="toolTip">
+              <string>CURRENTLY DISABLED At the moment, only Square Chord Distance is available</string>
+             </property>
+             <property name="text">
+              <string>Fit calculation method</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QComboBox" name="comboBox_fit">
+             <property name="enabled">
+              <bool>false</bool>
+             </property>
+             <property name="currentText">
+              <string>Square Chord Distance</string>
+             </property>
+             <item>
+              <property name="text">
+               <string>Square Chord Distance</string>
+              </property>
+             </item>
+            </widget>
+           </item>
+          </layout>
          </item>
-         <item row="8" column="0">
-          <widget class="QLabel" name="label_11">
-           <property name="toolTip">
-            <string>CURRENTLY DISABLED At the moment, only Square Chord Distance is available</string>
-           </property>
-           <property name="text">
-            <string>Fit calculation method</string>
-           </property>
-          </widget>
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout_31">
+           <item>
+            <widget class="QLabel" name="label_fit">
+             <property name="toolTip">
+              <string>Desired fit threshold that every single site should not exceed. Best possible fit is 0 (no differences). Worst possible fit is 200 (no similarities)</string>
+             </property>
+             <property name="text">
+              <string>Desired fit per site</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QDoubleSpinBox" name="doubleSpinBox_fit">
+             <property name="maximum">
+              <double>200.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>0.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLabel" name="label_16">
+             <property name="toolTip">
+              <string>Desired fit threshold that the cumulative fit of all sites should not exceed. Best possible fit is 0 (no difference at all sites), worst possible fit is 200 * number of sites.</string>
+             </property>
+             <property name="text">
+              <string>combined</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QDoubleSpinBox" name="doubleSpinBox_cumulFit">
+             <property name="maximum">
+              <double>999999999.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>0.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+          </layout>
          </item>
-         <item row="11" column="0" colspan="4">
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout_32">
+           <item>
+            <widget class="QLabel" name="label_12">
+             <property name="toolTip">
+              <string>Keeping more data than just the fitted maps is only recommended for test runs</string>
+             </property>
+             <property name="text">
+              <string>Data to keep</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <layout class="QHBoxLayout" name="horizontalLayout_4">
+             <item>
+              <layout class="QHBoxLayout" name="horizontalLayout_5" stretch="0,1">
+               <item>
+                <widget class="QRadioButton" name="radioButton_keepFitted">
+                 <property name="sizePolicy">
+                  <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+                   <horstretch>0</horstretch>
+                   <verstretch>0</verstretch>
+                  </sizepolicy>
+                 </property>
+                 <property name="text">
+                  <string/>
+                 </property>
+                 <property name="checked">
+                  <bool>true</bool>
+                 </property>
+                 <attribute name="buttonGroup">
+                  <string notr="true">buttonGroup_dataToKeep</string>
+                 </attribute>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="label_13">
+                 <property name="text">
+                  <string>Keep fit maps and simulated percentages</string>
+                 </property>
+                 <property name="wordWrap">
+                  <bool>true</bool>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="horizontalLayout_11" stretch="0,1">
+               <property name="sizeConstraint">
+                <enum>QLayout::SetDefaultConstraint</enum>
+               </property>
+               <item>
+                <widget class="QRadioButton" name="radioButton_keepTwo">
+                 <property name="sizePolicy">
+                  <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+                   <horstretch>0</horstretch>
+                   <verstretch>0</verstretch>
+                  </sizepolicy>
+                 </property>
+                 <property name="text">
+                  <string/>
+                 </property>
+                 <property name="checked">
+                  <bool>false</bool>
+                 </property>
+                 <attribute name="buttonGroup">
+                  <string notr="true">buttonGroup_dataToKeep</string>
+                 </attribute>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="label_15">
+                 <property name="text">
+                  <string>Keep all maps and simulated percentages</string>
+                 </property>
+                 <property name="alignment">
+                  <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+                 </property>
+                 <property name="wordWrap">
+                  <bool>true</bool>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="horizontalLayout_10" stretch="0,1">
+               <item>
+                <widget class="QRadioButton" name="radioButton_keepAll">
+                 <property name="sizePolicy">
+                  <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+                   <horstretch>0</horstretch>
+                   <verstretch>0</verstretch>
+                  </sizepolicy>
+                 </property>
+                 <property name="text">
+                  <string/>
+                 </property>
+                 <property name="checked">
+                  <bool>false</bool>
+                 </property>
+                 <attribute name="buttonGroup">
+                  <string notr="true">buttonGroup_dataToKeep</string>
+                 </attribute>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="label_14">
+                 <property name="text">
+                  <string>Keep all maps, simulated percentages, and simulated pollen loads</string>
+                 </property>
+                 <property name="wordWrap">
+                  <bool>true</bool>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+            </layout>
+           </item>
+          </layout>
+         </item>
+         <item>
           <layout class="QHBoxLayout" name="horizontalLayout_27">
            <item>
             <widget class="QLabel" name="label_makeCsv_4">
@@ -1487,366 +1903,7 @@
            </item>
           </layout>
          </item>
-         <item row="0" column="1" colspan="3">
-          <widget class="QComboBox" name="comboBox_dispModel">
-           <item>
-            <property name="text">
-             <string>HUMPOL mire model</string>
-            </property>
-           </item>
-           <item>
-            <property name="text">
-             <string>LS unstable model LOESS</string>
-            </property>
-           </item>
-          </widget>
-         </item>
-         <item row="9" column="1">
-          <widget class="QDoubleSpinBox" name="doubleSpinBox_fit">
-           <property name="maximum">
-            <double>200.000000000000000</double>
-           </property>
-           <property name="value">
-            <double>0.000000000000000</double>
-           </property>
-          </widget>
-         </item>
-         <item row="10" column="1" colspan="3">
-          <layout class="QHBoxLayout" name="horizontalLayout_4">
-           <item>
-            <layout class="QHBoxLayout" name="horizontalLayout_5" stretch="0,1">
-             <item>
-              <widget class="QRadioButton" name="radioButton_keepFitted">
-               <property name="sizePolicy">
-                <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
-                 <horstretch>0</horstretch>
-                 <verstretch>0</verstretch>
-                </sizepolicy>
-               </property>
-               <property name="text">
-                <string/>
-               </property>
-               <property name="checked">
-                <bool>true</bool>
-               </property>
-               <attribute name="buttonGroup">
-                <string notr="true">buttonGroup_dataToKeep</string>
-               </attribute>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="label_13">
-               <property name="text">
-                <string>Keep fit maps and simulated percentages</string>
-               </property>
-               <property name="wordWrap">
-                <bool>true</bool>
-               </property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <layout class="QHBoxLayout" name="horizontalLayout_11" stretch="0,1">
-             <property name="sizeConstraint">
-              <enum>QLayout::SetDefaultConstraint</enum>
-             </property>
-             <item>
-              <widget class="QRadioButton" name="radioButton_keepTwo">
-               <property name="sizePolicy">
-                <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
-                 <horstretch>0</horstretch>
-                 <verstretch>0</verstretch>
-                </sizepolicy>
-               </property>
-               <property name="text">
-                <string/>
-               </property>
-               <property name="checked">
-                <bool>false</bool>
-               </property>
-               <attribute name="buttonGroup">
-                <string notr="true">buttonGroup_dataToKeep</string>
-               </attribute>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="label_15">
-               <property name="text">
-                <string>Keep all maps and simulated percentages</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
-               </property>
-               <property name="wordWrap">
-                <bool>true</bool>
-               </property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <layout class="QHBoxLayout" name="horizontalLayout_10" stretch="0,1">
-             <item>
-              <widget class="QRadioButton" name="radioButton_keepAll">
-               <property name="sizePolicy">
-                <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
-                 <horstretch>0</horstretch>
-                 <verstretch>0</verstretch>
-                </sizepolicy>
-               </property>
-               <property name="text">
-                <string/>
-               </property>
-               <property name="checked">
-                <bool>false</bool>
-               </property>
-               <attribute name="buttonGroup">
-                <string notr="true">buttonGroup_dataToKeep</string>
-               </attribute>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="label_14">
-               <property name="text">
-                <string>Keep all maps, simulated percentages, and simulated pollen loads</string>
-               </property>
-               <property name="wordWrap">
-                <bool>true</bool>
-               </property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-          </layout>
-         </item>
-         <item row="4" column="1" rowspan="2">
-          <layout class="QHBoxLayout" name="horizontalLayout_3">
-           <item>
-            <layout class="QVBoxLayout" name="verticalLayout_3">
-             <item>
-              <widget class="QLabel" name="label_north">
-               <property name="text">
-                <string>North</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="label_northEast">
-               <property name="text">
-                <string>NorthEast</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="label_east">
-               <property name="text">
-                <string>East</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="label_southEast">
-               <property name="text">
-                <string>SouthEast</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="label_south">
-               <property name="text">
-                <string>South</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="label_southWest">
-               <property name="text">
-                <string>SouthWest</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="label_west">
-               <property name="text">
-                <string>West</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="label_northWest">
-               <property name="text">
-                <string>NorthWest</string>
-               </property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <layout class="QVBoxLayout" name="verticalLayout_4">
-             <item>
-              <widget class="QDoubleSpinBox" name="doubleSpin_north">
-               <property name="value">
-                <double>1.000000000000000</double>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QDoubleSpinBox" name="doubleSpin_northEast">
-               <property name="value">
-                <double>1.000000000000000</double>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QDoubleSpinBox" name="doubleSpin_east">
-               <property name="value">
-                <double>1.000000000000000</double>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QDoubleSpinBox" name="doubleSpin_southEast">
-               <property name="value">
-                <double>1.000000000000000</double>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QDoubleSpinBox" name="doubleSpin_south">
-               <property name="value">
-                <double>1.000000000000000</double>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QDoubleSpinBox" name="doubleSpin_southWest">
-               <property name="value">
-                <double>1.000000000000000</double>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QDoubleSpinBox" name="doubleSpin_west">
-               <property name="value">
-                <double>1.000000000000000</double>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QDoubleSpinBox" name="doubleSpin_northWest">
-               <property name="value">
-                <double>1.000000000000000</double>
-               </property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-          </layout>
-         </item>
-         <item row="4" column="2" rowspan="2">
-          <widget class="QCheckBox" name="checkBox_enableWindrose">
-           <property name="text">
-            <string>Enable</string>
-           </property>
-           <property name="checked">
-            <bool>true</bool>
-           </property>
-          </widget>
-         </item>
-         <item row="10" column="0">
-          <widget class="QLabel" name="label_12">
-           <property name="toolTip">
-            <string>Keeping more data than just the fitted maps is only recommended for test runs</string>
-           </property>
-           <property name="text">
-            <string>Data to keep</string>
-           </property>
-          </widget>
-         </item>
-         <item row="2" column="0">
-          <widget class="QLabel" name="label_difConst_2">
-           <property name="toolTip">
-            <string>Also known as: Cz</string>
-           </property>
-           <property name="text">
-            <string>Vertical diffusion coefficient</string>
-           </property>
-          </widget>
-         </item>
-         <item row="9" column="2">
-          <widget class="QLabel" name="label_16">
-           <property name="toolTip">
-            <string>Desired fit threshold that the cumulative fit of all sites should not exceed. Best possible fit is 0 (no difference at all sites), worst possible fit is 200 * number of sites.</string>
-           </property>
-           <property name="text">
-            <string>combined</string>
-           </property>
-          </widget>
-         </item>
-         <item row="1" column="2">
-          <widget class="QLabel" name="label_atmosConst_2">
-           <property name="toolTip">
-            <string>Also known as: γ (lower case gamma)</string>
-           </property>
-           <property name="text">
-            <string>Atmospheric constant</string>
-           </property>
-          </widget>
-         </item>
-         <item row="8" column="1" colspan="3">
-          <widget class="QComboBox" name="comboBox_fit">
-           <property name="enabled">
-            <bool>false</bool>
-           </property>
-           <property name="currentText">
-            <string>Square Chord Distance</string>
-           </property>
-           <item>
-            <property name="text">
-             <string>Square Chord Distance</string>
-            </property>
-           </item>
-          </widget>
-         </item>
-         <item row="7" column="1" colspan="3">
-          <widget class="QgsFileWidget" name="mQgsFileWidget">
-           <property name="enabled">
-            <bool>false</bool>
-           </property>
-          </widget>
-         </item>
-         <item row="3" column="0">
-          <widget class="QLabel" name="label_windSpeed">
-           <property name="toolTip">
-            <string>Also known as: u</string>
-           </property>
-           <property name="text">
-            <string>Average wind speed (m/s)</string>
-           </property>
-          </widget>
-         </item>
-         <item row="3" column="1" colspan="2">
-          <widget class="QDoubleSpinBox" name="doubleSpin_windSpeed">
-           <property name="value">
-            <double>0.000000000000000</double>
-           </property>
-          </widget>
-         </item>
-         <item row="7" column="0">
-          <widget class="QLabel" name="label_importLookup">
-           <property name="enabled">
-            <bool>true</bool>
-           </property>
-           <property name="toolTip">
-            <string>CURRENTLY DISABLED If a lookup table is imported, no lookup table will be generated. </string>
-           </property>
-           <property name="text">
-            <string>Import Lookup Table</string>
-           </property>
-          </widget>
-         </item>
-         <item row="12" column="0" colspan="4">
+         <item>
           <spacer name="verticalSpacer_8">
            <property name="orientation">
             <enum>Qt::Vertical</enum>
@@ -2618,9 +2675,9 @@ background-color: rgb(199, 199, 199);</string>
   </connection>
  </connections>
  <buttongroups>
-  <buttongroup name="buttonGroup_2"/>
-  <buttongroup name="buttonGroup_mapStyle"/>
   <buttongroup name="buttonGroup_dataToKeep"/>
+  <buttongroup name="buttonGroup_mapStyle"/>
+  <buttongroup name="buttonGroup_2"/>
   <buttongroup name="buttonGroup_makeCsv"/>
  </buttongroups>
 </ui>

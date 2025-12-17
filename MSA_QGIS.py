@@ -46,15 +46,16 @@ from qgis._core import QgsRectangle
 from qgis.core import QgsApplication, QgsMessageLog, Qgis,  QgsVectorLayer, QgsField, QgsGeometry, QgsPointXY, QgsFeature,QgsVectorLayerJoinInfo, QgsProject, QgsSpatialIndex, QgsVectorFileWriter, edit
 from qgis.utils import iface
 from PyQt5.QtWidgets import QTableWidgetItem
-from subprocess import Popen, PIPE, STDOUT
+from subprocess import Popen, PIPE, STDOUT, run
 import traceback
 
 # Initialize Qt resources from file resources.py. IDE will tell you it's not importing anything, IDE is wrong.
 from .resources import *
 # Import the code for the dialog
-from .MSA_QGIS_dialog import MsaQgisDialog, MsaQgisSuccesDialog
+from .MSA_QGIS_dialog import MsaQgisDialog, MsaQgisSuccesDialog, MsaQgisErrorDialog
 from .MSA_QGIS_custom_sql_methods import SqlSqrt, SqlCardinalDir
 from .MSA_QGIS_distance_weighting_sql_methods import SqlDwPrenticeSugita
+
 
 
 # Import processing tools from Qgis (make sure python interpreter contains path C:\OSGeo4W64\apps\qgis\python\plugins)
@@ -423,9 +424,9 @@ class MsaQgis:
                                f'(SELECT geom_x FROM "{basemap}" WHERE msa_id = {entry}), '
                                f'(SELECT geom_y FROM "{basemap}" WHERE msa_id = {entry}))')
 
-            # Calculate distance
-            update_distance_string = f'UPDATE dist_dir SET distance = (SQRT(((geom_x-{snapped_x}) * (geom_x - {snapped_x}))' \
-                                     f'+ ((geom_y - {snapped_y}) * (geom_y - {snapped_y})))) WHERE site_name = "{sample_site}"'
+            # Calculate distance. Rounding is in order to solve issue with transferring between SQLite and R/csv for LS model
+            update_distance_string = f'UPDATE dist_dir SET distance = ROUND((SQRT(((geom_x-{snapped_x}) * (geom_x - {snapped_x}))' \
+                                     f'+ ((geom_y - {snapped_y}) * (geom_y - {snapped_y})))), 5) WHERE site_name = "{sample_site}"'
 
             sqlite3.enable_callback_tracebacks(True)
 
@@ -590,9 +591,9 @@ class MsaQgis:
         QgsMessageLog.logMessage("Creation of windrose tables finished", 'MSA_QGIS',
                                  Qgis.Info)
 
-    def createTablePollenLookupBasin(self, conn, cursor):
+    def createTablePollenLookupBasin(self, conn, cursor, save_directory, rscript_path = None):
         """Creates a table with the various computed distances to the sites and determines the pollen dispersal and
-        deposition function for each taxon gi(z), based on Parsons/Prentice mire model.
+        deposition function for each taxon gi(z), based on a pollen dispersal and distance model.
 
         :class params: self.dlg,
         :sqlite functions: self._SqlDwPrenticesugita
@@ -628,11 +629,10 @@ class MsaQgis:
         # Define distance weighting function
         cursor.execute('BEGIN TRANSACTION')
         if self.dlg.comboBox_dispModel.currentText() == 'HUMPOL mire model':
+            # relies on creating a sql function
             conn.create_function("DISTANCEWEIGHT", 5, SqlDwPrenticeSugita)
             # Calculate the pollen dispersal and deposition functions
             for row in range(self.dlg.tableWidget_taxa.rowCount()):
-
-
                 taxon = self.dlg.tableWidget_taxa.item(row, 0).text()
                 turb_const= self.dlg.doubleSpin_turbConstant.value()
                 diffusion_const = self.dlg.doubleSpin_diffConstant.value()
@@ -641,6 +641,69 @@ class MsaQgis:
                 update_DWPA_string = f'UPDATE PollenLookup SET {taxon}_DW = (SELECT DISTANCEWEIGHT({turb_const}, ' \
                                      f'{diffusion_const}, {wind_speed}, distance, ({fall_speed})))'
                 cursor.execute(update_DWPA_string)
+        elif self.dlg.comboBox_dispModel.currentText() == 'LS unstable model LOESS':
+            # does not rely on importing an sql function, does rely on R installation and subprocess
+            #todo check if file temp_fallspeeds.csv exists and if yes delete first.
+            file_name_fallspeed = path.join(save_directory,'temp_fallspeeds.csv')
+            file_name_lookup = path.join(save_directory, 'temp_PollenLookup.csv')
+            file_name_loess_data = path.join(self.plugin_dir, 'Lsm_unstable_loess.rda')
+            with open(file_name_fallspeed, "w", newline = '') as csvfile:
+                writer = csv.writer(csvfile)
+                writer.writerow(["taxon", "fall_speed"])
+                for row in range(self.dlg.tableWidget_taxa.rowCount()):
+                    taxon = self.dlg.tableWidget_taxa.item(row, 0).text()
+                    fall_speed = self.dlg.tableWidget_taxa.item(row, 2).text()
+                    writer.writerow([taxon,fall_speed])
+            cursor.execute(f'SELECT * FROM "PollenLookup"')
+            with open(file_name_lookup, 'w', newline='') as csv_file:
+                csv_writer = csv.writer(csv_file)
+                csv_writer.writerow([i[0] for i in cursor.description])
+                csv_writer.writerows(cursor)
+            command = [rscript_path, path.join(self.plugin_dir, "MSA_QGIS_extract_rda_lsm2.R"), save_directory, file_name_loess_data]
+            output = run(command, capture_output=True, encoding="utf-8") #subprocessing
+            if output.stderr != '':
+                raise BrokenPipeError(f"{output.stderr} in the lsm subprocess. "
+                                      f"Try checking the correctness of the pollen data")
+            else:
+                cursor.execute('DROP TABLE IF EXISTS PollenLookup')
+                # re-create the table from the csv.
+                create_table_string = 'CREATE TABLE PollenLookup(distance REAL PRIMARY KEY, '
+                for row in range(self.dlg.tableWidget_taxa.rowCount()):
+                    taxon = self.dlg.tableWidget_taxa.item(row, 0).text()
+                    if row + 1 == self.dlg.tableWidget_taxa.rowCount():
+                        add_column_string = taxon + '_DW REAL)'
+                        create_table_string += add_column_string
+                    else:
+                        add_column_string = taxon + '_DW REAL,'
+                        create_table_string += add_column_string
+                cursor.execute(create_table_string)
+                conn.commit()
+                with open(path.join(save_directory, "temp_PollenLookup2.csv"), "r") as csvfile:
+                    reader = csv.reader(csvfile)
+                    reader.__next__() #skip header row
+                    insert_dwpa_string = f"INSERT INTO PollenLookup (distance, "
+                    for row in range(self.dlg.tableWidget_taxa.rowCount()):
+                        taxon = self.dlg.tableWidget_taxa.item(row, 0).text()
+                        if row + 1 == self.dlg.tableWidget_taxa.rowCount():
+                            insert_dwpa_string += taxon + '_DW)'
+                        else:
+                            insert_dwpa_string += taxon + '_DW,'
+                    values_string = ', '.join(['?' for row in range(self.dlg.tableWidget_taxa.rowCount() + 1)])
+                    insert_dwpa_string += f" values({values_string})"
+                    cursor.executemany(insert_dwpa_string, reader)
+            # remove temp_files
+            try:
+                remove(path.join(save_directory,'temp_fallspeeds.csv'))
+            except:
+                QgsMessageLog.logMessage("Could not delete temp file 'temp_fallspeeds.csv', delete this file manually", 'MSA_QGIS', Qgis.Warning)
+            try:
+                remove(path.join(save_directory,'temp_PollenLookup.csv'))
+            except:
+                QgsMessageLog.logMessage("Could not delete temp file 'temp_PollenLookup.csv', delete this file manually", 'MSA_QGIS', Qgis.Warning)
+            try:
+                remove(path.join(save_directory,'temp_PollenLookup2.csv'))
+            except:
+                QgsMessageLog.logMessage("Could not delete temp file 'temp_PollenLookup2.csv', delete this file manually", 'MSA_QGIS', Qgis.Warning)
 
         cursor.execute('COMMIT')
         cursor.execute('CREATE INDEX PollenLookup_dist_idx ON PollenLookup(distance);')
@@ -793,7 +856,6 @@ class MsaQgis:
         QgsMessageLog.logMessage(f'point layer creation finished took {time()-start_time}', 'MSA_QGIS',Qgis.Info)
         # QgsProject.instance().addMapLayer(vector_point_base) # for purposes of testing, comment out when not testing
         return vector_point_base
-
 
     def pointSampleNative(self, point_layer):
         """ Uses native QGIS processing algorithms (joinattributesbylocation and rastersampling) to point sample
@@ -1049,8 +1111,38 @@ class MsaQgis:
         string_vacuum_into = f'VACUUM INTO "{path.join(save_directory,"pointsampled_basemap.sqlite")}";'
         cursor.execute(string_vacuum_into)
         conn.commit()
+        # Also create a .csv version for easier editing
+        cursor.execute(f'SELECT * FROM "Empty_basemap"')
+        with open(path.join(save_directory, 'pointsampled_basemap.csv'), 'w', newline='') as csv_file:
+            csv_writer = csv.writer(csv_file)
+            csv_writer.writerow([i[0] for i in cursor.description])
+            csv_writer.writerows(cursor)
         conn.close()
         QgsMessageLog.logMessage("Convert native qgis points to SQL finished", 'MSA_QGIS', Qgis.Info)
+
+#** PRE RUN CHECKS AND ERROR HANDLING
+    def checkPathExists(self, file_or_dir_name, location_to_find):
+        """ Checks if a file or directory exists """
+        if path.exists(file_or_dir_name):
+            e = None
+            return True, e
+        else:
+            e = FileNotFoundError(f'File or directory {file_or_dir_name} of {location_to_find} does not exist')
+            return False, e
+
+    def gracefulExit(self, exception, conn = None):
+        """ Checks whether any connections are open, files are attached, or dialogs are open, and closes them.
+        Then opens the final dialog along with the error that caused this process to be triggered."""
+        self.errordlg.show()
+        self.errordlg.errorTextEdit.setPlainText(str(exception))
+        QgsMessageLog.logMessage(str(exception), 'MSA_QGIS', Qgis.Critical)
+        if self.errordlg.exec():
+            QgsApplication.messageLog().messageReceived.disconnect(self.writeLogMessage)
+            # TODO make more extensive
+            if conn != None:
+                conn.close()
+            self.errordlg.close()
+
 
 #** MISC
 
@@ -1252,9 +1344,9 @@ class MsaQgis:
     def loadPointMap(self, point_sampled_file, save_directory, file_name = 'pointsampled_basemap.sqlite', point_or_base = 'point'):
         """ Loads a point layer csv file given by the user, checks if it's valid and changes into an SQLite file
         so it can be used further on in the process."""
-        conn= sqlite3.connect(point_sampled_file)
+        conn= sqlite3.connect(path.join(save_directory, file_name))
         cursor= conn.cursor()
-
+        QgsMessageLog.logMessage('Validating .csv point sampled map or basemap file...', 'MSA_QGIS', Qgis.Info)
 
         if point_sampled_file[-4:] == ".csv":
             with open(point_sampled_file, 'r', newline='') as csv_file:
@@ -1301,32 +1393,66 @@ class MsaQgis:
                             QgsMessageLog.logMessage(f'run of MSA_QGIS unsuccesful',
                                                      'MSA_QGIS', Qgis.Critical)
                             return "fail"
-                # else:
-                #     #TODO this is currently not functional as pandas does not work in Linux QGIS and so needs to be turned off
-                #     #TODO replace with pure sqlite3 version
-                #     QgsMessageLog.logMessage(f'Input point-sampled csv file invalid, currently not functional as pandas does not work in Linux QGIS and so needs to be turned off'
-                #                              f'{self.dlg.tableWidget_selected.item(row, 1).text()}',
-                #                              'MSA_QGIS', Qgis.Critical)
-                #     csv_file = read_csv(point_sampled_file)
-                #     csv_file.to_sql('empty_basemap', conn, if_exists='fail', index=False, chunksize=10000)
-                #     string_vacuum_into = f'VACUUM INTO "{path.join(save_directory, file_name)}";'
-                #     cursor.execute(string_vacuum_into)
-                #     conn.close()
-                #     return path.join(save_directory,file_name)
-                else:
-                    pass
 
+                QgsMessageLog.logMessage(f'Input map validated, importing...',
+                                         'MSA_QGIS', Qgis.Info)
+                create_table_string = ('CREATE TABLE IF NOT EXISTS Empty_basemap (msa_id INTEGER, '
+                                       'geom_x REAL, geom_y REAL, veg_com TEXT, chance_to_happen REAL')
+                with open(point_sampled_file, 'r', newline='') as csv_file:
+                    reader = csvreader(csv_file)
+                    header_row = reader.__next__()
+                    number_of_cols = len(header_row)
+                    first_row = reader.__next__()
+                    # check if map is nested
+                    start_col_envvar = 5
+                    if header_row[5] == 'resolution':
+                        create_table_string += ', resolution REAL'
+                        start_col_envvar = 6
+                    for col_name in range(start_col_envvar, len(header_row)):
+                        # determine data type from first row
+                        try:
+                            int(first_row[col_name])
+                            QgsMessageLog.logMessage(f'data type {header_row[col_name]} is int',
+                                                     'MSA_QGIS', Qgis.Info)
+                            create_table_string += f', {header_row[col_name]} INTEGER'
+                        except:
+                            try:
+                                float(first_row[col_name])
+                                QgsMessageLog.logMessage(f'data type {header_row[col_name]} is real',
+                                                     'MSA_QGIS', Qgis.Info)
+                                create_table_string += f', {header_row[col_name]} REAL'
+                            except:
+                                try:
+                                    str(first_row[col_name])
+                                    QgsMessageLog.logMessage(f'data type {header_row[col_name]} is text',
+                                                     'MSA_QGIS', Qgis.Info)
+                                    create_table_string += f', {header_row[col_name]} TEXT, '
+                                except:
+                                    QgsMessageLog.logMessage(f'data type {header_row[col_name]} could not be determined',
+                                                             'MSA_QGIS', Qgis.Info)
+                                    return "fail"
+                create_table_string += ')'
+                QgsMessageLog.logMessage(create_table_string, 'MSA_QGIS', Qgis.Info)
+                cursor.execute(create_table_string)
+                with open(point_sampled_file, 'r', newline='') as csv_file:
+                    reader = csvreader(csv_file)
+                    next(reader, None) # skip header row
+                    values_string = ', '.join(['?' for row in range(number_of_cols)])
+                    for row in reader:
+                        insert_string = f'INSERT INTO Empty_basemap VALUES ({values_string})'
+                        cursor.execute(insert_string, row)
+                conn.commit()
+                conn.close()
+                return path.join(save_directory,file_name)
 
         else:
-            QgsMessageLog.logMessage(f'Input point sampled file invalid, not a .sqlite file ',
+            QgsMessageLog.logMessage(f'Input point sampled file invalid, not a .csv file ',
                                      'MSA_QGIS', Qgis.Critical)
             QgsMessageLog.logMessage(f'run of MSA_QGIS unsuccesful',
                                      'MSA_QGIS', Qgis.Critical)
             #TODO this error should be moved to UI/dialog to prevent setup of unsuccesful runs.
 
-    def cleanQGIS(self):
-        """Closes tables and maps that are no longer necessary after the point-sampled map has been made"""
-        pass
+
 
 #** RUN METHOD
     def run(self):
@@ -1372,12 +1498,13 @@ class MsaQgis:
             self.first_start = False
             self.dlg = MsaQgisDialog()
             self.succesdlg = MsaQgisSuccesDialog()
+            self.errordlg = MsaQgisErrorDialog()
 
 
         # Show the dialog
         self.dlg.show()
         # Run the dialog event loop
-        result = self.dlg.exec_() #TODO change so that window stays open while running main analysis
+        result = self.dlg.exec_()
         # See if OK was pressed
         if result:
             startTime = time()
@@ -1385,12 +1512,27 @@ class MsaQgis:
             self.crs = QgsProject.instance().crs()
             self.spacing = self.dlg.spinBox_resolution.value()
             save_directory = self.dlg.save_directory
+            rscript_path = self.dlg.mQgsFileWidget_rInstallation.filePath() # only relevant for LS #TODO automatic detection of R installation
 
             # Start printing log messages to file
             QgsApplication.messageLog().messageReceived.connect(self.writeLogMessage)
 
             QgsMessageLog.logMessage("MSA_QGIS started", 'MSA_QGIS',
                                      Qgis.Info)
+
+### Pre-run checks # TODO expand (a lot)
+            QgsMessageLog.logMessage("Running pre-modelling checks...", 'MSA_QGIS',
+                                     Qgis.Info)
+            # check if rscript location has been given and the file exists.
+            if self.dlg.comboBox_dispModel.currentText() == "LS unstable model LOESS":
+                status, e = self.checkPathExists(rscript_path, "Rscript")
+                if status == False:
+                    self.gracefulExit(e)
+                    return
+
+            QgsMessageLog.logMessage("pre-modelling checks completed", 'MSA_QGIS',
+                                     Qgis.Info)
+
 ### point map and point sample (make or load)
             # MAKE point layer
             if self.dlg.radioButton_createMap.isChecked():
@@ -1410,8 +1552,7 @@ class MsaQgis:
                                              Qgis.Warning)
                     QgsMessageLog.logMessage(str(formatted_exception), 'MSA_QGIS', Qgis.Critical)
                     return
-                    #message = 'Point sampling failed'
-                    #self.dlg.runAbortedPopup(message, e) #not yet functional
+
             if self.dlg.run_type < 1:
                 QgsMessageLog.logMessage(
                     f'Total execution time in seconds: {time() - startTime}', 'MSA_QGIS', Qgis.Info)
@@ -1436,9 +1577,10 @@ class MsaQgis:
                     #can be opened directly, and passed on to the subprocess
                 elif file_name[-4:] == ".csv":
                     #needs to be converted to .sqlite file first
-                    table_name = "Empty_basemap"
                     file_name = self.loadPointMap(file_name, save_directory, 'temp_pointmap.sqlite')
                     if file_name == "fail":
+                        QgsMessageLog.logMessage("Filename csv failed", 'MSA_QGIS', Qgis.Critical)
+
                         return
             elif self.dlg.radioButton_loadBaseMap.isChecked():
                 file_name = self.dlg.mQgsFileWidget_startingPoint.filePath()
@@ -1473,7 +1615,7 @@ class MsaQgis:
             self.createTablePseudoPoints(conn, cursor, "basemap")
             if self.dlg.checkBox_enableWindrose.isChecked():
                 self.createTableWindrose(conn, cursor)
-            self.createTablePollenLookupBasin(conn, cursor)
+            self.createTablePollenLookupBasin(conn, cursor,save_directory, rscript_path)
             self.createTableCombinedPollen(conn,cursor)
 
             n_of_sites = self.dlg.tableWidget_sites.rowCount()
