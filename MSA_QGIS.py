@@ -270,6 +270,7 @@ class MsaQgis:
         # Create new table
         create_table_string = ' CREATE TABLE "sampling_sites"(site_name TEXT VARCHAR(50), ' \
                               'sample_x REAL, sample_y REAL, sample_is_lake BOOL, snapped_x REAL, snapped_y REAL, msa_id, PRIMARY KEY(site_name), FOREIGN KEY (msa_id) REFERENCES basemap (msa_id))'
+        print(create_table_string)
         cursor.execute(create_table_string)
         conn.commit()
         # Fill table with data site by site from the UI
@@ -281,12 +282,21 @@ class MsaQgis:
             sample_x = table_sites.item(row,1).text()
             sample_y = table_sites.item(row,2).text()
             sample_is_lake = table_sites.item(row,3).text()
-            snapped_x = f'(SELECT geom_x FROM "{basemap}" WHERE geom_x BETWEEN ({sample_x}-{self.spacing*0.5}) ' \
-                        f'AND ({sample_x}+{self.spacing *0.5}) ORDER BY abs({sample_x}-geom_x) limit 1)' #TODO explicitly choose one instead of random
+            #TODO adjust for nesting
+            if self.dlg.radioButton_nestedMap.isChecked():
+                snapped_x = f'(SELECT geom_x FROM "{basemap}" WHERE geom_x BETWEEN ({sample_x}-{self.dlg.spinBox_resNested.value() * 0.5}) ' \
+                            f'AND ({sample_x}+{self.dlg.spinBox_resNested.value() * 0.5}) ORDER BY abs({sample_x}-geom_x) limit 1)'  # TODO explicitly choose one instead of random
 
-            snapped_y = f'(SELECT geom_y FROM "{basemap}" WHERE geom_y BETWEEN ({sample_y}-{self.spacing *0.5}) ' \
-                        f'AND ({sample_y}+{self.spacing*0.5}) ORDER BY abs({sample_x}-geom_y) limit 1)' #TODO explicitly choose one instead of random
+                snapped_y = f'(SELECT geom_y FROM "{basemap}" WHERE geom_y BETWEEN ({sample_y}-{self.dlg.spinBox_resNested.value() * 0.5}) ' \
+                            f'AND ({sample_y}+{self.dlg.spinBox_resNested.value() * 0.5}) ORDER BY abs({sample_x}-geom_y) limit 1)'  # TODO explicitly choose one instead of random
+            else:
+                snapped_x = f'(SELECT geom_x FROM "{basemap}" WHERE geom_x BETWEEN ({sample_x}-{self.spacing*0.5}) ' \
+                            f'AND ({sample_x}+{self.spacing *0.5}) ORDER BY abs({sample_x}-geom_x) limit 1)' #TODO explicitly choose one instead of random
+
+                snapped_y = f'(SELECT geom_y FROM "{basemap}" WHERE geom_y BETWEEN ({sample_y}-{self.spacing *0.5}) ' \
+                            f'AND ({sample_y}+{self.spacing*0.5}) ORDER BY abs({sample_x}-geom_y) limit 1)' #TODO explicitly choose one instead of random
             values_string = f'"{sample_site}", {sample_x}, {sample_y}, "{sample_is_lake}", {snapped_x},  {snapped_y})'
+            print(insert_into_string + values_string)
             cursor.execute(insert_into_string+values_string)
             conn.commit()
             # Create new pollen data table
@@ -315,6 +325,7 @@ class MsaQgis:
                                     conn.commit()
         update_msa_string = f'UPDATE sampling_sites SET msa_id = (SELECT msa_id FROM "{basemap}" WHERE "{basemap}".geom_x = ' \
                             f'sampling_sites.snapped_x AND "{basemap}".geom_y = sampling_sites.snapped_y)'
+        print(update_msa_string)
         cursor.execute(update_msa_string)
         conn.commit()
 
@@ -514,7 +525,13 @@ class MsaQgis:
         cursor.execute(create_table_string)
 
         #fill table 4 points at a time
-        distance = sqrt(((self.spacing*0.25)**2)*2)
+        if self.dlg.radioButton_nestedMap.isChecked():
+            distance = sqrt(((self.dlg.spinBox_resNested.value() * 0.25) ** 2) * 2)
+            snapped_coord = self.dlg.spinBox_resNested.value()*0.5
+        else:
+            distance = sqrt(((self.spacing * 0.25) ** 2) * 2)
+            snapped_coord = self.spacing*0.5
+
         table_sites = self.dlg.tableWidget_sites
         counter = 0
         cursor.execute('BEGIN TRANSACTION')
@@ -523,26 +540,30 @@ class MsaQgis:
 
             insert_into_string = f'INSERT INTO pseudo_points(pseudo_id, site_name, msa_id, direction, distance, geom_x, geom_y) VALUES(' \
                                  f'{str(counter)}, "{sample_site}",  (SELECT msa_id FROM "sampling_sites" WHERE site_name = "{sample_site}"), "NE", {str(distance)}, ' \
-                                 f'(SELECT snapped_x FROM "sampling_sites" WHERE site_name = "{sample_site}")+ {str(self.spacing*0.5)}, ' \
-                                 f'(SELECT snapped_y FROM "sampling_sites" WHERE site_name = "{sample_site}")+ {str(self.spacing*0.5)})'
+                                 f'(SELECT snapped_x FROM "sampling_sites" WHERE site_name = "{sample_site}")+ {str(snapped_coord)}, ' \
+                                 f'(SELECT snapped_y FROM "sampling_sites" WHERE site_name = "{sample_site}")+ {str(snapped_coord)})'
+            print(insert_into_string)
             cursor.execute(insert_into_string)
 
             insert_into_string = f'INSERT INTO pseudo_points(pseudo_id, site_name, msa_id, direction, distance, geom_x, geom_y) VALUES(' \
                                  f'{str(counter+1)}, "{sample_site}", (SELECT msa_id FROM "sampling_sites" WHERE site_name = "{sample_site}"), "SE", {str(distance)}, ' \
-                                 f'(SELECT snapped_x FROM "sampling_sites" WHERE site_name = "{sample_site}")+ {str(self.spacing*0.5)}, ' \
-                                 f'(SELECT snapped_y FROM "sampling_sites" WHERE site_name = "{sample_site}")- {str(self.spacing*0.5)})'
+                                 f'(SELECT snapped_x FROM "sampling_sites" WHERE site_name = "{sample_site}")+ {str(snapped_coord)}, ' \
+                                 f'(SELECT snapped_y FROM "sampling_sites" WHERE site_name = "{sample_site}")- {str(snapped_coord)})'
+            print(insert_into_string)
             cursor.execute(insert_into_string)
 
             insert_into_string = f'INSERT INTO pseudo_points(pseudo_id, site_name, msa_id, direction, distance, geom_x, geom_y) VALUES(' \
                                  f'{str(counter+2)}, "{sample_site}", (SELECT msa_id FROM "sampling_sites" WHERE site_name = "{sample_site}"), "SW", {str(distance)}, ' \
-                                 f'(SELECT snapped_x FROM "sampling_sites" WHERE site_name = "{sample_site}")- {str(self.spacing*0.5)}, ' \
-                                 f'(SELECT snapped_y FROM "sampling_sites" WHERE site_name = "{sample_site}")- {str(self.spacing*0.5)})'
+                                 f'(SELECT snapped_x FROM "sampling_sites" WHERE site_name = "{sample_site}")- {str(snapped_coord)}, ' \
+                                 f'(SELECT snapped_y FROM "sampling_sites" WHERE site_name = "{sample_site}")- {str(snapped_coord)})'
+            print(insert_into_string)
             cursor.execute(insert_into_string)
 
             insert_into_string = f'INSERT INTO pseudo_points(pseudo_id, site_name, msa_id, direction, distance, geom_x, geom_y) VALUES(' \
                                  f'{str(counter+3)}, "{sample_site}",  (SELECT msa_id FROM "sampling_sites" WHERE site_name = "{sample_site}"), "NW", {str(distance)}, ' \
-                                 f'(SELECT snapped_x FROM "sampling_sites" WHERE site_name = "{sample_site}")- {str(self.spacing*0.5)}, ' \
-                                 f'(SELECT snapped_y FROM "sampling_sites" WHERE site_name = "{sample_site}")+ {str(self.spacing*0.5)})'
+                                 f'(SELECT snapped_x FROM "sampling_sites" WHERE site_name = "{sample_site}")- {str(snapped_coord)}, ' \
+                                 f'(SELECT snapped_y FROM "sampling_sites" WHERE site_name = "{sample_site}")+ {str(snapped_coord)})'
+            print(insert_into_string)
             cursor.execute(insert_into_string)
             counter += 4
         cursor.execute('COMMIT')
@@ -793,13 +814,13 @@ class MsaQgis:
             # difference algorithm bugged for current QGIS version, does not properly remove features. Use extract by expression instead.
             # A little ugly since it doesn't work without also adding the map to the interface for some reason, but it works. TODO Replace with difference when it is repaired.
             # See github issue: https://github.com/qgis/QGIS/issues/61205
-            nesting_overlay_dissolved.setName("temp_name") #TODO temporarily necessary to feal with issues with native:difference
-            QgsProject.instance().addMapLayer(nesting_overlay_dissolved) #TODO temporarily necessary to feal with issues with native:difference
+            nesting_overlay_dissolved.setName("temp_name") #TODO temporarily necessary to deal with issues with native:difference
+            QgsProject.instance().addMapLayer(nesting_overlay_dissolved) #TODO temporarily necessary to deal with issues with native:difference
 
             vector_point_base = runqgisprocess("native:extractbyexpression",
                                                {'INPUT': vector_point_base,
                                                 'EXPRESSION': f"overlay_disjoint('temp_name')",
-                                                'OUTPUT': "memory:"})['OUTPUT'] #TODO temporarily necessary to feal with issues with native:difference
+                                                'OUTPUT': "memory:"})['OUTPUT'] #TODO temporarily necessary to deal with issues with native:difference
 
             # Create regularly spaced points with extent of small nesting overlay
             nested_point_base = runqgisprocess("qgis:regularpoints", {'EXTENT': nesting_overlay_dissolved.extent(), 'SPACING': self.dlg.spinBox_resNested.value(), 'INSET' : 0.5*self.dlg.spinBox_resNested.value(), 'CRS': self.crs, 'OUTPUT': "memory:"})['OUTPUT']
@@ -1672,7 +1693,6 @@ class MsaQgis:
             #
             # subprocess_output, subprocess_error = running_msa.communicate()
             # QgsMessageLog.logMessage(f'output = {subprocess_output} \n error = {subprocess_error}', 'MSA_QGIS', Qgis.Info)
-
             with Popen(["python3","-u", file_to_run], stdout= PIPE, stdin=PIPE, stderr=STDOUT, text= True, bufsize =1) as running_msa:
                 running_msa.stdin.write(f"{save_directory}\n{from_basemap}\n{run_type}\n{number_of_iters}\n{self.spacing}\n"
                           f"{self.dlg.checkBox_enableWindrose.isChecked()}\n{self.dlg.doubleSpinBox_fit.value()}\n"
