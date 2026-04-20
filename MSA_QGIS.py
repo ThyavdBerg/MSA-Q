@@ -1447,7 +1447,7 @@ class MsaQgis:
                                     str(first_row[col_name])
                                     QgsMessageLog.logMessage(f'data type {header_row[col_name]} is text',
                                                      'MSA_QGIS', Qgis.Info)
-                                    create_table_string += f', {header_row[col_name]} TEXT, '
+                                    create_table_string += f', {header_row[col_name]} TEXT'
                                 except:
                                     QgsMessageLog.logMessage(f'data type {header_row[col_name]} could not be determined',
                                                              'MSA_QGIS', Qgis.Info)
