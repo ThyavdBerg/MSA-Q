@@ -1,15 +1,6 @@
-from math import pi, sqrt, exp
+from math import pi
 from decimal import Decimal, Context
-import subprocess
-from os import path
 
-from rpy2.robjects import r #(required installing)
-import rpy2.robjects as robjects #(required installing)
-from rpy2.robjects.packages import importr #(required installing)
-
-import rdata #(required installing)
-from ipywidgets import FileUpload, interact #(required installing)
-from os import path
 
 def SqlDwPrenticeSugita(turb_const, diffusion_const, wind_speed, distance, fall_speed):
     """A distance weighting function.
