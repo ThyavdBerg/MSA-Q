@@ -1577,6 +1577,7 @@ class MsaQgisDialog(QtWidgets.QDialog, FORM_CLASS):
 
     def enableNested(self):
         """Enables or Disables the UI widgets related to nested maps."""
+        # TODO make resolution suitable for floats.
         if self.radioButton_nestedMap.isChecked() and self.radioButton_createMap.isChecked():
             self.spinBox_nestedArea.show()
             self.label_nestedArea.show()

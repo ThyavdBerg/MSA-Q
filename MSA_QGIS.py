@@ -270,7 +270,6 @@ class MsaQgis:
         # Create new table
         create_table_string = ' CREATE TABLE "sampling_sites"(site_name TEXT VARCHAR(50), ' \
                               'sample_x REAL, sample_y REAL, sample_is_lake BOOL, snapped_x REAL, snapped_y REAL, msa_id, PRIMARY KEY(site_name), FOREIGN KEY (msa_id) REFERENCES basemap (msa_id))'
-        print(create_table_string)
         cursor.execute(create_table_string)
         conn.commit()
         # Fill table with data site by site from the UI
@@ -296,7 +295,6 @@ class MsaQgis:
                 snapped_y = f'(SELECT geom_y FROM "{basemap}" WHERE geom_y BETWEEN ({sample_y}-{self.spacing *0.5}) ' \
                             f'AND ({sample_y}+{self.spacing*0.5}) ORDER BY abs({sample_x}-geom_y) limit 1)' #TODO explicitly choose one instead of random
             values_string = f'"{sample_site}", {sample_x}, {sample_y}, "{sample_is_lake}", {snapped_x},  {snapped_y})'
-            print(insert_into_string + values_string)
             cursor.execute(insert_into_string+values_string)
             conn.commit()
             # Create new pollen data table
@@ -325,7 +323,6 @@ class MsaQgis:
                                     conn.commit()
         update_msa_string = f'UPDATE sampling_sites SET msa_id = (SELECT msa_id FROM "{basemap}" WHERE "{basemap}".geom_x = ' \
                             f'sampling_sites.snapped_x AND "{basemap}".geom_y = sampling_sites.snapped_y)'
-        print(update_msa_string)
         cursor.execute(update_msa_string)
         conn.commit()
 
@@ -404,19 +401,18 @@ class MsaQgis:
         start_time = time()
         QgsMessageLog.logMessage("Creation of distance and direction tables initiated", 'MSA_QGIS',
                                  Qgis.Info)
-        #count number of entries in basemap
-        cursor.execute(f'SELECT * FROM "{basemap}"')
-        number_of_entries = len(cursor.fetchall())
+        cursor.execute(f'SELECT msa_id FROM "{basemap}"')
+        extract_msa_ids = cursor.fetchall()
+        list_msa_ids = [id[0] for id in extract_msa_ids]
         #TODO make it work for lakes
         table_sites = self.dlg.tableWidget_sites
-        cursor.execute('CREATE TABLE dist_dir(msa_id INT,site_name TEXT VARCHAR(50),geom_x REAL, ' \
-                              'geom_y REAL, distance REAL, direction TEXT VARCHAR(5), PRIMARY KEY(msa_id, site_name))')
+        cursor.execute('CREATE TABLE dist_dir(msa_id INT,site_name TEXT VARCHAR(50),geom_x REAL, '
+                       'geom_y REAL, distance REAL, direction TEXT VARCHAR(5), PRIMARY KEY(msa_id, site_name))')
         conn.commit()
         # Create new (math) functions from python to SQLite that are not normally available. See MSA_QGIS_custom_sql_methods
         conn.create_function("SQRT", 1, SqlSqrt)
         conn.create_function("CARDDIR", 2, SqlCardinalDir)
 
-        cursor.execute('BEGIN TRANSACTION')
         for row in range(table_sites.rowCount()):
             sample_site = table_sites.item(row,0).text()
             # # For version using non-snapped x and y
@@ -427,39 +423,39 @@ class MsaQgis:
             snapped_x = str(cursor.fetchone()[0])
             cursor.execute(f'SELECT snapped_y FROM sampling_sites WHERE site_name = "{sample_site}"')
             snapped_y = str(cursor.fetchone()[0])
-
-            for entry in range(1,number_of_entries+1):  #  No msa_id 1 is made, so exclude it. +1 because range is exclusive
+            cursor.execute('BEGIN TRANSACTION')
+            for entry in list_msa_ids:
                 # Insert data per msa_id (select all of them from msa_id with x and y)
-                cursor.execute(f'INSERT INTO dist_dir(msa_id, site_name, geom_x, geom_y) '
-                               f'VALUES({entry}, "{sample_site}", '
-                               f'(SELECT geom_x FROM "{basemap}" WHERE msa_id = {entry}), '
-                               f'(SELECT geom_y FROM "{basemap}" WHERE msa_id = {entry}))')
+                insert_dist_dir = f'INSERT INTO dist_dir(msa_id, site_name, geom_x, geom_y) '\
+                               f'VALUES({entry}, "{sample_site}", '\
+                               f'(SELECT geom_x FROM "{basemap}" WHERE msa_id = {entry}), '\
+                               f'(SELECT geom_y FROM "{basemap}" WHERE msa_id = {entry}))'
+                cursor.execute(insert_dist_dir)
+            cursor.execute('COMMIT')
 
             # Calculate distance. Rounding is in order to solve issue with transferring between SQLite and R/csv for LS model
-            update_distance_string = f'UPDATE dist_dir SET distance = ROUND((SQRT(((geom_x-{snapped_x}) * (geom_x - {snapped_x}))' \
+            update_distance_string = f'UPDATE dist_dir SET distance = ROUND((SQRT(((geom_x - {snapped_x}) * (geom_x - {snapped_x}))' \
                                      f'+ ((geom_y - {snapped_y}) * (geom_y - {snapped_y})))), 5) WHERE site_name = "{sample_site}"'
 
             sqlite3.enable_callback_tracebacks(True)
-
-            # Code for purpose of testing, comment out when not testing
-            # cursor.execute(f"SELECT * from dist_dir")
-            # print(cursor.fetchall())
-
             try:
                 cursor.execute(update_distance_string)
             except sqlite3.OperationalError as e:
                 QgsMessageLog.logMessage(str(e),
                                          'MSA_QGIS',
                                          Qgis.Critical)
-                return
+                QgsMessageLog.logMessage(update_distance_string,
+                                         'MSA_QGIS',
+                                         Qgis.Critical)
+                return False
 
             # Determine direction
             update_direction_string = f'UPDATE dist_dir SET direction = (SELECT CARDDIR((geom_x - {snapped_x}), ' \
                                       f'(geom_y - {snapped_y}))) WHERE site_name = "{sample_site}"'
             cursor.execute(update_direction_string)
+            conn.commit()
 
 
-        cursor.execute('COMMIT')
         # cursor.execute('CREATE INDEX dist_dir_dist_name_dir_idx ON dist_dir(distance, direction, site_name);')
         # conn.commit()
         cursor.execute('CREATE UNIQUE INDEX dist_dir_id_name_idx ON dist_dir(msa_id, site_name)')
@@ -468,6 +464,7 @@ class MsaQgis:
         end_time = time() - start_time
         QgsMessageLog.logMessage(f"Creation of distance and direction tables finished after {end_time} seconds" , 'MSA_QGIS',
                                  Qgis.Info)
+        return True
 
     def createTableOfMaps(self, conn, cursor):
         """Creates a table where the list of maps will go after running the main body MSA(assigning veg_coms and
@@ -542,28 +539,24 @@ class MsaQgis:
                                  f'{str(counter)}, "{sample_site}",  (SELECT msa_id FROM "sampling_sites" WHERE site_name = "{sample_site}"), "NE", {str(distance)}, ' \
                                  f'(SELECT snapped_x FROM "sampling_sites" WHERE site_name = "{sample_site}")+ {str(snapped_coord)}, ' \
                                  f'(SELECT snapped_y FROM "sampling_sites" WHERE site_name = "{sample_site}")+ {str(snapped_coord)})'
-            print(insert_into_string)
             cursor.execute(insert_into_string)
 
             insert_into_string = f'INSERT INTO pseudo_points(pseudo_id, site_name, msa_id, direction, distance, geom_x, geom_y) VALUES(' \
                                  f'{str(counter+1)}, "{sample_site}", (SELECT msa_id FROM "sampling_sites" WHERE site_name = "{sample_site}"), "SE", {str(distance)}, ' \
                                  f'(SELECT snapped_x FROM "sampling_sites" WHERE site_name = "{sample_site}")+ {str(snapped_coord)}, ' \
                                  f'(SELECT snapped_y FROM "sampling_sites" WHERE site_name = "{sample_site}")- {str(snapped_coord)})'
-            print(insert_into_string)
             cursor.execute(insert_into_string)
 
             insert_into_string = f'INSERT INTO pseudo_points(pseudo_id, site_name, msa_id, direction, distance, geom_x, geom_y) VALUES(' \
                                  f'{str(counter+2)}, "{sample_site}", (SELECT msa_id FROM "sampling_sites" WHERE site_name = "{sample_site}"), "SW", {str(distance)}, ' \
                                  f'(SELECT snapped_x FROM "sampling_sites" WHERE site_name = "{sample_site}")- {str(snapped_coord)}, ' \
                                  f'(SELECT snapped_y FROM "sampling_sites" WHERE site_name = "{sample_site}")- {str(snapped_coord)})'
-            print(insert_into_string)
             cursor.execute(insert_into_string)
 
             insert_into_string = f'INSERT INTO pseudo_points(pseudo_id, site_name, msa_id, direction, distance, geom_x, geom_y) VALUES(' \
                                  f'{str(counter+3)}, "{sample_site}",  (SELECT msa_id FROM "sampling_sites" WHERE site_name = "{sample_site}"), "NW", {str(distance)}, ' \
                                  f'(SELECT snapped_x FROM "sampling_sites" WHERE site_name = "{sample_site}")- {str(snapped_coord)}, ' \
                                  f'(SELECT snapped_y FROM "sampling_sites" WHERE site_name = "{sample_site}")+ {str(snapped_coord)})'
-            print(insert_into_string)
             cursor.execute(insert_into_string)
             counter += 4
         cursor.execute('COMMIT')
@@ -644,7 +637,6 @@ class MsaQgis:
         insert_into_table = 'INSERT INTO PollenLookup(distance) SELECT DISTINCT distance FROM pseudo_points'
         cursor.execute(insert_into_table)
         conn.commit()
-
 
         # Calculate distance weighting per taxon
         # Define distance weighting function
@@ -1453,7 +1445,6 @@ class MsaQgis:
                                                              'MSA_QGIS', Qgis.Info)
                                     return "fail"
                 create_table_string += ')'
-                QgsMessageLog.logMessage(create_table_string, 'MSA_QGIS', Qgis.Info)
                 cursor.execute(create_table_string)
                 with open(point_sampled_file, 'r', newline='') as csv_file:
                     reader = csvreader(csv_file)
@@ -1463,6 +1454,28 @@ class MsaQgis:
                         insert_string = f'INSERT INTO Empty_basemap VALUES ({values_string})'
                         cursor.execute(insert_string, row)
                 conn.commit()
+                QgsMessageLog.logMessage("map imported succesfully", 'MSA_QGIS', Qgis.Info)
+                QgsMessageLog.logMessage("assigning nested or non-nested...", 'MSA_QGIS', Qgis.Info)
+                cursor.execute('SELECT DISTINCT resolution FROM Empty_basemap')
+                resolution_values = cursor.fetchall()
+                QgsMessageLog.logMessage(f"{resolution_values}", 'MSA_QGIS', Qgis.Info)
+                if len(resolution_values) == 1:
+                    QgsMessageLog.logMessage("imported map is not nested", 'MSA_QGIS', Qgis.Info)
+                    self.dlg.radioButton_nestedMap.setChecked(False)
+                    self.dlg.radioButton_simpleMap.setChecked(True)
+                    self.dlg.spinBox_resolution.setValue(int(resolution_values[0][0]))
+                    self.dlg.spinBox_resNested.setValue(0)
+                elif len(resolution_values) == 2:
+                    QgsMessageLog.logMessage("imported map is nested", 'MSA_QGIS', Qgis.Info)
+                    self.dlg.radioButton_nestedMap.setChecked(True)
+                    self.dlg.radioButton_simpleMap.setChecked(False)
+                    resolution_values = [resolution_values[0][0], resolution_values[1][0]]
+                    #TODO make resolution suitable for floats.
+                    self.dlg.spinBox_resolution.setValue(int(max(resolution_values)))
+                    self.dlg.spinBox_resNested.setValue(int(min(resolution_values)))
+                else:
+                    QgsMessageLog.logMessage("resolution could not be determined or imported map has variable resolution (capability not yet available, please contact author)", 'MSA_QGIS', Qgis.Info)
+
                 conn.close()
                 return path.join(save_directory,file_name)
 
@@ -1607,14 +1620,14 @@ class MsaQgis:
                 file_name = self.dlg.mQgsFileWidget_startingPoint.filePath()
                 table_name = "Basemap"
                 if file_name[-7:] == ".sqlite":
-                    pass
-                    #can be opened directly, and passed on to the subprocess
+                    pass #can be opened directly, and passed on to the subprocess
                 elif file_name[-4:] == ".csv":
                     file_name = self.loadPointMap(file_name, save_directory, 'temp_basemap.sqlite')
                     if file_name == "fail":
+                        QgsMessageLog.logMessage("Error, loading point map failed, quitting run", 'MSA_QGIS', Qgis.Info)
                         return
                 else:
-                    QgsMessageLog.logMessage("Error, basemap not of type .sqlite", 'MSA_QGIS', Qgis.Info)
+                    QgsMessageLog.logMessage("Error, basemap not of correct file type (.csv or .sqlite), quitting run", 'MSA_QGIS', Qgis.Info)
                     return
             #attach recently created map and create relevant tables
             cursor.execute(f'ATTACH DATABASE "{file_name}" AS "copy"')
@@ -1631,7 +1644,13 @@ class MsaQgis:
 
             self.createSiteTables(conn, cursor, "basemap")
             self.createTaxonTables(conn, cursor)
-            self.createTableDistanceToSite(conn, cursor, "basemap")
+            try: run_distance_to_site = self.createTableDistanceToSite(conn, cursor, "basemap")
+            except Exception as e:
+                QgsMessageLog.logMessage(f"Code failure in createTableDistanceToSite, quitting run: {e}", 'MSA_QGIS', Qgis.Critical)
+                return
+            if run_distance_to_site == False:
+                QgsMessageLog.logMessage(f"Failure to run in createTableDistanceToSite, likely due to input issues, quitting run", 'MSA_QGIS', Qgis.Critical)
+                return
             self.createTableOfMaps(conn, cursor)
             self.createTablePseudoPoints(conn, cursor, "basemap")
             if self.dlg.checkBox_enableWindrose.isChecked():
