@@ -1,5 +1,6 @@
-from math import pi, sqrt, exp
+from math import pi
 from decimal import Decimal, Context
+
 
 def SqlDwPrenticeSugita(turb_const, diffusion_const, wind_speed, distance, fall_speed):
     """A distance weighting function.

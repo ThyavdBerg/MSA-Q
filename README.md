@@ -37,13 +37,13 @@ A more extensive manual is available in the "relevant info" folder.
 ### Papers
 - [Bunting & Middleton, 2005. Modelling pollen dispersal and deposition using HUMPOL software including simulating windroses and irregular lakes](https://doi.org/10.1016/j.revpalbo.2004.12.009)
 - [Bunting & Middleton, 2009. Equifinality and uncertainty in the interpretation of pollen data The MSA to reconstruction of past vegetation mosaics](https://doi.org/10.1177/0959683609105304)
-- Van den Berg, 2025 (in prep). Refining Reconstruction: Discovering the capabilities and limitations of pollen analysis using the Multiple Scenario Approach
+- Van den Berg, 2025. Refining Reconstruction: Discovering the capabilities and limitations of pollen analysis using the Multiple Scenario Approach
 
 ### Websites
 
 ### Contributors
 - Thya W.B. van den Berg, University of Hull
-- M. Jane Bunting, Univeristy of Hull
+- M. Jane Bunting, University of Hull
 
 ## Requirements
 - QGIS 3.22 or more recent versions of QGIS 3.xx

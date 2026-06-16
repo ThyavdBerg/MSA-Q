@@ -30,6 +30,7 @@
  ***************************************************************************/
 """
 from csv import reader as csvreader
+import csv
 from pickle import dump as pickledump
 from time import time, strftime, localtime
 import sqlite3
@@ -38,22 +39,23 @@ from os import remove, path
 from math import sqrt
 #from pandas import read_csv #TODO this is currently not functional as pandas does not work in Linus QGIS and so needs to be turned off
 
-from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, QVariant, QLocale
+from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, QMetaType, QVariant
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
 from qgis._core import QgsRectangle
-from qgis.core import QgsApplication, QgsMessageLog, Qgis,  QgsVectorLayer, QgsField, QgsGeometry, QgsPointXY, QgsFeature,QgsVectorLayerJoinInfo, QgsProject, QgsSpatialIndex, QgsVectorFileWriter
+from qgis.core import QgsApplication, QgsMessageLog, Qgis,  QgsVectorLayer, QgsField, QgsGeometry, QgsPointXY, QgsFeature,QgsVectorLayerJoinInfo, QgsProject, QgsSpatialIndex, QgsVectorFileWriter, edit
 from qgis.utils import iface
 from PyQt5.QtWidgets import QTableWidgetItem
-from subprocess import Popen, PIPE, STDOUT
+from subprocess import Popen, PIPE, STDOUT, run
 import traceback
 
 # Initialize Qt resources from file resources.py. IDE will tell you it's not importing anything, IDE is wrong.
 from .resources import *
 # Import the code for the dialog
-from .MSA_QGIS_dialog import MsaQgisDialog, MsaQgisSuccesDialog
+from .MSA_QGIS_dialog import MsaQgisDialog, MsaQgisSuccesDialog, MsaQgisErrorDialog
 from .MSA_QGIS_custom_sql_methods import SqlSqrt, SqlCardinalDir
 from .MSA_QGIS_distance_weighting_sql_methods import SqlDwPrenticeSugita
+
 
 
 # Import processing tools from Qgis (make sure python interpreter contains path C:\OSGeo4W64\apps\qgis\python\plugins)
@@ -279,11 +281,19 @@ class MsaQgis:
             sample_x = table_sites.item(row,1).text()
             sample_y = table_sites.item(row,2).text()
             sample_is_lake = table_sites.item(row,3).text()
-            snapped_x = f'(SELECT geom_x FROM "{basemap}" WHERE geom_x BETWEEN ({sample_x}-{self.spacing*0.5}) ' \
-                        f'AND ({sample_x}+{self.spacing *0.5}) ORDER BY abs({sample_x}-geom_x) limit 1)' #TODO explicitly choose one instead of random
+            #TODO adjust for nesting
+            if self.dlg.radioButton_nestedMap.isChecked():
+                snapped_x = f'(SELECT geom_x FROM "{basemap}" WHERE geom_x BETWEEN ({sample_x}-{self.dlg.spinBox_resNested.value() * 0.5}) ' \
+                            f'AND ({sample_x}+{self.dlg.spinBox_resNested.value() * 0.5}) ORDER BY abs({sample_x}-geom_x) limit 1)'  # TODO explicitly choose one instead of random
 
-            snapped_y = f'(SELECT geom_y FROM "{basemap}" WHERE geom_y BETWEEN ({sample_y}-{self.spacing *0.5}) ' \
-                        f'AND ({sample_y}+{self.spacing*0.5}) ORDER BY abs({sample_x}-geom_y) limit 1)' #TODO explicitly choose one instead of random
+                snapped_y = f'(SELECT geom_y FROM "{basemap}" WHERE geom_y BETWEEN ({sample_y}-{self.dlg.spinBox_resNested.value() * 0.5}) ' \
+                            f'AND ({sample_y}+{self.dlg.spinBox_resNested.value() * 0.5}) ORDER BY abs({sample_x}-geom_y) limit 1)'  # TODO explicitly choose one instead of random
+            else:
+                snapped_x = f'(SELECT geom_x FROM "{basemap}" WHERE geom_x BETWEEN ({sample_x}-{self.spacing*0.5}) ' \
+                            f'AND ({sample_x}+{self.spacing *0.5}) ORDER BY abs({sample_x}-geom_x) limit 1)' #TODO explicitly choose one instead of random
+
+                snapped_y = f'(SELECT geom_y FROM "{basemap}" WHERE geom_y BETWEEN ({sample_y}-{self.spacing *0.5}) ' \
+                            f'AND ({sample_y}+{self.spacing*0.5}) ORDER BY abs({sample_x}-geom_y) limit 1)' #TODO explicitly choose one instead of random
             values_string = f'"{sample_site}", {sample_x}, {sample_y}, "{sample_is_lake}", {snapped_x},  {snapped_y})'
             cursor.execute(insert_into_string+values_string)
             conn.commit()
@@ -391,19 +401,18 @@ class MsaQgis:
         start_time = time()
         QgsMessageLog.logMessage("Creation of distance and direction tables initiated", 'MSA_QGIS',
                                  Qgis.Info)
-        #count number of entries in basemap
-        cursor.execute(f'SELECT * FROM "{basemap}"')
-        number_of_entries = len(cursor.fetchall())
+        cursor.execute(f'SELECT msa_id FROM "{basemap}"')
+        extract_msa_ids = cursor.fetchall()
+        list_msa_ids = [id[0] for id in extract_msa_ids]
         #TODO make it work for lakes
         table_sites = self.dlg.tableWidget_sites
-        cursor.execute('CREATE TABLE dist_dir(msa_id INT,site_name TEXT VARCHAR(50),geom_x REAL, ' \
-                              'geom_y REAL, distance REAL, direction TEXT VARCHAR(5), PRIMARY KEY(msa_id, site_name))')
+        cursor.execute('CREATE TABLE dist_dir(msa_id INT,site_name TEXT VARCHAR(50),geom_x REAL, '
+                       'geom_y REAL, distance REAL, direction TEXT VARCHAR(5), PRIMARY KEY(msa_id, site_name))')
         conn.commit()
         # Create new (math) functions from python to SQLite that are not normally available. See MSA_QGIS_custom_sql_methods
         conn.create_function("SQRT", 1, SqlSqrt)
         conn.create_function("CARDDIR", 2, SqlCardinalDir)
 
-        cursor.execute('BEGIN TRANSACTION')
         for row in range(table_sites.rowCount()):
             sample_site = table_sites.item(row,0).text()
             # # For version using non-snapped x and y
@@ -414,26 +423,39 @@ class MsaQgis:
             snapped_x = str(cursor.fetchone()[0])
             cursor.execute(f'SELECT snapped_y FROM sampling_sites WHERE site_name = "{sample_site}"')
             snapped_y = str(cursor.fetchone()[0])
-
-            for entry in range(1,number_of_entries+1):  #  No msa_id 1 is made, so exclude it. +1 because range is exclusive
+            cursor.execute('BEGIN TRANSACTION')
+            for entry in list_msa_ids:
                 # Insert data per msa_id (select all of them from msa_id with x and y)
-                cursor.execute(f'INSERT INTO dist_dir(msa_id, site_name, geom_x, geom_y) '
-                               f'VALUES({entry}, "{sample_site}", '
-                               f'(SELECT geom_x FROM "{basemap}" WHERE msa_id = {entry}), '
-                               f'(SELECT geom_y FROM "{basemap}" WHERE msa_id = {entry}))')
+                insert_dist_dir = f'INSERT INTO dist_dir(msa_id, site_name, geom_x, geom_y) '\
+                               f'VALUES({entry}, "{sample_site}", '\
+                               f'(SELECT geom_x FROM "{basemap}" WHERE msa_id = {entry}), '\
+                               f'(SELECT geom_y FROM "{basemap}" WHERE msa_id = {entry}))'
+                cursor.execute(insert_dist_dir)
+            cursor.execute('COMMIT')
 
-            # Calculate distance
-            update_distance_string = f'UPDATE dist_dir SET distance = (SQRT(((geom_x-{snapped_x}) * (geom_x - {snapped_x}))' \
-                                     f'+ ((geom_y - {snapped_y}) * (geom_y - {snapped_y})))) WHERE site_name = "{sample_site}"'
+            # Calculate distance. Rounding is in order to solve issue with transferring between SQLite and R/csv for LS model
+            update_distance_string = f'UPDATE dist_dir SET distance = ROUND((SQRT(((geom_x - {snapped_x}) * (geom_x - {snapped_x}))' \
+                                     f'+ ((geom_y - {snapped_y}) * (geom_y - {snapped_y})))), 5) WHERE site_name = "{sample_site}"'
 
-            cursor.execute(update_distance_string)
+            sqlite3.enable_callback_tracebacks(True)
+            try:
+                cursor.execute(update_distance_string)
+            except sqlite3.OperationalError as e:
+                QgsMessageLog.logMessage(str(e),
+                                         'MSA_QGIS',
+                                         Qgis.Critical)
+                QgsMessageLog.logMessage(update_distance_string,
+                                         'MSA_QGIS',
+                                         Qgis.Critical)
+                return False
+
             # Determine direction
             update_direction_string = f'UPDATE dist_dir SET direction = (SELECT CARDDIR((geom_x - {snapped_x}), ' \
                                       f'(geom_y - {snapped_y}))) WHERE site_name = "{sample_site}"'
             cursor.execute(update_direction_string)
+            conn.commit()
 
 
-        cursor.execute('COMMIT')
         # cursor.execute('CREATE INDEX dist_dir_dist_name_dir_idx ON dist_dir(distance, direction, site_name);')
         # conn.commit()
         cursor.execute('CREATE UNIQUE INDEX dist_dir_id_name_idx ON dist_dir(msa_id, site_name)')
@@ -442,6 +464,7 @@ class MsaQgis:
         end_time = time() - start_time
         QgsMessageLog.logMessage(f"Creation of distance and direction tables finished after {end_time} seconds" , 'MSA_QGIS',
                                  Qgis.Info)
+        return True
 
     def createTableOfMaps(self, conn, cursor):
         """Creates a table where the list of maps will go after running the main body MSA(assigning veg_coms and
@@ -499,7 +522,13 @@ class MsaQgis:
         cursor.execute(create_table_string)
 
         #fill table 4 points at a time
-        distance = sqrt(((self.spacing*0.25)**2)*2)
+        if self.dlg.radioButton_nestedMap.isChecked():
+            distance = sqrt(((self.dlg.spinBox_resNested.value() * 0.25) ** 2) * 2)
+            snapped_coord = self.dlg.spinBox_resNested.value()*0.5
+        else:
+            distance = sqrt(((self.spacing * 0.25) ** 2) * 2)
+            snapped_coord = self.spacing*0.5
+
         table_sites = self.dlg.tableWidget_sites
         counter = 0
         cursor.execute('BEGIN TRANSACTION')
@@ -508,26 +537,26 @@ class MsaQgis:
 
             insert_into_string = f'INSERT INTO pseudo_points(pseudo_id, site_name, msa_id, direction, distance, geom_x, geom_y) VALUES(' \
                                  f'{str(counter)}, "{sample_site}",  (SELECT msa_id FROM "sampling_sites" WHERE site_name = "{sample_site}"), "NE", {str(distance)}, ' \
-                                 f'(SELECT snapped_x FROM "sampling_sites" WHERE site_name = "{sample_site}")+ {str(self.spacing*0.5)}, ' \
-                                 f'(SELECT snapped_y FROM "sampling_sites" WHERE site_name = "{sample_site}")+ {str(self.spacing*0.5)})'
+                                 f'(SELECT snapped_x FROM "sampling_sites" WHERE site_name = "{sample_site}")+ {str(snapped_coord)}, ' \
+                                 f'(SELECT snapped_y FROM "sampling_sites" WHERE site_name = "{sample_site}")+ {str(snapped_coord)})'
             cursor.execute(insert_into_string)
 
             insert_into_string = f'INSERT INTO pseudo_points(pseudo_id, site_name, msa_id, direction, distance, geom_x, geom_y) VALUES(' \
                                  f'{str(counter+1)}, "{sample_site}", (SELECT msa_id FROM "sampling_sites" WHERE site_name = "{sample_site}"), "SE", {str(distance)}, ' \
-                                 f'(SELECT snapped_x FROM "sampling_sites" WHERE site_name = "{sample_site}")+ {str(self.spacing*0.5)}, ' \
-                                 f'(SELECT snapped_y FROM "sampling_sites" WHERE site_name = "{sample_site}")- {str(self.spacing*0.5)})'
+                                 f'(SELECT snapped_x FROM "sampling_sites" WHERE site_name = "{sample_site}")+ {str(snapped_coord)}, ' \
+                                 f'(SELECT snapped_y FROM "sampling_sites" WHERE site_name = "{sample_site}")- {str(snapped_coord)})'
             cursor.execute(insert_into_string)
 
             insert_into_string = f'INSERT INTO pseudo_points(pseudo_id, site_name, msa_id, direction, distance, geom_x, geom_y) VALUES(' \
                                  f'{str(counter+2)}, "{sample_site}", (SELECT msa_id FROM "sampling_sites" WHERE site_name = "{sample_site}"), "SW", {str(distance)}, ' \
-                                 f'(SELECT snapped_x FROM "sampling_sites" WHERE site_name = "{sample_site}")- {str(self.spacing*0.5)}, ' \
-                                 f'(SELECT snapped_y FROM "sampling_sites" WHERE site_name = "{sample_site}")- {str(self.spacing*0.5)})'
+                                 f'(SELECT snapped_x FROM "sampling_sites" WHERE site_name = "{sample_site}")- {str(snapped_coord)}, ' \
+                                 f'(SELECT snapped_y FROM "sampling_sites" WHERE site_name = "{sample_site}")- {str(snapped_coord)})'
             cursor.execute(insert_into_string)
 
             insert_into_string = f'INSERT INTO pseudo_points(pseudo_id, site_name, msa_id, direction, distance, geom_x, geom_y) VALUES(' \
                                  f'{str(counter+3)}, "{sample_site}",  (SELECT msa_id FROM "sampling_sites" WHERE site_name = "{sample_site}"), "NW", {str(distance)}, ' \
-                                 f'(SELECT snapped_x FROM "sampling_sites" WHERE site_name = "{sample_site}")- {str(self.spacing*0.5)}, ' \
-                                 f'(SELECT snapped_y FROM "sampling_sites" WHERE site_name = "{sample_site}")+ {str(self.spacing*0.5)})'
+                                 f'(SELECT snapped_x FROM "sampling_sites" WHERE site_name = "{sample_site}")- {str(snapped_coord)}, ' \
+                                 f'(SELECT snapped_y FROM "sampling_sites" WHERE site_name = "{sample_site}")+ {str(snapped_coord)})'
             cursor.execute(insert_into_string)
             counter += 4
         cursor.execute('COMMIT')
@@ -576,9 +605,9 @@ class MsaQgis:
         QgsMessageLog.logMessage("Creation of windrose tables finished", 'MSA_QGIS',
                                  Qgis.Info)
 
-    def createTablePollenLookupBasin(self, conn, cursor):
+    def createTablePollenLookupBasin(self, conn, cursor, save_directory, rscript_path = None):
         """Creates a table with the various computed distances to the sites and determines the pollen dispersal and
-        deposition function for each taxon gi(z), based on Parsons/Prentice mire model.
+        deposition function for each taxon gi(z), based on a pollen dispersal and distance model.
 
         :class params: self.dlg,
         :sqlite functions: self._SqlDwPrenticesugita
@@ -609,16 +638,14 @@ class MsaQgis:
         cursor.execute(insert_into_table)
         conn.commit()
 
-
         # Calculate distance weighting per taxon
         # Define distance weighting function
         cursor.execute('BEGIN TRANSACTION')
         if self.dlg.comboBox_dispModel.currentText() == 'HUMPOL mire model':
+            # relies on creating a sql function
             conn.create_function("DISTANCEWEIGHT", 5, SqlDwPrenticeSugita)
             # Calculate the pollen dispersal and deposition functions
             for row in range(self.dlg.tableWidget_taxa.rowCount()):
-
-
                 taxon = self.dlg.tableWidget_taxa.item(row, 0).text()
                 turb_const= self.dlg.doubleSpin_turbConstant.value()
                 diffusion_const = self.dlg.doubleSpin_diffConstant.value()
@@ -627,6 +654,69 @@ class MsaQgis:
                 update_DWPA_string = f'UPDATE PollenLookup SET {taxon}_DW = (SELECT DISTANCEWEIGHT({turb_const}, ' \
                                      f'{diffusion_const}, {wind_speed}, distance, ({fall_speed})))'
                 cursor.execute(update_DWPA_string)
+        elif self.dlg.comboBox_dispModel.currentText() == 'LS unstable model LOESS':
+            # does not rely on importing an sql function, does rely on R installation and subprocess
+            #todo check if file temp_fallspeeds.csv exists and if yes delete first.
+            file_name_fallspeed = path.join(save_directory,'temp_fallspeeds.csv')
+            file_name_lookup = path.join(save_directory, 'temp_PollenLookup.csv')
+            file_name_loess_data = path.join(self.plugin_dir, 'Lsm_unstable_loess.rda')
+            with open(file_name_fallspeed, "w", newline = '') as csvfile:
+                writer = csv.writer(csvfile)
+                writer.writerow(["taxon", "fall_speed"])
+                for row in range(self.dlg.tableWidget_taxa.rowCount()):
+                    taxon = self.dlg.tableWidget_taxa.item(row, 0).text()
+                    fall_speed = self.dlg.tableWidget_taxa.item(row, 2).text()
+                    writer.writerow([taxon,fall_speed])
+            cursor.execute(f'SELECT * FROM "PollenLookup"')
+            with open(file_name_lookup, 'w', newline='') as csv_file:
+                csv_writer = csv.writer(csv_file)
+                csv_writer.writerow([i[0] for i in cursor.description])
+                csv_writer.writerows(cursor)
+            command = [rscript_path, path.join(self.plugin_dir, "MSA_QGIS_extract_rda_lsm2.R"), save_directory, file_name_loess_data]
+            output = run(command, capture_output=True, encoding="utf-8") #subprocessing
+            if output.stderr != '':
+                raise BrokenPipeError(f"{output.stderr} in the lsm subprocess. "
+                                      f"Try checking the correctness of the pollen data")
+            else:
+                cursor.execute('DROP TABLE IF EXISTS PollenLookup')
+                # re-create the table from the csv.
+                create_table_string = 'CREATE TABLE PollenLookup(distance REAL PRIMARY KEY, '
+                for row in range(self.dlg.tableWidget_taxa.rowCount()):
+                    taxon = self.dlg.tableWidget_taxa.item(row, 0).text()
+                    if row + 1 == self.dlg.tableWidget_taxa.rowCount():
+                        add_column_string = taxon + '_DW REAL)'
+                        create_table_string += add_column_string
+                    else:
+                        add_column_string = taxon + '_DW REAL,'
+                        create_table_string += add_column_string
+                cursor.execute(create_table_string)
+                conn.commit()
+                with open(path.join(save_directory, "temp_PollenLookup2.csv"), "r") as csvfile:
+                    reader = csv.reader(csvfile)
+                    reader.__next__() #skip header row
+                    insert_dwpa_string = f"INSERT INTO PollenLookup (distance, "
+                    for row in range(self.dlg.tableWidget_taxa.rowCount()):
+                        taxon = self.dlg.tableWidget_taxa.item(row, 0).text()
+                        if row + 1 == self.dlg.tableWidget_taxa.rowCount():
+                            insert_dwpa_string += taxon + '_DW)'
+                        else:
+                            insert_dwpa_string += taxon + '_DW,'
+                    values_string = ', '.join(['?' for row in range(self.dlg.tableWidget_taxa.rowCount() + 1)])
+                    insert_dwpa_string += f" values({values_string})"
+                    cursor.executemany(insert_dwpa_string, reader)
+            # remove temp_files
+            try:
+                remove(path.join(save_directory,'temp_fallspeeds.csv'))
+            except:
+                QgsMessageLog.logMessage("Could not delete temp file 'temp_fallspeeds.csv', delete this file manually", 'MSA_QGIS', Qgis.Warning)
+            try:
+                remove(path.join(save_directory,'temp_PollenLookup.csv'))
+            except:
+                QgsMessageLog.logMessage("Could not delete temp file 'temp_PollenLookup.csv', delete this file manually", 'MSA_QGIS', Qgis.Warning)
+            try:
+                remove(path.join(save_directory,'temp_PollenLookup2.csv'))
+            except:
+                QgsMessageLog.logMessage("Could not delete temp file 'temp_PollenLookup2.csv', delete this file manually", 'MSA_QGIS', Qgis.Warning)
 
         cursor.execute('COMMIT')
         cursor.execute('CREATE INDEX PollenLookup_dist_idx ON PollenLookup(distance);')
@@ -654,156 +744,130 @@ class MsaQgis:
 
 #** POINT SAMPLING
     def createPointLayer(self):
-        """Returns a vector point layer based on the specifications given by the user in the UI
-
-        :class params: self.spacing, self.dlg, self.iface,
-
-        :returns: A vector layer with equally spaced points in a square as determined by the user in the UI
-        :rtype: QgsVectorLayer"""
-        QgsMessageLog.logMessage(f'point layer creation started', 'MSA_QGIS',Qgis.Info)
         start_time = time()
 
-        # Create new vector point layer
-        vector_point_base = QgsVectorLayer('Point', 'Name', 'memory', crs=self.crs)
-        data_provider = vector_point_base.dataProvider()
-
-        # Set extent of the new layer
+        # create regular spaced points layer
+        QgsMessageLog.logMessage("Initiate point creation (regular)", 'MSA_QGIS', Qgis.Info)
         inset = self.spacing * 0.5  # set inset
-        if self.dlg.extent is None:
-            self.iface.messageBar().pushMessage('Extent not chosen!', level=1) # TODO will be deprecated once checkboxes in place
-            raise Exception('Extent not chosen')
-        else:
-            x_min = self.dlg.extent.xMinimum() + inset
-            x_max = self.dlg.extent.xMaximum()
-            y_min = self.dlg.extent.yMinimum()
-            y_max = self.dlg.extent.yMaximum() - inset
+        x_min = self.dlg.extent.xMinimum()
+        x_max = self.dlg.extent.xMaximum()
+        y_min = self.dlg.extent.yMinimum()
+        y_max = self.dlg.extent.yMaximum()
+        vector_point_base = runqgisprocess("qgis:regularpoints", {'EXTENT': QgsRectangle(x_min, y_min, x_max, y_max), 'SPACING': self.spacing, 'INSET' : inset, 'CRS': self.crs, 'OUTPUT': "memory:"})['OUTPUT']
 
-        # Create fields
-            QgsMessageLog.logMessage("Initiate point creation", 'MSA_QGIS', Qgis.Info)
-            # Add fields with x and y geometry and the feature id
-            if self.dlg.radioButton_nestedMap.isChecked():
-                data_provider.addAttributes([QgsField('geom_X', QVariant.Double, 'double', 20, 5),
-                                             QgsField('geom_Y', QVariant.Double, 'double', 20, 5),
-                                             QgsField('veg_com', QVariant.String),
-                                             QgsField('chance_to_happen', QVariant.Int),
-                                             QgsField('msa_id', QVariant.Int),
-                                             QgsField('resolution', QVariant.Int)])
-            else:
-                data_provider.addAttributes([QgsField('geom_X', QVariant.Double, 'double', 20, 5),
-                                             QgsField('geom_Y', QVariant.Double, 'double', 20, 5),
-                                             QgsField('veg_com', QVariant.String),
-                                             QgsField('chance_to_happen', QVariant.Int),
-                                             QgsField('msa_id', QVariant.Int)])
-            vector_point_base.updateFields()
-
-        # create (simple) grid points
-            feat_id_generator = 1  #QGIS 3.16 generated its own IDs, but it seems this is not the case anymore
-            y = y_max
-            while y >= y_min:
-                x = x_min
-                while x <= x_max:
-                    geom = QgsGeometry.fromPointXY(QgsPointXY(x, y))
-                    feat = QgsFeature()
-                    feat.setGeometry(geom)
-                    feat.initAttributes(6)
-                    feat.setAttribute(0, geom.asPoint().x())
-                    feat.setAttribute(1, geom.asPoint().y())
-                    feat.setAttribute(2, 'Empty')
-                    feat.setAttribute(3, 0)
-                    if self.dlg.radioButton_nestedMap.isChecked():
-                        feat.setAttribute(5, self.spacing)
-                        feat.setAttribute(4, None)
-                    else: #setting feat ID iteratively does not work when using nesting.
-                        feat.setAttribute(4, feat_id_generator)
-                        feat_id_generator += 1
-                    del geom
-                    x += self.spacing
-                    data_provider.addFeature(feat)
-                    del feat
-                y -= self.spacing
-
-
-        #Insert higher resolution nested features
         if self.dlg.radioButton_nestedMap.isChecked():
-            QgsMessageLog.logMessage(f'Implementing nested maps...', 'MSA_QGIS', Qgis.Info)
+            QgsMessageLog.logMessage(f'Initiale point creation (nested)', 'MSA_QGIS', Qgis.Info)
+            nesting_overlay = QgsVectorLayer('Polygon', 'nesting_overlay', 'memory', crs=self.crs)
+            nesting_overlay_dp = nesting_overlay.dataProvider()
             for row in range(self.dlg.tableWidget_sites.rowCount()):
-                site_x = float(self.dlg.tableWidget_sites.item(row, 1).text())
-                site_y = float(self.dlg.tableWidget_sites.item(row, 2).text())
-                min_x_remove = site_x - (0.5*self.dlg.spinBox_nestedArea.value())-(0.5*self.spacing)
-                min_y_remove = site_y - (0.5*self.dlg.spinBox_nestedArea.value())-(0.5*self.spacing)
-                max_x_remove = site_x + (0.5*self.dlg.spinBox_nestedArea.value())+(0.5*self.spacing)
-                max_y_remove = site_y + (0.5*self.dlg.spinBox_nestedArea.value())+(0.5*self.spacing)
-                vector_point_base.startEditing()
-                vector_point_base.selectByRect(QgsRectangle(min_x_remove, min_y_remove, max_x_remove, max_y_remove))
-                vector_point_base.deleteSelectedFeatures()
-                vector_point_base.commitChanges()
-                #get min and max x and y from the nearest non-deleted points of the outer grid.
-                vector_point_base.selectByRect(QgsRectangle((site_x - (1.5*self.spacing)-(0.5*self.dlg.spinBox_nestedArea.value())),
-                                                            (site_y -(0.5*self.spacing)),
-                                                            (site_x - (0.5*self.spacing)-(0.5*self.dlg.spinBox_nestedArea.value())),
-                                                            (site_y +(0.5*self.spacing))))
-                selected_features = vector_point_base.selectedFeatures()
-                min_x = selected_features[0].attribute(0) + (0.5*self.spacing) + (0.5*self.dlg.spinBox_resNested.value())
-                vector_point_base.removeSelection()
-                vector_point_base.selectByRect(QgsRectangle((site_x + (1.5*self.spacing)+(0.5*self.dlg.spinBox_nestedArea.value())),
-                                                            (site_y -(0.5*self.spacing)),
-                                                            (site_x + (0.5*self.spacing)+(0.5*self.dlg.spinBox_nestedArea.value())),
-                                                            (site_y +(0.5*self.spacing))))
-                selected_features = vector_point_base.selectedFeatures()
-                max_x = selected_features[0].attribute(0) - (0.5*self.spacing) - (0.5*self.dlg.spinBox_resNested.value())
-                vector_point_base.removeSelection()
-                vector_point_base.selectByRect(QgsRectangle((site_x - (0.5*self.spacing)),
-                                                            (site_y - (1.5*self.spacing)-(0.5*self.dlg.spinBox_nestedArea.value())),
-                                                            (site_x + (0.5*self.spacing)),
-                                                            (site_y - (0.5*self.spacing)-(0.5*self.dlg.spinBox_nestedArea.value()))))
-                selected_features = vector_point_base.selectedFeatures()
-                min_y = selected_features[0].attribute(1) + (0.5*self.spacing) + (0.5*self.dlg.spinBox_resNested.value())
-                vector_point_base.removeSelection()
-                vector_point_base.selectByRect(QgsRectangle((site_x - (0.5*self.spacing)),
-                                                            (site_y + (0.5*self.spacing)+(0.5*self.dlg.spinBox_nestedArea.value())),
-                                                            (site_x + (0.5*self.spacing)),
-                                                            (site_y + (1.5*self.spacing)+(0.5*self.dlg.spinBox_nestedArea.value()))))
-                selected_features = vector_point_base.selectedFeatures()
-                max_y = selected_features[0].attribute(1) - (0.5*self.spacing) - (0.5*self.dlg.spinBox_resNested.value())
-                vector_point_base.removeSelection()
-                y = max_y
-                while y >= min_y:
-                    x = min_x
-                    while x <= max_x:
-                        geom = QgsGeometry.fromPointXY(QgsPointXY(x, y))
-                        feat = QgsFeature()
-                        feat.setGeometry(geom)
-                        feat.initAttributes(6)
-                        feat.setAttribute(0, geom.asPoint().x())
-                        feat.setAttribute(1, geom.asPoint().y())
-                        feat.setAttribute(2, 'Empty')
-                        feat.setAttribute(3, 0)
-                        feat.setAttribute(4, None)
-                        feat.setAttribute(5, self.dlg.spinBox_resNested.value())
-                        del geom
-                        x += self.dlg.spinBox_resNested.value()
-                        data_provider.addFeature(feat)
-                        del feat
-                    y -= self.dlg.spinBox_resNested.value()
-                    vector_point_base.updateExtents()
-                    vector_point_base.updateFields()
-            #iterate over all features to add msa_id
-            features = vector_point_base.getFeatures()
-            feat_id_generator = 1
-            vector_point_base.startEditing()
-            for feat in features:
-                feat[4] = feat_id_generator
-                feat_id_generator +=1
-                vector_point_base.updateFeature(feat)
-            vector_point_base.commitChanges()
+                # create " small" polygon (for clipping nested/local point layer)
+                north_x = float(self.dlg.tableWidget_sites.item(row, 1).text()) + (0.5*self.dlg.spinBox_nestedArea.value())
+                south_x = float(self.dlg.tableWidget_sites.item(row, 1).text()) - (0.5*self.dlg.spinBox_nestedArea.value())
+                west_y = float(self.dlg.tableWidget_sites.item(row, 2).text()) +  (0.5*self.dlg.spinBox_nestedArea.value())
+                east_y = float(self.dlg.tableWidget_sites.item(row, 2).text()) -  (0.5*self.dlg.spinBox_nestedArea.value())
+
+                rest_north_x = north_x % self.spacing
+                rest_south_x = south_x % self.spacing
+                rest_west_y = west_y % self.spacing
+                rest_east_y = east_y % self.spacing
+
+                if (north_x - float(self.dlg.tableWidget_sites.item(row, 1).text())) < 0:
+                    north_x-= rest_north_x
+                else:
+                    north_x += (self.spacing - rest_north_x)
+
+                if (south_x - float(self.dlg.tableWidget_sites.item(row, 1).text())) < 0:
+                    south_x-= rest_south_x
+                else:
+                    south_x += (self.spacing - rest_south_x)
+
+                if (west_y - float(self.dlg.tableWidget_sites.item(row, 2).text())) < 0:
+                    west_y-= rest_west_y
+                else:
+                    west_y += (self.spacing - rest_west_y)
+
+                if (east_y - float(self.dlg.tableWidget_sites.item(row, 2).text())) < 0:
+                    east_y-= rest_east_y
+                else:
+                    east_y += (self.spacing - rest_east_y)
+
+                nesting_overlay.startEditing()
+                geom = QgsGeometry.fromPolygonXY([[QgsPointXY(north_x, west_y), QgsPointXY(north_x, east_y), QgsPointXY(south_x, east_y), QgsPointXY(south_x, west_y), QgsPointXY(north_x, west_y)]])
+                feat = QgsFeature()
+                feat.setGeometry(geom)
+                nesting_overlay_dp.addFeature(feat)
+
+            nesting_overlay_dissolved = runqgisprocess("native:dissolve", {'INPUT': nesting_overlay, 'OUTPUT': "memory:"})['OUTPUT']
+            # remove "big" version from vector point layer (difference)
+            # vector_point_base = runqgisprocess("qgis:difference",
+            #                                    {'INPUT': vector_point_base,
+            #                                     'OVERLAY': nesting_overlay_dissolved,
+            #                                     'OUTPUT': "memory:"})['OUTPUT']
+            # difference algorithm bugged for current QGIS version, does not properly remove features. Use extract by expression instead.
+            # A little ugly since it doesn't work without also adding the map to the interface for some reason, but it works. TODO Replace with difference when it is repaired.
+            # See github issue: https://github.com/qgis/QGIS/issues/61205
+            nesting_overlay_dissolved.setName("temp_name") #TODO temporarily necessary to deal with issues with native:difference
+            QgsProject.instance().addMapLayer(nesting_overlay_dissolved) #TODO temporarily necessary to deal with issues with native:difference
+
+            vector_point_base = runqgisprocess("native:extractbyexpression",
+                                               {'INPUT': vector_point_base,
+                                                'EXPRESSION': f"overlay_disjoint('temp_name')",
+                                                'OUTPUT': "memory:"})['OUTPUT'] #TODO temporarily necessary to deal with issues with native:difference
+
+            # Create regularly spaced points with extent of small nesting overlay
+            nested_point_base = runqgisprocess("qgis:regularpoints", {'EXTENT': nesting_overlay_dissolved.extent(), 'SPACING': self.dlg.spinBox_resNested.value(), 'INSET' : 0.5*self.dlg.spinBox_resNested.value(), 'CRS': self.crs, 'OUTPUT': "memory:"})['OUTPUT']
+            # Clip nested_point_base with points
+            nested_point_base = runqgisprocess("qgis:clip", {'INPUT': nested_point_base,
+                                                'OVERLAY': nesting_overlay_dissolved,
+                                                'OUTPUT': "memory:"})['OUTPUT']
+            # combine the two point maps
+            vector_point_base = runqgisprocess('qgis:union', {'INPUT': vector_point_base,
+                                                'OVERLAY': nested_point_base,
+                                                'OUTPUT': "memory:"})['OUTPUT']
+
+        # add all of the attributes to the map
+        # remove automatically created id layer (s)
+        indx_of_columns_to_delete = vector_point_base.attributeList()
+        vector_point_base.startEditing()
+        vector_point_base.dataProvider().deleteAttributes(indx_of_columns_to_delete)
+        vector_point_base.commitChanges()
+        # initialize new attributes
+        vector_point_base.dataProvider().addAttributes([QgsField('geom_X', QMetaType.Type.Double, 'double', 20, 5),
+                                     QgsField('geom_Y', QMetaType.Type.Double, 'double', 20, 5),
+                                     QgsField('veg_com', QMetaType.Type.QString),
+                                     QgsField('chance_to_happen', QMetaType.Type.Int),
+                                     QgsField('msa_id', QMetaType.Type.Int),
+                                     QgsField('resolution', QMetaType.Type.Int)])
+        vector_point_base.updateFields()
+
+        with edit(vector_point_base):
+            for feat in vector_point_base.getFeatures():
+                vector_point_base.changeAttributeValue(feat.id(), 0, feat.geometry().asPoint().x())
+                vector_point_base.changeAttributeValue(feat.id(), 1, feat.geometry().asPoint().y())
+                vector_point_base.changeAttributeValue(feat.id(), 2, "Empty")
+                vector_point_base.changeAttributeValue(feat.id(), 3, 0)
+                vector_point_base.changeAttributeValue(feat.id(), 4, feat.id())
+                vector_point_base.changeAttributeValue(feat.id(), 5, self.spacing)
+
+
+        # change resolution attribute for nested points
+        if self.dlg.radioButton_nestedMap.isChecked():
+            # make selection based on polygon
+            runqgisprocess("qgis:selectbylocation", {'INPUT': vector_point_base, 'PREDICATE': 0, 'INTERSECT':nesting_overlay_dissolved })
+
+            # iterate over selection to change resolution
+            with edit(vector_point_base):
+                selection = vector_point_base.selectedFeatures()
+                for feat in selection:
+                    vector_point_base.changeAttributeValue(feat.id(), 5, self.dlg.spinBox_resNested.value())
+            vector_point_base.removeSelection()
+
+        QgsProject.instance().removeMapLayer(nesting_overlay_dissolved) #TODO temporarily necessary to feal with issues with native:difference
 
         runqgisprocess("native:createspatialindex", {'INPUT': vector_point_base})
         QgsMessageLog.logMessage("All points created", 'MSA_QGIS', Qgis.Info)
         QgsMessageLog.logMessage(f'point layer creation finished took {time()-start_time}', 'MSA_QGIS',Qgis.Info)
-
-        # test code load vector_point_base (only uncomment for testing)
-        # QgsProject.instance().addMapLayer(vector_point_base)
-
+        # QgsProject.instance().addMapLayer(vector_point_base) # for purposes of testing, comment out when not testing
         return vector_point_base
 
     def pointSampleNative(self, point_layer):
@@ -1011,14 +1075,14 @@ class MsaQgis:
         for field in map_fields:
             if field.name() == 'msa_id':
                 primary_key_string = 'msa_id INT PRIMARY KEY '
-            elif field.type() == QVariant.String or field.type() == QVariant.Char:
+            elif field.type() == QVariant.String or field.type() == QVariant.Char or field.type() == QMetaType.Type.QString or field.type() == QMetaType.Type.QChar:
                 length = str(field.length())
                 current_column_string = f', "{field.name()}" VARCHAR({length}) '
                 columns_string +=current_column_string
-            elif field.type() == QVariant.Int or field.type() == QVariant.LongLong:
+            elif field.type() == QVariant.Int or field.type() == QVariant.LongLong or field.type() == QMetaType.Type.LongLong or field.type() == QMetaType.Type.Int or field.type() == QMetaType.Type.LongLong:
                 current_column_string = f', "{field.name()}" INT '
                 columns_string +=current_column_string
-            elif field.type() == QVariant.Double:
+            elif field.type() == QVariant.Double or field.type() == QMetaType.Type.Double or field.type() == QMetaType.Type.Float:
                 current_column_string = f', "{field.name()}" FLOAT '
                 columns_string +=current_column_string
             else:  # I doubt anyone will be using blobs or anything... and geometry is already stored in a double
@@ -1060,8 +1124,38 @@ class MsaQgis:
         string_vacuum_into = f'VACUUM INTO "{path.join(save_directory,"pointsampled_basemap.sqlite")}";'
         cursor.execute(string_vacuum_into)
         conn.commit()
+        # Also create a .csv version for easier editing
+        cursor.execute(f'SELECT * FROM "Empty_basemap"')
+        with open(path.join(save_directory, 'pointsampled_basemap.csv'), 'w', newline='') as csv_file:
+            csv_writer = csv.writer(csv_file)
+            csv_writer.writerow([i[0] for i in cursor.description])
+            csv_writer.writerows(cursor)
         conn.close()
         QgsMessageLog.logMessage("Convert native qgis points to SQL finished", 'MSA_QGIS', Qgis.Info)
+
+#** PRE RUN CHECKS AND ERROR HANDLING
+    def checkPathExists(self, file_or_dir_name, location_to_find):
+        """ Checks if a file or directory exists """
+        if path.exists(file_or_dir_name):
+            e = None
+            return True, e
+        else:
+            e = FileNotFoundError(f'File or directory {file_or_dir_name} of {location_to_find} does not exist')
+            return False, e
+
+    def gracefulExit(self, exception, conn = None):
+        """ Checks whether any connections are open, files are attached, or dialogs are open, and closes them.
+        Then opens the final dialog along with the error that caused this process to be triggered."""
+        self.errordlg.show()
+        self.errordlg.errorTextEdit.setPlainText(str(exception))
+        QgsMessageLog.logMessage(str(exception), 'MSA_QGIS', Qgis.Critical)
+        if self.errordlg.exec():
+            QgsApplication.messageLog().messageReceived.disconnect(self.writeLogMessage)
+            # TODO make more extensive
+            if conn != None:
+                conn.close()
+            self.errordlg.close()
+
 
 #** MISC
 
@@ -1263,9 +1357,9 @@ class MsaQgis:
     def loadPointMap(self, point_sampled_file, save_directory, file_name = 'pointsampled_basemap.sqlite', point_or_base = 'point'):
         """ Loads a point layer csv file given by the user, checks if it's valid and changes into an SQLite file
         so it can be used further on in the process."""
-        conn= sqlite3.connect(point_sampled_file)
+        conn= sqlite3.connect(path.join(save_directory, file_name))
         cursor= conn.cursor()
-
+        QgsMessageLog.logMessage('Validating .csv point sampled map or basemap file...', 'MSA_QGIS', Qgis.Info)
 
         if point_sampled_file[-4:] == ".csv":
             with open(point_sampled_file, 'r', newline='') as csv_file:
@@ -1312,32 +1406,87 @@ class MsaQgis:
                             QgsMessageLog.logMessage(f'run of MSA_QGIS unsuccesful',
                                                      'MSA_QGIS', Qgis.Critical)
                             return "fail"
-                # else:
-                #     #TODO this is currently not functional as pandas does not work in Linux QGIS and so needs to be turned off
-                #     #TODO replace with pure sqlite3 version
-                #     QgsMessageLog.logMessage(f'Input point-sampled csv file invalid, currently not functional as pandas does not work in Linux QGIS and so needs to be turned off'
-                #                              f'{self.dlg.tableWidget_selected.item(row, 1).text()}',
-                #                              'MSA_QGIS', Qgis.Critical)
-                #     csv_file = read_csv(point_sampled_file)
-                #     csv_file.to_sql('empty_basemap', conn, if_exists='fail', index=False, chunksize=10000)
-                #     string_vacuum_into = f'VACUUM INTO "{path.join(save_directory, file_name)}";'
-                #     cursor.execute(string_vacuum_into)
-                #     conn.close()
-                #     return path.join(save_directory,file_name)
-                else:
-                    pass
 
+                QgsMessageLog.logMessage(f'Input map validated, importing...',
+                                         'MSA_QGIS', Qgis.Info)
+                create_table_string = ('CREATE TABLE IF NOT EXISTS Empty_basemap (msa_id INTEGER, '
+                                       'geom_x REAL, geom_y REAL, veg_com TEXT, chance_to_happen REAL')
+                with open(point_sampled_file, 'r', newline='') as csv_file:
+                    reader = csvreader(csv_file)
+                    header_row = reader.__next__()
+                    number_of_cols = len(header_row)
+                    first_row = reader.__next__()
+                    # check if map is nested
+                    start_col_envvar = 5
+                    if header_row[5] == 'resolution':
+                        create_table_string += ', resolution REAL'
+                        start_col_envvar = 6
+                    for col_name in range(start_col_envvar, len(header_row)):
+                        # determine data type from first row
+                        try:
+                            int(first_row[col_name])
+                            QgsMessageLog.logMessage(f'data type {header_row[col_name]} is int',
+                                                     'MSA_QGIS', Qgis.Info)
+                            create_table_string += f', {header_row[col_name]} INTEGER'
+                        except:
+                            try:
+                                float(first_row[col_name])
+                                QgsMessageLog.logMessage(f'data type {header_row[col_name]} is real',
+                                                     'MSA_QGIS', Qgis.Info)
+                                create_table_string += f', {header_row[col_name]} REAL'
+                            except:
+                                try:
+                                    str(first_row[col_name])
+                                    QgsMessageLog.logMessage(f'data type {header_row[col_name]} is text',
+                                                     'MSA_QGIS', Qgis.Info)
+                                    create_table_string += f', {header_row[col_name]} TEXT'
+                                except:
+                                    QgsMessageLog.logMessage(f'data type {header_row[col_name]} could not be determined',
+                                                             'MSA_QGIS', Qgis.Info)
+                                    return "fail"
+                create_table_string += ')'
+                cursor.execute(create_table_string)
+                with open(point_sampled_file, 'r', newline='') as csv_file:
+                    reader = csvreader(csv_file)
+                    next(reader, None) # skip header row
+                    values_string = ', '.join(['?' for row in range(number_of_cols)])
+                    for row in reader:
+                        insert_string = f'INSERT INTO Empty_basemap VALUES ({values_string})'
+                        cursor.execute(insert_string, row)
+                conn.commit()
+                QgsMessageLog.logMessage("map imported succesfully", 'MSA_QGIS', Qgis.Info)
+                QgsMessageLog.logMessage("assigning nested or non-nested...", 'MSA_QGIS', Qgis.Info)
+                cursor.execute('SELECT DISTINCT resolution FROM Empty_basemap')
+                resolution_values = cursor.fetchall()
+                QgsMessageLog.logMessage(f"{resolution_values}", 'MSA_QGIS', Qgis.Info)
+                if len(resolution_values) == 1:
+                    QgsMessageLog.logMessage("imported map is not nested", 'MSA_QGIS', Qgis.Info)
+                    self.dlg.radioButton_nestedMap.setChecked(False)
+                    self.dlg.radioButton_simpleMap.setChecked(True)
+                    self.dlg.spinBox_resolution.setValue(int(resolution_values[0][0]))
+                    self.dlg.spinBox_resNested.setValue(0)
+                elif len(resolution_values) == 2:
+                    QgsMessageLog.logMessage("imported map is nested", 'MSA_QGIS', Qgis.Info)
+                    self.dlg.radioButton_nestedMap.setChecked(True)
+                    self.dlg.radioButton_simpleMap.setChecked(False)
+                    resolution_values = [resolution_values[0][0], resolution_values[1][0]]
+                    #TODO make resolution suitable for floats.
+                    self.dlg.spinBox_resolution.setValue(int(max(resolution_values)))
+                    self.dlg.spinBox_resNested.setValue(int(min(resolution_values)))
+                else:
+                    QgsMessageLog.logMessage("resolution could not be determined or imported map has variable resolution (capability not yet available, please contact author)", 'MSA_QGIS', Qgis.Info)
+
+                conn.close()
+                return path.join(save_directory,file_name)
 
         else:
-            QgsMessageLog.logMessage(f'Input point sampled file invalid, not a .sqlite file ',
+            QgsMessageLog.logMessage(f'Input point sampled file invalid, not a .csv file ',
                                      'MSA_QGIS', Qgis.Critical)
             QgsMessageLog.logMessage(f'run of MSA_QGIS unsuccesful',
                                      'MSA_QGIS', Qgis.Critical)
             #TODO this error should be moved to UI/dialog to prevent setup of unsuccesful runs.
 
-    def cleanQGIS(self):
-        """Closes tables and maps that are no longer necessary after the point-sampled map has been made"""
-        pass
+
 
 #** RUN METHOD
     def run(self):
@@ -1383,12 +1532,13 @@ class MsaQgis:
             self.first_start = False
             self.dlg = MsaQgisDialog()
             self.succesdlg = MsaQgisSuccesDialog()
+            self.errordlg = MsaQgisErrorDialog()
 
 
         # Show the dialog
         self.dlg.show()
         # Run the dialog event loop
-        result = self.dlg.exec_() #TODO change so that window stays open while running main analysis
+        result = self.dlg.exec_()
         # See if OK was pressed
         if result:
             startTime = time()
@@ -1396,12 +1546,27 @@ class MsaQgis:
             self.crs = QgsProject.instance().crs()
             self.spacing = self.dlg.spinBox_resolution.value()
             save_directory = self.dlg.save_directory
+            rscript_path = self.dlg.mQgsFileWidget_rInstallation.filePath() # only relevant for LS #TODO automatic detection of R installation
 
             # Start printing log messages to file
             QgsApplication.messageLog().messageReceived.connect(self.writeLogMessage)
 
             QgsMessageLog.logMessage("MSA_QGIS started", 'MSA_QGIS',
                                      Qgis.Info)
+
+### Pre-run checks # TODO expand (a lot)
+            QgsMessageLog.logMessage("Running pre-modelling checks...", 'MSA_QGIS',
+                                     Qgis.Info)
+            # check if rscript location has been given and the file exists.
+            if self.dlg.comboBox_dispModel.currentText() == "LS unstable model LOESS":
+                status, e = self.checkPathExists(rscript_path, "Rscript")
+                if status == False:
+                    self.gracefulExit(e)
+                    return
+
+            QgsMessageLog.logMessage("pre-modelling checks completed", 'MSA_QGIS',
+                                     Qgis.Info)
+
 ### point map and point sample (make or load)
             # MAKE point layer
             if self.dlg.radioButton_createMap.isChecked():
@@ -1421,8 +1586,7 @@ class MsaQgis:
                                              Qgis.Warning)
                     QgsMessageLog.logMessage(str(formatted_exception), 'MSA_QGIS', Qgis.Critical)
                     return
-                    #message = 'Point sampling failed'
-                    #self.dlg.runAbortedPopup(message, e) #not yet functional
+
             if self.dlg.run_type < 1:
                 QgsMessageLog.logMessage(
                     f'Total execution time in seconds: {time() - startTime}', 'MSA_QGIS', Qgis.Info)
@@ -1447,22 +1611,23 @@ class MsaQgis:
                     #can be opened directly, and passed on to the subprocess
                 elif file_name[-4:] == ".csv":
                     #needs to be converted to .sqlite file first
-                    table_name = "Empty_basemap"
                     file_name = self.loadPointMap(file_name, save_directory, 'temp_pointmap.sqlite')
                     if file_name == "fail":
+                        QgsMessageLog.logMessage("Filename csv failed", 'MSA_QGIS', Qgis.Critical)
+
                         return
             elif self.dlg.radioButton_loadBaseMap.isChecked():
                 file_name = self.dlg.mQgsFileWidget_startingPoint.filePath()
                 table_name = "Basemap"
                 if file_name[-7:] == ".sqlite":
-                    pass
-                    #can be opened directly, and passed on to the subprocess
+                    pass #can be opened directly, and passed on to the subprocess
                 elif file_name[-4:] == ".csv":
                     file_name = self.loadPointMap(file_name, save_directory, 'temp_basemap.sqlite')
                     if file_name == "fail":
+                        QgsMessageLog.logMessage("Error, loading point map failed, quitting run", 'MSA_QGIS', Qgis.Info)
                         return
                 else:
-                    QgsMessageLog.logMessage("Error, basemap not of type .sqlite", 'MSA_QGIS', Qgis.Info)
+                    QgsMessageLog.logMessage("Error, basemap not of correct file type (.csv or .sqlite), quitting run", 'MSA_QGIS', Qgis.Info)
                     return
             #attach recently created map and create relevant tables
             cursor.execute(f'ATTACH DATABASE "{file_name}" AS "copy"')
@@ -1479,12 +1644,18 @@ class MsaQgis:
 
             self.createSiteTables(conn, cursor, "basemap")
             self.createTaxonTables(conn, cursor)
-            self.createTableDistanceToSite(conn, cursor, "basemap")
+            try: run_distance_to_site = self.createTableDistanceToSite(conn, cursor, "basemap")
+            except Exception as e:
+                QgsMessageLog.logMessage(f"Code failure in createTableDistanceToSite, quitting run: {e}", 'MSA_QGIS', Qgis.Critical)
+                return
+            if run_distance_to_site == False:
+                QgsMessageLog.logMessage(f"Failure to run in createTableDistanceToSite, likely due to input issues, quitting run", 'MSA_QGIS', Qgis.Critical)
+                return
             self.createTableOfMaps(conn, cursor)
             self.createTablePseudoPoints(conn, cursor, "basemap")
             if self.dlg.checkBox_enableWindrose.isChecked():
                 self.createTableWindrose(conn, cursor)
-            self.createTablePollenLookupBasin(conn, cursor)
+            self.createTablePollenLookupBasin(conn, cursor,save_directory, rscript_path)
             self.createTableCombinedPollen(conn,cursor)
 
             n_of_sites = self.dlg.tableWidget_sites.rowCount()
@@ -1541,7 +1712,6 @@ class MsaQgis:
             #
             # subprocess_output, subprocess_error = running_msa.communicate()
             # QgsMessageLog.logMessage(f'output = {subprocess_output} \n error = {subprocess_error}', 'MSA_QGIS', Qgis.Info)
-
             with Popen(["python3","-u", file_to_run], stdout= PIPE, stdin=PIPE, stderr=STDOUT, text= True, bufsize =1) as running_msa:
                 running_msa.stdin.write(f"{save_directory}\n{from_basemap}\n{run_type}\n{number_of_iters}\n{self.spacing}\n"
                           f"{self.dlg.checkBox_enableWindrose.isChecked()}\n{self.dlg.doubleSpinBox_fit.value()}\n"

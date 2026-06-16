@@ -24,7 +24,7 @@
       </font>
      </property>
      <property name="text">
-      <string>MSA-QGIS has finished running succesfully. </string>
+      <string>MSA-Q has finished running succesfully. </string>
      </property>
     </widget>
    </item>
