@@ -6,7 +6,7 @@
 name=MSA QGIS
 qgisMinimumVersion=3.22
 description=This plugin allows the use of the Multiple Scenario Approach in QGIS
-version=0.1.5
+version=0.1.6
 author=Thya van den Berg
 email=t.vandenberg@cultureelerfgoed.nl
 
