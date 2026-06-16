@@ -2,8 +2,8 @@
 args <- commandArgs(trailingOnly = TRUE)
 save_directory <- (args[[1]])
 file_name_data <- args[[2]]
-file_name_fallspeed <- paste0(save_directory, "\\temp_fallspeeds.csv")
-file_name_lookup <- paste0(save_directory, "\\temp_PollenLookup.csv")
+file_name_fallspeed <- file.path(save_directory, "temp_fallspeeds.csv")
+file_name_lookup <- file.path(save_directory, "temp_PollenLookup.csv")
 
 # import data
 load(file_name_data)
@@ -18,5 +18,5 @@ for (taxon in 1:nrow(lookup_fallspeed)){
   pollen_lookup <-  ring_conversion_factor * pollen_lookup_ring
   lookup_pollen[[paste0(lookup_fallspeed$taxon[taxon],"_DW")]]<- pollen_lookup
 } 
-write.csv(lookup_pollen, paste0(save_directory, "\\temp_PollenLookup2.csv"), row.names = FALSE)
+write.csv(lookup_pollen, file.path(save_directory, "temp_PollenLookup2.csv"), row.names = FALSE)
 
