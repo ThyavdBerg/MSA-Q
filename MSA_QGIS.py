@@ -35,6 +35,7 @@ from pickle import dump as pickledump
 from time import time, strftime, localtime
 import sqlite3
 import sys
+import shutil
 from os import remove, path
 from math import sqrt
 #from pandas import read_csv #TODO this is currently not functional as pandas does not work in Linus QGIS and so needs to be turned off
@@ -1534,6 +1535,10 @@ class MsaQgis:
             self.succesdlg = MsaQgisSuccesDialog()
             self.errordlg = MsaQgisErrorDialog()
 
+        # Fill dialog field if file path can be detected
+        r_path = shutil.which("Rscript")
+        if r_path is not None:
+            self.dlg.mQgsFileWidget_rInstallation.setFilePath(r_path)
 
         # Show the dialog
         self.dlg.show()
