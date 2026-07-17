@@ -2,3 +2,9 @@
   link: /
 - name: About
   link: /about.md
+- name: Go to Github
+  link: https://github.com/ThyavdBerg/MSA-Q/tree/main
+- name: Go to releases
+  link: https://github.com/ThyavdBerg/MSA-Q/releases/tag/v0_1_1
+- name: Go to related thesis
+  link: https://hull-repository.worktribe.com/index.php/output/5563600/refining-reconstruction-discovering-the-capabilities-and-limitations-of-pollen-analysis-using-the-multiple-scenario-approach
