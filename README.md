@@ -1,4 +1,9 @@
+## Documentation (in progress) can be found [here](https://thyavdberg.github.io/MSA-Q/)
+
+
 The current release (0.1.0) has been tested in comparison to HUMPOL_0 and in a single case study; It is suitable for use, but bugs and unexpected behaviours may exist and several planned features are not yet implemented. Issue reports, contributions and suggestions are very welcome.
+
+
 # MSA in QGIS (MSA-Q)
 This is a plugin that adds the Multiple Scenario Approach to landcover reconstruction using pollen to QGIS.
 
@@ -31,19 +36,21 @@ Download this entire branch of the repository as a zip file. DO NOT UNZIP IT. Un
 plugins in QGIS the plugin can then be installed from ZIP. 
 
 ### Manual
-A more extensive manual is available in the "relevant info" folder.
+* A more extensive manual is available in the "relevant info" folder.
+* Documentation (in progress) can be found [here](https://thyavdberg.github.io/MSA-Q/)
 
 ## Read more about the MSA
 ### Papers
 - [Bunting & Middleton, 2005. Modelling pollen dispersal and deposition using HUMPOL software including simulating windroses and irregular lakes](https://doi.org/10.1016/j.revpalbo.2004.12.009)
 - [Bunting & Middleton, 2009. Equifinality and uncertainty in the interpretation of pollen data The MSA to reconstruction of past vegetation mosaics](https://doi.org/10.1177/0959683609105304)
-- Van den Berg, 2025. Refining Reconstruction: Discovering the capabilities and limitations of pollen analysis using the Multiple Scenario Approach
+- [Van den Berg, 2025. Refining Reconstruction: Discovering the capabilities and limitations of pollen analysis using the Multiple Scenario Approach](https://hull-repository.worktribe.com/index.php/output/5563600/refining-reconstruction-discovering-the-capabilities-and-limitations-of-pollen-analysis-using-the-multiple-scenario-approach)
 
 ### Websites
 
-### Contributors
+### Main contributors
 - Thya W.B. van den Berg, University of Hull
 - M. Jane Bunting, University of Hull
 
 ## Requirements
 - QGIS 3.22 or more recent versions of QGIS 3.xx
+- Not yet operational for QGIS 4
