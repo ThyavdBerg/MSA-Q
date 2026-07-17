@@ -862,7 +862,7 @@ class MsaQgis:
                     vector_point_base.changeAttributeValue(feat.id(), 5, self.dlg.spinBox_resNested.value())
             vector_point_base.removeSelection()
 
-        QgsProject.instance().removeMapLayer(nesting_overlay_dissolved) #TODO temporarily necessary to feal with issues with native:difference
+            QgsProject.instance().removeMapLayer(nesting_overlay_dissolved) #TODO temporarily necessary to deal with issues with native:difference
 
         runqgisprocess("native:createspatialindex", {'INPUT': vector_point_base})
         QgsMessageLog.logMessage("All points created", 'MSA_QGIS', Qgis.Info)
