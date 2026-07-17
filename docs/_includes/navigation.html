@@ -1,0 +1,10 @@
+<nav>
+    {% for item in site.data.navigation %}
+    <a href="{{ item.link }}" {% if page.url == item.link %}style="color: grey;"{% endif %}>
+      {{ item.name }}
+    </a>
+  {% endfor %}
+    <a href="https://github.com/ThyavdBerg/MSA-Q">Go to Github</a>
+    <a href="https://github.com/ThyavdBerg/MSA-Q/releases">See releases</a>
+    <a href="https://hull-repository.worktribe.com/index.php/output/5563600/refining-reconstruction-discovering-the-capabilities-and-limitations-of-pollen-analysis-using-the-multiple-scenario-approach">Go to thesis publication</a>
+</nav>
