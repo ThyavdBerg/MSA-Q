@@ -1,7 +1,3 @@
-layout: page
-title: "MSA-Q Introduction"
-permalink:/introduction/
-
 # Introduction
 
 MSA-Q is a plugin for QGIS3 that allows the use of the Multiple Scenario Approach using the QGIS interface
