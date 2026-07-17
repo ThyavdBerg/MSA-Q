@@ -1,6 +1,3 @@
 theme: jekyll-theme-minimal
 title: MSA-Q documentation
 description: read before you model!
-baseurl:"/docs"
-githubbranch: main
-githuburl: "https://github.com/ThyavdBerg/MSA-Q/tree/main/docs"
