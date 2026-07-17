@@ -1,3 +1,4 @@
 theme: jekyll-theme-minimal
 title: MSA-Q documentation
 description: read before you model!
+show_dir_listing: TRUE
