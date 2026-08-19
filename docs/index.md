@@ -13,4 +13,15 @@ pollen-based landcover reconstruction in QGIS.
 ## Index
 
 [Introduction](introduction.md)
+
+[Prior knowledge](prior_knowledge.md)
+
+    
+Information about the MSA
+
+
+Information about the plugin
+
+
 [About](about.md)
+

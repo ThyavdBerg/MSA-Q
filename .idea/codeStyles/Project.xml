@@ -1,0 +1,16 @@
+<component name="ProjectCodeStyleConfiguration">
+  <code_scheme name="Project" version="173">
+    <option name="AUTODETECT_INDENTS" value="false" />
+    <Markdown>
+      <option name="INSERT_QUOTE_ARROWS_ON_WRAP" value="false" />
+      <option name="FORMAT_TABLES" value="false" />
+    </Markdown>
+    <codeStyleSettings language="Markdown">
+      <option name="RIGHT_MARGIN" value="120" />
+      <option name="WRAP_ON_TYPING" value="1" />
+      <indentOptions>
+        <option name="USE_TAB_CHARACTER" value="true" />
+      </indentOptions>
+    </codeStyleSettings>
+  </code_scheme>
+</component>
