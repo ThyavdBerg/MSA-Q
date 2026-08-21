@@ -1,0 +1,9 @@
+# where the gems are downloaded from
+source "https://rubygems.org"
+
+# gems
+gem "jekyll"
+gem "just-the-docs"
+gem 'wdm', '>= 0.1.0'
+
+# plugins

@@ -1,4 +1,16 @@
-theme: jekyll-theme-dinky
-title: MSA-Q documentation
-description: read before you model!
+# Welcome to Jekyll!
+
+title: MSA-Q docs
+email:
+description: "Documentation for MSA-Q: A plugin that allows the use of the Multiple Scenario Approach through QGIS"
+domain: thyavdberg.github.io
+baseurl: /docs # the subpath of your site, e.g. /blog
+url: thyavdberg.github.io/MSA-Q/ # the base hostname & protocol for your site, e.g. http://example.com
+github_username:  ThyavdBerg
+
+# Build settings
+theme: just-the-docs
+sass:
+  quiet_deps: true # https://github.com/just-the-docs/just-the-docs/issues/1541
+  silence_deprecations: ['import'] # https://github.com/just-the-docs/just-the-docs/issues/1607
 
