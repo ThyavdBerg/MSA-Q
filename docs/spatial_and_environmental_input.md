@@ -5,7 +5,7 @@ title: The spatial and environmental input tab
 
 # The Spatial and Environmental input tab
 
-![spatial and environmental input tab](.\_images\spatial_and_environmental_input_tab.png)
+![spatial and environmental input tab](assets/images/spatial_and_environmental_input_tab.png)
 
 ## Starting point
 ### Create a map from scratch

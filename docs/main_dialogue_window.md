@@ -5,13 +5,13 @@ title: Main dialogue window
 
 # Main dialogue window
 
-![main dialogue window](./_images/main_dialogue_window.png)
+![main dialogue window](assets/images/main_dialogue_window.png)
 
 ## Tabs
 For clarity, all of the input you need to give to run the model is subdivided into tabs. These all have their own 
 documentation pages.
 
-### [Spatial and environmental input tab](spatial_and_environmental_input.md)
+### [Spatial and environmental input tab](spatial_and_environmental_input.html)
 
 ### Vegetation input tab
 
