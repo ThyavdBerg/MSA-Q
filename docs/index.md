@@ -11,45 +11,48 @@ title: Home
 Welcome to the documentation for MSA-Q, a plugin that enables you to use the Multiple Scenario Approach for 
 pollen-based landcover reconstruction in QGIS.
 
+NOTE THAT THE DOCUMENTATION IS CURRENTLY A WORK IN PROGRESS AND IS NOT YET COMPLETE
 
 
-## Index
+# Index
 
-[Quick guide](quick_guide.html)
+### General
 
-### Introduction
+#### [Quick guide](quick_guide.html)
 
-[Introduction](introduction.html)
+#### [Introduction](introduction.html)
 
-[Required knowledge](prior_knowledge.html)
+#### [Required knowledge](prior_knowledge.html)
 
-[About](about.html)
+#### [About](about.html)
 
-[Contact](contact.html)
+#### [Contact](contact.html)
 
     
-### Information about the MSA
+## Information about the MSA
 
 
 
-### Information about the plugin
+## Information about the plugin
 
-#### Getting started
+### Getting started
 
-[Installation](installation.html)
+#### [Installation](installation.html)
 
-[Before opening the plugin](before_opening_the_plugin.html)
+#### [Before opening the plugin](before_opening_the_plugin.html)
 
-#### The plugin interface and input
+### The plugin interface and input
 
-[Main dialogue window](main_dialogue_window.html)
+#### [Main dialogue window](main_dialogue_window.html)
 
-[The Spatial and Environmental input tab](spatial_and_environmental_input.html)
+#### [The Spatial and Environmental input tab](spatial_and_environmental_input.html)
+
+#### [Vegetation input tab](vegetation_input.html)
 
 
-#### The save files
+### The save files
 
-#### The output
+### The output
 
 
 
