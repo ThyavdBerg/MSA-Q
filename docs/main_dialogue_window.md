@@ -13,7 +13,7 @@ documentation pages.
 
 ### [Spatial and environmental input tab](spatial_and_environmental_input.html)
 
-### Vegetation input tab
+### [Vegetation input tab](vegetation_input.html)
 
 ### Rules tab
 

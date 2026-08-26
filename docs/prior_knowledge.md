@@ -1,6 +1,6 @@
 ---
 layout: default
-title: Prior_knowledge
+title: Prior knowledge
 ---
 
 # Prior knowledge
