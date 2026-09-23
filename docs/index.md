@@ -3,7 +3,7 @@
 # To modify the layout, see https://jekyllrb.com/docs/themes/#overriding-theme-defaults
 
 layout: home
-title: Home
+title: Home and Index
 ---
 
 # Documentation for MSA-Q v 0_1_7
@@ -16,7 +16,7 @@ NOTE THAT THE DOCUMENTATION IS CURRENTLY A WORK IN PROGRESS AND IS NOT YET COMPL
 
 # Index
 
-### General
+## General
 
 #### [Quick guide](quick_guide.html)
 
@@ -30,6 +30,10 @@ NOTE THAT THE DOCUMENTATION IS CURRENTLY A WORK IN PROGRESS AND IS NOT YET COMPL
 
     
 ## Information about the MSA
+
+#### [MSA and MSA-Q specific terminology](terminology.html)
+
+#### [Scientific literature](literature.html)
 
 
 
@@ -49,6 +53,11 @@ NOTE THAT THE DOCUMENTATION IS CURRENTLY A WORK IN PROGRESS AND IS NOT YET COMPL
 
 #### [Vegetation input tab](vegetation_input.html)
 
+#### [Rules input tab](rules.html)
+
+#### [Rule tree input tab](rule_tree_input_tab.html)
+
+#### [Pollen input tab](pollen_input_tab.html)
 
 ### The save files
 
