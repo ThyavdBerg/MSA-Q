@@ -16,14 +16,9 @@ Click "add sampling site" to open a pop-up where a sampling location can be adde
 ![add sampling site](assets/images/add_sampling_site_popup.png)
 
 ## Pollen percentage file paths
-Once a sampling site has been added, you can click "Import pollen Percentage File" to import your pollen percentages. A pop-up will open where you can select your site from a dropdown based on the sites given in [sample sites](#sample-sites) and then link to the file with the explorer. The only currently accepted format is a csv spreadsheet that follows the Tilia format. This action needs to be repeated for each site, even if the information is in the same spreadsheet.
+Once a sampling site has been added, you can click "Import pollen Percentage File" to import your pollen percentages. A pop-up will open where you can select your site from a dropdown based on the sites given in [sample sites](#sample-sites) and then link to the file with the explorer. The only currently accepted format is a csv spreadsheet that follows the Tilia format. This action needs to be repeated for each site, even if the information is in the same spreadsheet. See [input files](input_files.html#pollen-percentages) for the correct configuration of the pollen percentage file.
 
 ![add pollen percentages pop-up](assets/images/add_pollen_percentages_popup.png)
-
-The file should first have one row with only the first column filled with some kind of indication of the type of file (for example: "pollen samples"). The second row should contain the column names, in order: "Code", "Name", "element", "units", "group", followed by the site names, which should match exactly with the site names given in [sample sites](#sample-sites).
-The column "code" should then be filled with the taxon names, which should match exactly with the taxon names as given in [taxa](vegetation_input.html#taxa). The other Tilia columns are optional. The columns with your site names should then be filled with the pollen percentages (not counts or proportions), and should sum to a 100 (if any pollen types were removed from the reconstruction, make sure to recalculate your percentages to sum to 100).
-
-![a correctly set up pollen percentages spreadsheet in Excel](assets/images/setup_pollen_percentages_file.png)
 
 The file path is absolute, not relative, and so if the file is shared with someone on another computer, it will need to be reconfigured. When loading an existing MSA-Q save file, if the pollen percentage file is not found the given path, the user is prompted to enter new paths.
 

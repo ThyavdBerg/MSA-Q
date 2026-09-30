@@ -45,7 +45,7 @@ NOTE THAT THE DOCUMENTATION IS CURRENTLY A WORK IN PROGRESS AND IS NOT YET COMPL
 
 #### [Before opening the plugin](before_opening_the_plugin.html)
 
-### The plugin interface and input
+### The plugin interface
 
 #### [Main dialogue window](main_dialogue_window.html)
 
@@ -53,15 +53,36 @@ NOTE THAT THE DOCUMENTATION IS CURRENTLY A WORK IN PROGRESS AND IS NOT YET COMPL
 
 #### [Vegetation input tab](vegetation_input.html)
 
-#### [Rules input tab](rules.html)
+#### [Rules input tab](rules_input_tab.html)
 
 #### [Rule tree input tab](rule_tree_input_tab.html)
 
 #### [Pollen input tab](pollen_input_tab.html)
 
-### The save files
+#### [Model parameters input tab](model_parameters_input_tab.html)
 
-### The output
+#### [Metadata input tab](metadata_input_tab.html)
+
+### Input, output and save files
+
+#### [save files](save_files.html)
+
+#### [input files](input_files.html)
+
+#### [Output files](output_files.html)
+
+### Running MSA-Q
+
+#### Point-sampled map
+
+#### Basemap
+
+#### MSA "though experiment"
+
+#### MSA full reconstruction
+
+### Opening the black box - some notes on how MSA-Q functions
+
 
 
 
