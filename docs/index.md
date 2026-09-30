@@ -18,22 +18,22 @@ NOTE THAT THE DOCUMENTATION IS CURRENTLY A WORK IN PROGRESS AND IS NOT YET COMPL
 
 ## General
 
-#### [Quick guide](quick_guide.html)
+* #### [Quick guide](quick_guide.html)
 
-#### [Introduction](introduction.html)
+* #### [Introduction](introduction.html)
 
-#### [Required knowledge](prior_knowledge.html)
+* #### [Required knowledge](prior_knowledge.html)
 
-#### [About](about.html)
+* #### [About](about.html)
 
-#### [Contact](contact.html)
+* #### [Contact](contact.html)
 
     
 ## Information about the MSA
 
-#### [MSA and MSA-Q specific terminology](terminology.html)
+* #### [MSA and MSA-Q specific terminology](terminology.html)
 
-#### [Scientific literature](literature.html)
+* #### [Scientific literature](literature.html)
 
 
 
@@ -41,47 +41,47 @@ NOTE THAT THE DOCUMENTATION IS CURRENTLY A WORK IN PROGRESS AND IS NOT YET COMPL
 
 ### Getting started
 
-#### [Installation](installation.html)
+* #### [Installation](installation.html)
 
-#### [Before opening the plugin](before_opening_the_plugin.html)
+* #### [Before opening the plugin](before_opening_the_plugin.html)
 
 ### The plugin interface
 
-#### [Main dialogue window](main_dialogue_window.html)
+* #### [Main dialogue window](main_dialogue_window.html)
 
-#### [The Spatial and Environmental input tab](spatial_and_environmental_input.html)
+* #### [The Spatial and Environmental input tab](spatial_and_environmental_input.html)
 
-#### [Vegetation input tab](vegetation_input.html)
+* #### [Vegetation input tab](vegetation_input.html)
 
-#### [Rules input tab](rules_input_tab.html)
+* #### [Rules input tab](rules_input_tab.html)
 
-#### [Rule tree input tab](rule_tree_input_tab.html)
+* #### [Rule tree input tab](rule_tree_input_tab.html)
 
-#### [Pollen input tab](pollen_input_tab.html)
+* #### [Pollen input tab](pollen_input_tab.html)
 
-#### [Model parameters input tab](model_parameters_input_tab.html)
+* #### [Model parameters input tab](model_parameters_input_tab.html)
 
-#### [Metadata input tab](metadata_input_tab.html)
+* #### [Metadata input tab](metadata_input_tab.html)
 
 ### Input, output and save files
 
-#### [save files](save_files.html)
+* #### [save files](save_files.html)
 
-#### [input files](input_files.html)
+* #### [input files](input_files.html)
 
-#### [Output files](output_files.html)
+* #### [Output files](output_files.html)
 
 ### Running MSA-Q
 
-#### Point-sampled map
+* #### Point-sampled map
 
-#### Basemap
+* #### Basemap
 
-#### MSA "though experiment"
+* #### MSA "though experiment"
 
-#### MSA full reconstruction
+* #### MSA full reconstruction
 
-### Opening the black box - some notes on how MSA-Q functions
+### [Opening the black box - some notes on how MSA-Q functions](opening_the_black_box.html)
 
 
 
