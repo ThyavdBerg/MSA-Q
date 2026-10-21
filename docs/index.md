@@ -14,7 +14,7 @@ pollen-based landcover reconstruction in QGIS.
 NOTE THAT THE DOCUMENTATION IS CURRENTLY A WORK IN PROGRESS AND IS NOT YET COMPLETE
 
 
-# Index
+# Table of contents
 
 ## General
 
@@ -34,8 +34,6 @@ NOTE THAT THE DOCUMENTATION IS CURRENTLY A WORK IN PROGRESS AND IS NOT YET COMPL
 * #### [MSA and MSA-Q specific terminology](terminology.html)
 
 * #### [Scientific literature](literature.html)
-
-
 
 ## Information about the plugin
 
@@ -65,23 +63,29 @@ NOTE THAT THE DOCUMENTATION IS CURRENTLY A WORK IN PROGRESS AND IS NOT YET COMPL
 
 ### Input, output and save files
 
-* #### [save files](save_files.html)
+* #### [Save files](save_files.html)
 
-* #### [input files](input_files.html)
+* #### [Input files](input_files.html)
 
 * #### [Output files](output_files.html)
 
-### Running MSA-Q
+### [Running MSA-Q](run_types.html)
 
-* #### Point-sampled map
+* #### [Point-sampled map](run_types.html#create-map-with-point-sampled-environmental-variables)
 
-* #### Basemap
+* #### [Basemap](run_types.html#create-basemap-with-only-base-rules-from-the-rule-tree)
 
-* #### MSA "though experiment"
+* #### [MSA "thought experiment"](run_types.html#run-msa-thought-experiment-without-fit)
 
-* #### MSA full reconstruction
+* #### [MSA full reconstruction](run_types.md#run-msa-reconstruction-with-fit)
 
-### [Opening the black box - some notes on how MSA-Q functions](opening_the_black_box.html)
+* #### [Notes on post-processing]
+
+### Under the hood
+
+* #### [Opening the black box - some notes on how MSA-Q functions](opening_the_black_box.html)
+
+
 
 
 

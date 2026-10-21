@@ -3,7 +3,6 @@ layout: default
 title: Opening the black box
 ---
 
-THIS PAGE IS A WORK IN PROGRESS
 
 # Opening the black box - some notes on how MSA-Q functions
 
@@ -15,6 +14,8 @@ Sampling site coördinates are given by the user, however due to some quirks in 
 In order to avoid this, the sampling site is moved to the location of the nearest vector point of the vegetation map. This vector point is split into 4 "pseudo points", which all get assigned the same vegetation community as the original vector point, and only for the purpose of determining the pollen loadings for that sampling site, not any other sampling sites.
 
 This means that the maximum distance a sampling site location is changed from its given coordinates is dependent on the [resolution](spatial_and_environmental_input.html) of the model setup. 
+
+The locations of the pseudopoints can be found in the [MSA_output.sqlite output file](output_files.md#pseudo_points).
 
 
 ![sampling site snapping](assets/images/grid_snapping_HUMPOLvsMSA-Q.png)
